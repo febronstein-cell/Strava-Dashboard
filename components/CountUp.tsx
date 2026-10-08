@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { siteConfig } from "@/site.config";
+import { useI18n } from "@/lib/i18n";
 
 /**
- * Número que "sobe" de 0 até o valor quando aparece na tela.
- * O valor final fica num <span> invisível (sr-only) para leitores de tela e buscadores.
+ * A number that "climbs" from 0 to its value when it appears on screen.
+ * The final value sits in an invisible (sr-only) span for screen readers and search engines.
  */
 export function CountUp({
   value,
@@ -18,13 +18,10 @@ export function CountUp({
   duration?: number;
   className?: string;
 }) {
+  const { locale } = useI18n();
   const fmt = useMemo(
-    () =>
-      new Intl.NumberFormat(siteConfig.locale, {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      }),
-    [decimals],
+    () => new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
+    [locale, decimals],
   );
   const ref = useRef<HTMLSpanElement>(null);
   const [shown, setShown] = useState(0);

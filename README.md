@@ -112,3 +112,22 @@ scripts/                  ← strava-auth.mjs (autorização única), copy-mapli
 - Efeitos: abertura animada (só na 1ª visita da sessão) e barra de progresso na base da tela com mini atleta (desligados com "reduzir movimento" do sistema).
 - "Melhor ritmo" exige distância mínima por modalidade (`rules.minDistanceForBestPace`).
 - O rodapé mantém "Powered by Strava" e os créditos de mapa, por exigência dos provedores.
+
+## Idioma (English / Português)
+
+O site abre em **inglês** e tem o botão **EN | PT** no topo (a escolha fica salva no navegador). Todos os textos estão escritos em inglês no código; as traduções para português ficam em `lib/i18n/pt.ts`, indexadas pelo texto em inglês (o que não tiver tradução aparece em inglês). Para trocar o idioma inicial, use `defaultLang` no `site.config.ts`.
+
+## Regras de tempo
+
+- **Volumes e totais** (horas por semana/mês/ano, totais do topo, heatmap, divisão por esporte) usam o **tempo decorrido** (do início ao fim, com paradas).
+- **Ritmo, velocidade, frequência cardíaca, cadência** e a visão de uma atividade usam o **tempo em movimento**.
+- O volume inclui **todos os esportes** (natação, bike, corrida, força e outros, como caminhada); os outros esportes com GPS também aparecem no mapa.
+- Período: um ano, tudo, **últimas 12 semanas** ou **personalizado** (duas datas), no topo da página.
+
+## Potências notáveis (curva de potência da bike)
+
+A curva (melhor potência média de 5 s até 3 h, incluindo rolo e Zwift) vem de `data/records.json`, gerado por um script local, porque o Strava só entrega a série de potência um pedal por vez.
+
+1. O Strava só devolve a série de potência para apps com a permissão `activity:read_all`. Autorize uma vez, no seu computador: `node scripts/strava-auth.mjs --all`. As atividades privadas continuam escondidas do site.
+2. Copie o novo `STRAVA_REFRESH_TOKEN` (já gravado no `.env.local`) para a Vercel e faça Redeploy.
+3. Rode `npm run strava:records` (use `npm.cmd` no PowerShell). O script respeita o limite do Strava (pausa sozinho, pode ser interrompido e retomado) e salva o progresso em `data/records-cache.json`. Depois faça commit de `data/` e `git push`.

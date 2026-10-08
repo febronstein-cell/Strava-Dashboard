@@ -10,7 +10,8 @@
     "strava:auth": "node scripts/strava-auth.mjs",
     "predev": "node scripts/copy-maplibre-worker.mjs",
     "prebuild": "node scripts/copy-maplibre-worker.mjs",
-    "strava:webhook": "node --env-file=.env.local scripts/strava-webhook.mjs"
+    "strava:webhook": "node --env-file=.env.local scripts/strava-webhook.mjs",
+    "strava:records": "node --env-file=.env.local scripts/strava-records.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^6.13.0",

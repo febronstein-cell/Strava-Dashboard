@@ -4,13 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ALL_SPORTS, siteConfig, TRI_SPORTS, type SportKey } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import type { WeatherSummary } from "@/lib/strava/weather-summary";
-import {
-  annualTotals,
-  distanceDistribution,
-  hourHistogram,
-  paceValues,
-  weekdayAverages,
-} from "@/lib/stats";
+import { useI18n } from "@/lib/i18n";
+import { usePeriodLabel } from "@/lib/i18n/period";
+import { annualTotals, distanceDistribution, hourHistogram, paceValues, weekdayAverages } from "@/lib/stats";
 import { clock } from "@/lib/format";
 import { CONDITIONS, TEMP_BANDS } from "@/lib/weather";
 import { BarChart, type BarItem } from "@/components/BarChart";
@@ -25,16 +21,15 @@ import { SectionShell } from "@/components/SectionShell";
 type Filter = "all" | SportKey;
 type Units = "metric" | "imperial";
 
-const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MI = 1609.344;
-const nf = (d: number) => new Intl.NumberFormat(siteConfig.locale, { maximumFractionDigits: d });
 const pct = (arr: number[], p: number) => {
   const s = [...arr].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor(p * s.length))];
 };
 
-/** Escala do gráfico de ritmo conforme a modalidade. */
-function paceView(sport: SportKey, values: number[]) {
+/** Scale of the pace chart for each sport. */
+function paceView(sport: SportKey, values: number[], num: (v: number, d?: number) => string) {
   const secs = sport !== "ride";
   const lo0 = pct(values, 0.01);
   const hi0 = pct(values, 0.99);
@@ -47,13 +42,15 @@ function paceView(sport: SportKey, values: number[]) {
     domain: [lo, hi] as [number, number],
     ticks,
     bandwidth: sport === "run" ? 9 : sport === "swim" ? 4 : 1.3,
-    reverse: secs, // menos segundos = mais rápido, vai para a direita
-    format: (x: number) => (secs ? clock(x) : nf(0).format(x)),
+    reverse: secs, // fewer seconds = faster, goes to the right
+    format: (x: number) => (secs ? clock(x) : num(x, 0)),
     unit: sport === "run" ? "/km" : sport === "swim" ? "/100m" : "km/h",
   };
 }
 
 export function Stats({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt } = useI18n();
+  const periodLabel = usePeriodLabel(ctx);
   const [filter, setFilter] = useState<Filter>("all");
   const [units, setUnits] = useState<Units>("metric");
   const [more, setMore] = useState(false);
@@ -61,14 +58,14 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
   const [weatherFailed, setWeatherFailed] = useState(false);
 
   const sports: SportKey[] = filter === "all" ? TRI_SPORTS : [filter];
-  const focus: SportKey = filter === "all" ? "run" : filter; // gráficos de uma modalidade só
-  const focusLabel = siteConfig.sports[focus].label.toLowerCase();
-  const byTime = filter === "strength"; // força não tem distância
+  const focus: SportKey = filter === "all" || filter === "other" ? "run" : filter; // single-sport charts
+  const focusLabel = t(siteConfig.sports[focus].label).toLowerCase();
+  const byTime = filter === "strength" || filter === "other"; // no distance: show hours
   const dist = (m: number) => (units === "metric" ? m / 1000 : m / MI);
   const unit = units === "metric" ? "km" : "mi";
   const color = (s: SportKey) => `var(--${s})`;
 
-  // clima: busca só quando o usuário abre "mais gráficos"
+  // weather: only fetched when the user opens "more charts"
   useEffect(() => {
     if (!more || weather || weatherFailed) return;
     let alive = true;
@@ -81,12 +78,13 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
     };
   }, [more, weather, weatherFailed]);
 
+  // yearly totals: distance, or ELAPSED hours for sports without distance
   const annual = useMemo<BarItem[]>(
     () =>
       annualTotals(ctx.all, ctx.firstYear, ctx.currentYear).map((y) => ({
         key: String(y.year),
         label: String(y.year),
-        segments: sports.map((s) => ({
+        segments: (byTime ? [filter as SportKey] : sports).map((s) => ({
           name: s,
           value: byTime ? y.secs[s] / 3600 : dist(y.dist[s]),
           color: color(s),
@@ -109,9 +107,9 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
   const bins = useMemo(() => distanceDistribution(ctx.acts, focus), [ctx.acts, focus]);
   const paces = useMemo(() => paceValues(ctx.acts, focus), [ctx.acts, focus]);
-  const view = useMemo(() => (paces.length >= 3 ? paceView(focus, paces) : null), [paces, focus]);
+  const view = useMemo(() => (paces.length >= 3 ? paceView(focus, paces, fmt.num) : null), [paces, focus, fmt.num]);
 
-  // ar livre × fechado, separado por modalidade (não depende do filtro de cima)
+  // outdoor × indoor, one chart per sport (does not depend on the filter above)
   const splitOf = (sport: SportKey) => {
     const list = ctx.acts.filter((a) => a.sport === sport);
     const closed = list.filter((a) => a.indoor).length;
@@ -127,30 +125,30 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
   const wTemp = weather
     ? TEMP_BANDS.map((b, i) => ({
-        label: b.label,
+        label: t(b.label),
         sub: b.range,
         value: sports.reduce((a, s) => a + weather.temp[i][s], 0),
       }))
     : [];
   const wCond = weather
-    ? CONDITIONS.map((c, i) => ({ label: c.label, value: sports.reduce((a, s) => a + weather.cond[i][s], 0) }))
+    ? CONDITIONS.map((c, i) => ({ label: t(c.label), value: sports.reduce((a, s) => a + weather.cond[i][s], 0) }))
         .filter((c) => c.value > 0)
         .sort((a, b) => b.value - a.value)
     : [];
 
   const filters: { value: Filter; label: string }[] = [
-    { value: "all", label: "Tudo" },
-    ...ALL_SPORTS.map((s) => ({ value: s as Filter, label: siteConfig.sports[s].label })),
+    { value: "all", label: t("All") },
+    ...ALL_SPORTS.map((s) => ({ value: s as Filter, label: t(siteConfig.sports[s].label) })),
   ];
 
   return (
     <SectionShell
       id="stats"
-      title="Estatísticas"
-      kicker="medido, não chutado"
+      title={t("Stats")}
+      kicker={t("measured, not guessed")}
       aside={
         <div className="flex flex-wrap items-center gap-3">
-          <div role="tablist" aria-label="Modalidade" className="label flex flex-wrap rounded-full border border-line p-1">
+          <div role="tablist" aria-label={t("Sport")} className="label flex flex-wrap rounded-full border border-line p-1">
             {filters.map((f) => (
               <button
                 key={f.value}
@@ -163,7 +161,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
               </button>
             ))}
           </div>
-          <div role="tablist" aria-label="Unidades" className="label flex rounded-full border border-line p-1">
+          <div role="tablist" aria-label={t("Units")} className="label flex rounded-full border border-line p-1">
             {(["metric", "imperial"] as Units[]).map((u) => (
               <button
                 key={u}
@@ -172,7 +170,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
                 onClick={() => setUnits(u)}
                 className={`rounded-full px-3 py-1.5 transition-colors ${units === u ? "bg-fg text-bg" : "hover:text-fg"}`}
               >
-                {u === "metric" ? "Métrico" : "Imperial"}
+                {u === "metric" ? t("Metric") : t("Imperial")}
               </button>
             ))}
           </div>
@@ -182,12 +180,12 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Reveal className="lg:col-span-2">
           <ChartCard
-            title={byTime ? "Horas por ano" : `Distância anual (${unit})`}
-            insight={bestYear && sum(bestYear) > 0 ? `${bestYear.key} foi o ano mais forte` : undefined}
+            title={byTime ? t("Elapsed hours per year") : t("Yearly distance ({unit})", { unit })}
+            insight={bestYear && sum(bestYear) > 0 ? t("{year} was the strongest year", { year: bestYear.key }) : undefined}
           >
             <BarChart
               items={annual}
-              format={(v) => (byTime ? `${nf(0).format(v)}h` : `${nf(0).format(v)} ${unit}`)}
+              format={(v) => (byTime ? `${fmt.num(v, 0)}h` : `${fmt.num(v, 0)} ${unit}`)}
               height={190}
             />
           </ChartCard>
@@ -195,31 +193,33 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
         <Reveal>
           <ChartCard
-            title="Atividades por horário"
-            subtitle="Em que hora do dia você costuma treinar"
-            insight={Math.max(...hours) > 0 ? `pico: ${peakHour}h` : undefined}
-            hint={ctx.periodLabel}
+            title={t("Activities by time of day")}
+            subtitle={t("What time of day you usually train")}
+            insight={Math.max(...hours) > 0 ? t("peak: {h}h", { h: peakHour }) : undefined}
+            hint={periodLabel}
           >
             <RadarChart
               labels={hours.map((_, h) => `${h}h`)}
               values={hours}
               labelEvery={3}
-              format={(v) => `${nf(0).format(v)} ${v === 1 ? "atividade" : "atividades"}`}
+              format={(v) => t("{n} activity|{n} activities", { n: v })}
             />
           </ChartCard>
         </Reveal>
 
         <Reveal delay={90}>
           <ChartCard
-            title={byTime ? "Dia da semana" : `Distância média por dia (${unit})`}
-            subtitle="Quanto você acumula em cada dia da semana"
-            insight={!byTime && Math.max(...weekdays) > 0 ? `${WEEKDAYS[bestDay]} é o dia mais forte` : undefined}
-            hint={ctx.periodLabel}
+            title={byTime ? t("Day of the week") : t("Average distance by day ({unit})", { unit })}
+            subtitle={t("How much you accumulate on each day of the week")}
+            insight={
+              !byTime && Math.max(...weekdays) > 0 ? t("{day} is the strongest day", { day: t(WEEKDAYS[bestDay]) }) : undefined
+            }
+            hint={periodLabel}
           >
             {byTime ? (
-              <p className="py-10 text-muted">Treino de força não tem distância; veja horas por ano acima.</p>
+              <p className="py-10 text-muted">{t("This sport has no distance; see elapsed hours per year above.")}</p>
             ) : (
-              <RadarChart labels={WEEKDAYS} values={weekdays} format={(v) => `${nf(1).format(v)} ${unit}`} />
+              <RadarChart labels={WEEKDAYS.map((d) => t(d))} values={weekdays} format={(v) => `${fmt.num(v, 1)} ${unit}`} />
             )}
           </ChartCard>
         </Reveal>
@@ -228,19 +228,19 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
           <>
             <Reveal>
               <ChartCard
-                title="Corrida: ar livre × esteira"
-                subtitle="Corrida sem GPS (esteira) conta como ambiente fechado"
-                hint={ctx.periodLabel}
+                title={t("Run: outdoor × treadmill")}
+                subtitle={t("Runs without GPS (treadmill) count as indoor")}
+                hint={periodLabel}
               >
                 {runSplit.open + runSplit.closed === 0 ? (
-                  <p className="py-10 text-muted">Sem corridas neste período.</p>
+                  <p className="py-10 text-muted">{t("No runs in this period.")}</p>
                 ) : (
                   <DonutChart
                     segments={[
-                      { name: "Ar livre", value: runSplit.open, color: "var(--run)" },
-                      { name: "Esteira", value: runSplit.closed, color: "var(--muted)" },
+                      { name: t("Outdoor"), value: runSplit.open, color: "var(--run)" },
+                      { name: t("Treadmill"), value: runSplit.closed, color: "var(--muted)" },
                     ]}
-                    format={(v) => nf(0).format(v)}
+                    format={(v) => fmt.num(v, 0)}
                   />
                 )}
               </ChartCard>
@@ -248,19 +248,19 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
             <Reveal delay={90}>
               <ChartCard
-                title="Bike: ar livre × rolo/Zwift"
-                subtitle="Rolo, Zwift e pedal sem GPS contam como ambiente fechado"
-                hint={ctx.periodLabel}
+                title={t("Bike: outdoor × trainer/Zwift")}
+                subtitle={t("Trainer, Zwift and rides without GPS count as indoor")}
+                hint={periodLabel}
               >
                 {rideSplit.open + rideSplit.closed === 0 ? (
-                  <p className="py-10 text-muted">Sem pedais neste período.</p>
+                  <p className="py-10 text-muted">{t("No rides in this period.")}</p>
                 ) : (
                   <DonutChart
                     segments={[
-                      { name: "Ar livre", value: rideSplit.open, color: "var(--ride)" },
-                      { name: "Rolo / Zwift", value: rideSplit.closed, color: "var(--muted)" },
+                      { name: t("Outdoor"), value: rideSplit.open, color: "var(--ride)" },
+                      { name: t("Trainer / Zwift"), value: rideSplit.closed, color: "var(--muted)" },
                     ]}
-                    format={(v) => nf(0).format(v)}
+                    format={(v) => fmt.num(v, 0)}
                   />
                 )}
               </ChartCard>
@@ -268,17 +268,17 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
             <Reveal>
               <ChartCard
-                title="Distribuição de distâncias"
-                subtitle={byTime ? undefined : `Atividades de ${focusLabel} por faixa de distância`}
-                hint={ctx.periodLabel}
-                insight={filter === "all" ? "corrida" : undefined}
+                title={t("Distance distribution")}
+                subtitle={byTime ? undefined : t("{sport} activities by distance band", { sport: focusLabel })}
+                hint={periodLabel}
+                insight={filter === "all" ? t("run") : undefined}
               >
                 {byTime ? (
-                  <p className="py-10 text-muted">Sem distância para treino de força.</p>
+                  <p className="py-10 text-muted">{t("No distance for this sport.")}</p>
                 ) : (
                   <HBarChart
-                    items={bins.map((b) => ({ label: b.label, value: b.count, color: color(focus) }))}
-                    format={(v) => nf(0).format(v)}
+                    items={bins.map((b) => ({ label: t(b.label), value: b.count, color: color(focus) }))}
+                    format={(v) => fmt.num(v, 0)}
                   />
                 )}
               </ChartCard>
@@ -286,10 +286,14 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
             <Reveal delay={90}>
               <ChartCard
-                title={focus === "ride" ? "Distribuição de velocidade" : "Distribuição de ritmo"}
-                subtitle={`Como as suas atividades de ${focusLabel} se distribuem${focus === "ride" ? "" : " (mais rápido à direita)"}`}
-                hint={ctx.periodLabel}
-                insight={filter === "all" ? "corrida" : undefined}
+                title={focus === "ride" ? t("Speed distribution") : t("Pace distribution")}
+                subtitle={
+                  focus === "ride"
+                    ? t("How your {sport} activities are distributed", { sport: focusLabel })
+                    : t("How your {sport} activities are distributed (faster on the right)", { sport: focusLabel })
+                }
+                hint={periodLabel}
+                insight={filter === "all" ? t("run") : undefined}
               >
                 {view && !byTime ? (
                   <DensityChart
@@ -303,40 +307,40 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
                     color={color(focus)}
                   />
                 ) : (
-                  <p className="py-10 text-muted">Poucos dados neste período.</p>
+                  <p className="py-10 text-muted">{t("Few data points in this period.")}</p>
                 )}
               </ChartCard>
             </Reveal>
 
             <Reveal>
               <ChartCard
-                title="Temperatura"
-                subtitle="Faixas de temperatura nos treinos ao ar livre"
-                insight={weather?.avgTemp != null ? `média ${nf(1).format(weather.avgTemp)}°C` : undefined}
-                hint="todos os anos"
+                title={t("Temperature")}
+                subtitle={t("Temperature bands in outdoor workouts")}
+                insight={weather?.avgTemp != null ? t("avg {x}°C", { x: fmt.num(weather.avgTemp, 1) }) : undefined}
+                hint={t("all years")}
               >
                 {weatherFailed ? (
-                  <p className="py-10 text-muted">Não consegui carregar o clima agora.</p>
+                  <p className="py-10 text-muted">{t("Could not load the weather right now.")}</p>
                 ) : !weather ? (
-                  <p className="label animate-pulse py-10">Carregando clima…</p>
+                  <p className="label animate-pulse py-10">{t("Loading weather…")}</p>
                 ) : byTime ? (
-                  <p className="py-10 text-muted">Sem clima para treino de força.</p>
+                  <p className="py-10 text-muted">{t("No weather for this sport.")}</p>
                 ) : (
-                  <HBarChart items={wTemp} format={(v) => nf(0).format(v)} />
+                  <HBarChart items={wTemp} format={(v) => fmt.num(v, 0)} />
                 )}
               </ChartCard>
             </Reveal>
 
             <Reveal delay={90}>
-              <ChartCard title="Condições do tempo" subtitle="Como estava o tempo quando você treinou" hint="todos os anos">
+              <ChartCard title={t("Weather conditions")} subtitle={t("What the weather was like when you trained")} hint={t("all years")}>
                 {weatherFailed ? (
-                  <p className="py-10 text-muted">Não consegui carregar o clima agora.</p>
+                  <p className="py-10 text-muted">{t("Could not load the weather right now.")}</p>
                 ) : !weather ? (
-                  <p className="label animate-pulse py-10">Carregando clima…</p>
+                  <p className="label animate-pulse py-10">{t("Loading weather…")}</p>
                 ) : byTime || wCond.length === 0 ? (
-                  <p className="py-10 text-muted">Sem dados de clima para esta seleção.</p>
+                  <p className="py-10 text-muted">{t("No weather data for this selection.")}</p>
                 ) : (
-                  <HBarChart items={wCond} format={(v) => nf(0).format(v)} color="var(--swim)" />
+                  <HBarChart items={wCond} format={(v) => fmt.num(v, 0)} color="var(--swim)" />
                 )}
               </ChartCard>
             </Reveal>
@@ -346,10 +350,10 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
         <div className="label flex flex-wrap gap-x-5 gap-y-1 text-[0.62rem]">
-          {(filter === "all" ? ALL_SPORTS : [filter]).map((s) => (
+          {(filter === "all" ? TRI_SPORTS : [filter]).map((s) => (
             <span key={s} className="inline-flex items-center gap-2">
               <span className="size-2 rounded-full" style={{ background: color(s) }} />
-              {siteConfig.sports[s].label}
+              {t(siteConfig.sports[s].label)}
             </span>
           ))}
         </div>
@@ -357,7 +361,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
           onClick={() => setMore((v) => !v)}
           className="label rounded-full border border-line px-5 py-2.5 transition-colors hover:border-fg/40 hover:text-fg"
         >
-          {more ? "Mostrar menos gráficos" : "Mostrar mais gráficos"}
+          {more ? t("Show fewer charts") : t("Show more charts")}
         </button>
       </div>
     </SectionShell>

@@ -21,8 +21,9 @@ import { exec } from "node:child_process";
 const PORT = 8721;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 // activity:read = atividades públicas + "só seguidores". Não expõe as privadas.
-// Troque por "read,activity:read_all" se quiser incluir as privadas.
-const SCOPE = "read,activity:read";
+// Com --all (node scripts/strava-auth.mjs --all) pede activity:read_all, necessário para a curva de
+// potência e FC por segundo (npm run strava:records). Atividades privadas continuam escondidas do site.
+const SCOPE = process.argv.includes("--all") ? "read,activity:read_all" : "read,activity:read";
 const ENV_PATH = path.resolve(process.cwd(), ".env.local");
 
 function readEnvFile() {

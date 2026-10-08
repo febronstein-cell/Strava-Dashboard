@@ -1,22 +1,25 @@
+"use client";
+
 import type { DashboardContext } from "@/lib/dashboard";
+import { useI18n } from "@/lib/i18n";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
 
 /**
- * ESPAÇO RESERVADO: seção livre para o que formos criar juntos.
- * Ideias: meta do ano (progresso até X km), equipamentos (tênis/bike/km rodados),
- * comparação com o ano anterior, zonas de FC, "treino do mês", fotos...
+ * RESERVED SPACE: a free section for whatever we build together.
+ * Ideas: yearly goal (progress to X km), gear (shoes/bike mileage), year-over-year comparison,
+ * training program, photos...
  *
- * Para ligar: em `site.config.ts` troque `{ id: "custom", enabled: false }`
- * por `enabled: true`. Tudo que está em `ctx` (totais, histórico, período...)
- * já chega pronto aqui.
+ * To turn it on: in `site.config.ts` change `{ id: "custom", enabled: false }` to `enabled: true`.
+ * Everything in `ctx` (totals, history, period...) already arrives here.
  */
 export function Custom({ ctx }: { ctx: DashboardContext }) {
+  const { t } = useI18n();
   return (
-    <SectionShell id="custom" title="Em construção">
+    <SectionShell id="custom" title={t("Under construction")}>
       <Reveal>
         <div className="card border-dashed p-8 text-muted">
-          Seção reservada. Você tem {ctx.allTotals.count} atividades no histórico para contar uma história aqui.
+          {t("Reserved section. You have {n} activities in your history to tell a story here.", { n: ctx.allTotals.count })}
         </div>
       </Reveal>
     </SectionShell>

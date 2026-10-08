@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import { siteConfig, type SportKey } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
-import { hrHistogram, monthlyHr, paceValue, withHr } from "@/lib/stats";
-import { clock, dateLabel, duration } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
+import { usePeriodLabel } from "@/lib/i18n/period";
+import { hrTimeHistogram, monthlyHr, paceValue, withHr } from "@/lib/stats";
+import { clock } from "@/lib/format";
 import { useActivityDialog } from "@/components/ActivityDialog";
 import { BarChart, type BarItem } from "@/components/BarChart";
 import { ChartCard } from "@/components/ChartCard";
@@ -16,33 +18,26 @@ import { SectionShell } from "@/components/SectionShell";
 type Tab = "run" | "ride" | "all";
 
 const zones = siteConfig.heartRate.zones;
-/** Índice da zona de um bpm (limite superior inclusivo). */
+/** Zone index of a bpm value (inclusive upper limit). */
 const zoneIndex = (hr: number) => zones.findIndex((z) => hr <= z.max);
-const nf = (d: number) => new Intl.NumberFormat(siteConfig.locale, { maximumFractionDigits: d });
 const pct = (arr: number[], p: number) => {
   const s = [...arr].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor(p * s.length))];
 };
-const monthShort = (key: string, withYear: boolean) =>
-  new Intl.DateTimeFormat(siteConfig.locale, {
-    month: "short",
-    ...(withYear ? { year: "2-digit" as const } : {}),
-    timeZone: "UTC",
-  })
-    .format(new Date(`${key}-01T00:00:00Z`))
-    .replace(".", "");
 
-/** Análise de frequência cardíaca: zonas, ritmo × FC, tendência e eficiência aeróbica. */
+/**
+ * Heart-rate analysis. Everything here is based on MOVING time: the average HR of an activity,
+ * time spent in each zone, pace and efficiency.
+ */
 export function HeartRate({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt, locale } = useI18n();
   const open = useActivityDialog();
+  const periodLabel = usePeriodLabel(ctx);
   const [tab, setTab] = useState<Tab>("run");
   const focus: SportKey = tab === "all" ? "run" : tab;
-  const focusLabel = siteConfig.sports[focus].label.toLowerCase();
+  const focusLabel = t(siteConfig.sports[focus].label).toLowerCase();
 
-  const scope = useMemo(
-    () => ctx.acts.filter((a) => (tab === "all" ? true : a.sport === tab)),
-    [ctx.acts, tab],
-  );
+  const scope = useMemo(() => ctx.acts.filter((a) => (tab === "all" ? true : a.sport === tab)), [ctx.acts, tab]);
   const list = useMemo(() => withHr(scope), [scope]);
   const byId = useMemo(() => new Map(list.map((a) => [a.id, a])), [list]);
 
@@ -50,18 +45,24 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
     const secs = list.reduce((s, a) => s + a.movingTime, 0);
     const avg = secs ? list.reduce((s, a) => s + a.hr * a.movingTime, 0) / secs : 0;
     const max = Math.max(0, ...list.map((a) => a.hrMax ?? a.hr));
-    const counts = zones.map(() => 0);
-    for (const a of list) counts[zoneIndex(a.hr)]++;
-    const top = counts.indexOf(Math.max(...counts));
-    return { avg, max, counts, top, coverage: scope.length ? list.length / scope.length : 0 };
+    // time spent in each zone (moving seconds) and number of activities
+    const zoneSecs = zones.map(() => 0);
+    const zoneCount = zones.map(() => 0);
+    for (const a of list) {
+      const z = zoneIndex(a.hr);
+      zoneSecs[z] += a.movingTime;
+      zoneCount[z]++;
+    }
+    const top = zoneSecs.indexOf(Math.max(...zoneSecs));
+    return { avg, max, zoneSecs, zoneCount, top, total: secs, coverage: scope.length ? list.length / scope.length : 0 };
   }, [list, scope.length]);
 
-  // histograma em faixas de 5 bpm; cada barra é empilhada por zona (uma faixa pode cruzar o corte)
+  // histogram in 5 bpm bands: TIME SPENT (hours of moving time), stacked by zone
   const histogram = useMemo<BarItem[]>(() => {
     const bin = siteConfig.heartRate.bin;
-    return hrHistogram(list, bin).map((b) => {
+    return hrTimeHistogram(list, bin).map((b) => {
       const perZone = zones.map(() => 0);
-      for (const a of list) if (a.hr >= b.from && a.hr < b.from + bin) perZone[zoneIndex(a.hr)]++;
+      for (const a of list) if (a.hr >= b.from && a.hr < b.from + bin) perZone[zoneIndex(a.hr)] += a.movingTime / 3600;
       return {
         key: String(b.from),
         label: `${b.from}–${b.from + bin - 1} bpm`,
@@ -71,7 +72,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
     });
   }, [list]);
 
-  // dispersão: ritmo (ou velocidade) × FC
+  // scatter: pace (or speed) × HR
   const scatter = useMemo(() => {
     const pts = list
       .filter((a) => a.sport === focus)
@@ -87,13 +88,13 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
     const yLo = Math.floor((Math.min(...ys) - 3) / 10) * 10;
     const yHi = Math.ceil((Math.max(...ys) + 3) / 10) * 10;
     const yStep = yHi - yLo > 60 ? 20 : 10;
-    const fx = (x: number) => (secs ? clock(x) : nf(0).format(x));
+    const fx = (x: number) => (secs ? clock(x) : fmt.num(x, 0));
     const unit = focus === "ride" ? "km/h" : "/km";
     const points: ScatterPoint[] = pts.map(({ a, x }) => ({
       id: a.id,
       x,
       y: a.hr,
-      label: `${a.name} · ${fx(x)} ${unit} · ${a.hr} bpm · ${dateLabel(a.date)}`,
+      label: `${a.name} · ${fx(x)} ${unit} · ${a.hr} bpm · ${fmt.dateLabel(a.date)}`,
     }));
     const round = focus === "ride" ? 1 : 5;
     return {
@@ -103,20 +104,20 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
       xTicks: Array.from({ length: 5 }, (_, i) => Math.round((xLo + ((xHi - xLo) * i) / 4) / round) * round),
       yTicks: Array.from({ length: Math.floor((yHi - yLo) / yStep) + 1 }, (_, i) => yLo + i * yStep),
       fx,
-      unit,
       reverse: secs,
     };
-  }, [list, focus]);
+  }, [list, focus, fmt]);
 
-  // tendência mensal
-  const months = useMemo(
-    () => monthlyHr(ctx.acts, focus, ctx.period, ctx.firstYear, ctx.today),
-    [ctx.acts, focus, ctx.period, ctx.firstYear, ctx.today],
-  );
-  const multiYear = ctx.period === "all";
+  // monthly trend
+  const months = useMemo(() => monthlyHr(ctx.acts, focus, ctx.range), [ctx.acts, focus, ctx.range]);
+  const multiYear = ctx.range.from.slice(0, 4) !== ctx.range.to.slice(0, 4);
   const labelEvery = Math.max(1, Math.ceil(months.length / 12));
-  const hrPoints = months.map((m) => ({ label: monthShort(m.key, multiYear), value: m.hr }));
-  const effPoints = months.map((m) => ({ label: monthShort(m.key, multiYear), value: m.eff }));
+  const monthName = (key: string) =>
+    new Intl.DateTimeFormat(locale, { month: "short", ...(multiYear ? { year: "2-digit" as const } : {}), timeZone: "UTC" })
+      .format(new Date(`${key}-01T00:00:00Z`))
+      .replace(".", "");
+  const hrPoints = months.map((m) => ({ label: monthName(m.key), value: m.hr }));
+  const effPoints = months.map((m) => ({ label: monthName(m.key), value: m.eff }));
   const known = (k: "hr" | "eff") => months.map((m) => m[k]).filter((v): v is number => v !== null);
   const domainOf = (vals: number[], pad: number): [number, number] =>
     vals.length ? [Math.floor(Math.min(...vals) - pad), Math.ceil(Math.max(...vals) + pad)] : [0, 1];
@@ -132,45 +133,50 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
       : null;
 
   const tabs: { value: Tab; label: string }[] = [
-    { value: "run", label: "Corrida" },
-    { value: "ride", label: "Bike" },
-    { value: "all", label: "Todas" },
+    { value: "run", label: t("Run") },
+    { value: "ride", label: t("Bike") },
+    { value: "all", label: t("All") },
   ];
 
   const chips = [
-    { label: "Atividades com FC", value: `${nf(0).format(stats.coverage * 100)}%`, sub: `${list.length} de ${scope.length}` },
-    { label: "FC média", value: stats.avg ? `${nf(0).format(stats.avg)} bpm` : "—", sub: "ponderada pelo tempo" },
-    { label: "FC máxima registrada", value: stats.max ? `${stats.max} bpm` : "—", sub: "em uma atividade" },
     {
-      label: "Zona mais frequente",
-      value: list.length ? zones[stats.top].name : "—",
-      sub: list.length ? `${stats.counts[stats.top]} atividades` : "",
+      label: t("Activities with HR"),
+      value: `${fmt.num(stats.coverage * 100, 0)}%`,
+      sub: t("{a} of {b}", { a: list.length, b: scope.length }),
+    },
+    { label: t("Average HR"), value: stats.avg ? `${fmt.num(stats.avg, 0)} bpm` : "—", sub: t("weighted by moving time") },
+    { label: t("Max HR recorded"), value: stats.max ? `${stats.max} bpm` : "—", sub: t("in a single activity") },
+    {
+      label: t("Most time spent in"),
+      value: list.length ? t(zones[stats.top].name) : "—",
+      sub: list.length ? t("{time} of moving time", { time: fmt.duration(stats.zoneSecs[stats.top]) }) : "",
+      color: list.length ? zones[stats.top].color : undefined,
     },
   ];
 
   return (
     <SectionShell
       id="heart"
-      title="Frequência cardíaca"
-      kicker={ctx.periodLabel}
+      title={t("Heart rate")}
+      kicker={periodLabel}
       aside={
-        <div role="tablist" aria-label="Modalidade" className="label flex rounded-full border border-line p-1">
-          {tabs.map((t) => (
+        <div role="tablist" aria-label={t("Sport")} className="label flex rounded-full border border-line p-1">
+          {tabs.map((x) => (
             <button
-              key={t.value}
+              key={x.value}
               role="tab"
-              aria-selected={tab === t.value}
-              onClick={() => setTab(t.value)}
-              className={`rounded-full px-4 py-1.5 transition-colors ${tab === t.value ? "bg-fg text-bg" : "hover:text-fg"}`}
+              aria-selected={tab === x.value}
+              onClick={() => setTab(x.value)}
+              className={`rounded-full px-4 py-1.5 transition-colors ${tab === x.value ? "bg-fg text-bg" : "hover:text-fg"}`}
             >
-              {t.label}
+              {x.label}
             </button>
           ))}
         </div>
       }
     >
       {list.length === 0 ? (
-        <p className="card p-8 text-muted">Nenhuma atividade com frequência cardíaca neste período.</p>
+        <p className="card p-8 text-muted">{t("No activities with heart rate in this period.")}</p>
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -178,7 +184,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
               <Reveal key={c.label} delay={i * 70}>
                 <div className="card h-full p-4 sm:p-5">
                   <dt className="label">{c.label}</dt>
-                  <dd className="num mt-2 text-3xl sm:text-4xl" style={c.label === "Zona mais frequente" ? { color: zones[stats.top].color } : undefined}>
+                  <dd className="num mt-2 text-3xl sm:text-4xl" style={c.color ? { color: c.color } : undefined}>
                     {c.value}
                   </dd>
                   <p className="mt-1 text-xs text-muted">{c.sub}</p>
@@ -190,14 +196,14 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Reveal className="lg:col-span-2">
               <ChartCard
-                title="Zonas de frequência cardíaca"
-                subtitle="FC média de cada atividade, agrupada em faixas de 5 bpm"
-                hint={ctx.periodLabel}
-                insight={`mais frequente: ${zones[stats.top].name}`}
+                title={t("Time spent in heart rate zones")}
+                subtitle={t("Moving time of each activity, grouped by its average HR in 5 bpm bands")}
+                hint={periodLabel}
+                insight={t("most time: {zone}", { zone: t(zones[stats.top].name) })}
               >
                 <BarChart
                   items={histogram}
-                  format={(v) => `${nf(0).format(v)} ${v === 1 ? "atividade" : "atividades"}`}
+                  format={(v) => fmt.duration(v * 3600)}
                   height={190}
                   labelEvery={Math.max(1, Math.ceil(histogram.length / 12))}
                 />
@@ -205,11 +211,18 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
                   {zones.map((z, i) => (
                     <span key={z.name} className="inline-flex items-center gap-2">
                       <span className="size-2.5 rounded-full" style={{ background: z.color }} />
-                      {z.name}
+                      {t(z.name)}
                       <span className="text-fg">
-                        {i === 0 ? `até ${z.max}` : z.max === Infinity ? `${zones[i - 1].max + 1}+` : `${zones[i - 1].max + 1}–${z.max}`} bpm
+                        {i === 0
+                          ? t("up to {x}", { x: z.max })
+                          : z.max === Infinity
+                            ? `${zones[i - 1].max + 1}+`
+                            : `${zones[i - 1].max + 1}–${z.max}`}{" "}
+                        bpm
                       </span>
-                      <span>· {stats.counts[i]}</span>
+                      <span>
+                        · {fmt.duration(stats.zoneSecs[i])} ({stats.total ? Math.round((stats.zoneSecs[i] / stats.total) * 100) : 0}%)
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -218,8 +231,8 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
 
             <Reveal>
               <ChartCard
-                title={focus === "ride" ? "Velocidade × FC" : "Ritmo × FC"}
-                subtitle={focus === "ride" ? "Mais rápido, mais esforço" : "Mais rápido (à direita), mais esforço"}
+                title={focus === "ride" ? t("Speed × HR") : t("Pace × HR")}
+                subtitle={focus === "ride" ? t("Faster, harder") : t("Faster (to the right), harder")}
                 hint={focusLabel}
               >
                 {scatter ? (
@@ -239,16 +252,20 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
                     color={`var(--${focus})`}
                   />
                 ) : (
-                  <p className="py-10 text-muted">Poucos dados neste período.</p>
+                  <p className="py-10 text-muted">{t("Few data points in this period.")}</p>
                 )}
               </ChartCard>
             </Reveal>
 
             <Reveal delay={90}>
-              <ChartCard title="FC média por mês" subtitle={`Esforço cardíaco médio em ${focusLabel}`} hint={ctx.periodLabel}>
+              <ChartCard
+                title={t("Average HR by month")}
+                subtitle={t("Average heart-rate effort in {sport}", { sport: focusLabel })}
+                hint={periodLabel}
+              >
                 <LineChart
                   points={hrPoints}
-                  format={(v) => `${nf(0).format(v)} bpm`}
+                  format={(v) => `${fmt.num(v, 0)} bpm`}
                   domain={hrDomain}
                   yTicks={ticksOf(hrDomain)}
                   labelEvery={labelEvery}
@@ -259,30 +276,34 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
 
             <Reveal className="lg:col-span-2">
               <ChartCard
-                title="Eficiência aeróbica"
-                subtitle={`Metros percorridos por batimento em ${focusLabel} (quanto maior, mais eficiente)`}
-                hint={ctx.periodLabel}
-                insight={effTrend !== null ? `${effTrend >= 0 ? "+" : ""}${nf(1).format(effTrend)}% desde o início do período` : undefined}
+                title={t("Aerobic efficiency")}
+                subtitle={t("Meters covered per heartbeat in {sport} (higher = more efficient)", { sport: focusLabel })}
+                hint={periodLabel}
+                insight={
+                  effTrend !== null
+                    ? t("{x}% since the start of the period", { x: `${effTrend >= 0 ? "+" : ""}${fmt.num(effTrend, 1)}` })
+                    : undefined
+                }
               >
                 <LineChart
                   points={effPoints}
-                  format={(v) => `${nf(2).format(v)} m/bat`}
+                  format={(v) => `${fmt.num(v, 2)} m/beat`}
                   domain={effDomain}
                   yTicks={ticksOf(effDomain)}
                   labelEvery={labelEvery}
                   color="var(--brand)"
                 />
                 <p className="mt-4 text-sm text-muted">
-                  Só entram atividades acima da distância mínima ({focus === "ride" ? "10 km" : focus === "run" ? "3 km" : "400 m"}). Comparar meses
-                  com terreno e calor parecidos dá a leitura mais justa.
+                  {t("Only activities above the minimum distance count ({d}). Compare months with similar terrain and heat for the fairest reading.", {
+                    d: focus === "ride" ? "10 km" : "3 km",
+                  })}
                 </p>
               </ChartCard>
             </Reveal>
           </div>
 
           <p className="label mt-5 text-[0.62rem]">
-            Atividade média de {duration(list.reduce((s, a) => s + a.movingTime, 0) / list.length)} · as zonas usam bpm absolutos e podem ser ajustadas em
-            site.config.ts
+            {t("Zones use absolute bpm and can be adjusted in site.config.ts")}
           </p>
         </>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 
 export interface BarItem {
@@ -29,6 +30,7 @@ export function BarChart({
   /** texto da leitura quando nada está selecionado */
   defaultText?: string;
 }) {
+  const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null);
   const totals = items.map((it) => it.segments.reduce((a, s) => a + s.value, 0));
   const max = Math.max(...totals, 0) || 1;
@@ -53,7 +55,7 @@ export function BarChart({
             </p>
           </>
         ) : (
-          <p className="label pt-1">{defaultText ?? "Passe o mouse (ou toque) nas barras"}</p>
+          <p className="label pt-1">{defaultText ?? t("Hover (or tap) the bars")}</p>
         )}
       </div>
 

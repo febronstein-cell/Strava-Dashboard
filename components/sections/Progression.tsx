@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { siteConfig } from "@/site.config";
+import { ALL_SPORTS, siteConfig } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
+import { useI18n } from "@/lib/i18n";
 import { heatmapDays, streaks, type HeatDay } from "@/lib/stats";
-import { dateLabel, duration, timeOfDay } from "@/lib/format";
 import { useActivityDialog } from "@/components/ActivityDialog";
 import { HEAT_MIX, Heatmap } from "@/components/Heatmap";
 import { Reveal } from "@/components/Reveal";
@@ -15,6 +15,7 @@ type View = "365" | "all" | number;
 const DAY = 86_400_000;
 
 export function Progression({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt } = useI18n();
   const open = useActivityDialog();
   const [view, setView] = useState<View>("365");
   const [selected, setSelected] = useState<HeatDay | null>(null);
@@ -22,7 +23,7 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
 
   const todayKey = ctx.today.toISOString().slice(0, 10);
 
-  /** Um bloco de dias por linha do heatmap. */
+  /** One block of days per heatmap row. */
   const blocks = useMemo(() => {
     const yearRange = (y: number) => heatmapDays(ctx.all, `${y}-01-01`, `${y}-12-31`, todayKey);
     if (view === "365") {
@@ -37,22 +38,22 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
 
   const st = useMemo(() => streaks(blocks.flatMap((b) => b.days)), [blocks]);
   const tabs: { value: View; label: string }[] = [
-    { value: "365", label: "Últimos 365" },
-    { value: "all", label: "Todos" },
+    { value: "365", label: t("Last 365") },
+    { value: "all", label: t("All") },
     ...[...ctx.years].reverse().map((y) => ({ value: y as View, label: String(y) })),
   ];
 
   const chips = [
-    { label: "Dias de descanso", value: `${st.restDays}/${st.totalDays}` },
-    { label: "Sequência atual", value: `${st.current}d` },
-    { label: "Maior sequência", value: `${st.longest}d` },
+    { label: t("Rest days"), value: `${st.restDays}/${st.totalDays}` },
+    { label: t("Current streak"), value: `${st.current}d` },
+    { label: t("Longest streak"), value: `${st.longest}d` },
   ];
 
   return (
     <SectionShell
       id="progression"
-      title="Progressão"
-      kicker="consistência"
+      title={t("Progression")}
+      kicker={t("consistency")}
       aside={
         <dl className="flex gap-6">
           {chips.map((c) => (
@@ -66,32 +67,39 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
     >
       <Reveal>
         <div className="card p-5 sm:p-8">
-          <div role="tablist" aria-label="Período do heatmap" className="label -mx-1 mb-6 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-            {tabs.map((t) => (
+          <div
+            role="tablist"
+            aria-label={t("Heatmap period")}
+            className="label -mx-1 mb-6 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]"
+          >
+            {tabs.map((x) => (
               <button
-                key={String(t.value)}
+                key={String(x.value)}
                 role="tab"
-                aria-selected={view === t.value}
+                aria-selected={view === x.value}
                 onClick={() => {
-                  setView(t.value);
+                  setView(x.value);
                   setSelected(null);
                 }}
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 transition-colors ${
-                  view === t.value ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"
+                  view === x.value ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"
                 }`}
               >
-                {t.label}
+                {x.label}
               </button>
             ))}
           </div>
 
-          {/* leitura do dia selecionado */}
+          {/* reading of the selected day */}
           <div className="min-h-16">
             {selected ? (
               <>
-                <p className="label">{dateLabel(selected.date, { weekday: "short", day: "2-digit", month: "long", year: "numeric" })}</p>
+                <p className="label">
+                  {fmt.dateLabel(`${selected.date}T00:00:00`, { weekday: "short", day: "2-digit", month: "long", year: "numeric" })}
+                  {selected.seconds > 0 ? ` · ${fmt.duration(selected.seconds)} ${t("elapsed")}` : ""}
+                </p>
                 {selected.activities.length === 0 ? (
-                  <p className="mt-2 text-muted">Dia de descanso</p>
+                  <p className="mt-2 text-muted">{t("Rest day")}</p>
                 ) : (
                   <ul className="mt-2 flex flex-wrap gap-2">
                     {selected.activities.map((a) => (
@@ -105,7 +113,7 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
                           </span>
                           {a.name}
                           <span className="text-muted">
-                            {timeOfDay(a.date)} · {duration(a.movingTime)}
+                            {fmt.timeOfDay(a.date)} · {fmt.duration(a.movingTime)}
                           </span>
                         </button>
                       </li>
@@ -115,13 +123,15 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
               </>
             ) : (
               <>
-                <p className="label">Passe o mouse (ou toque) em um dia</p>
-                <p className="mt-2 text-muted">Cada quadrado é um dia; quanto mais forte a cor, mais tempo treinado. Clique para ver os treinos.</p>
+                <p className="label">{t("Hover (or tap) a day")}</p>
+                <p className="mt-2 text-muted">
+                  {t("Each square is a day; the stronger the color, the more elapsed time trained. Click to see the workouts.")}
+                </p>
               </>
             )}
           </div>
 
-          <div className={`mt-4 space-y-3 ${view === "all" ? "" : ""}`}>
+          <div className="mt-4 space-y-3">
             {blocks.map((b) => (
               <Heatmap
                 key={`${view}-${b.label}`}
@@ -138,16 +148,16 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
           </div>
 
           <div className="label mt-4 flex flex-wrap items-center justify-between gap-3 text-[0.62rem]">
-            <span className="flex items-center gap-4">
-              {(["swim", "ride", "run", "strength"] as const).map((s) => (
+            <span className="flex flex-wrap items-center gap-4">
+              {ALL_SPORTS.map((s) => (
                 <span key={s} className="inline-flex items-center gap-1.5">
                   <span className="size-2.5 rounded-[3px]" style={{ background: `var(--${s})` }} />
-                  {siteConfig.sports[s].label}
+                  {t(siteConfig.sports[s].label)}
                 </span>
               ))}
             </span>
             <span className="flex items-center gap-2">
-              Menos
+              {t("Less")}
               {[0, 1, 2, 3, 4].map((l) => (
                 <span
                   key={l}
@@ -157,7 +167,7 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
                   }}
                 />
               ))}
-              Mais
+              {t("More")}
             </span>
           </div>
         </div>

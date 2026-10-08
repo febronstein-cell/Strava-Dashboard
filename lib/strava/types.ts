@@ -9,8 +9,10 @@ export interface Activity {
   date: string;
   /** metros */
   distance: number;
-  /** segundos */
+  /** seconds of actual movement: use for pace, HR, cadence and per-activity views */
   movingTime: number;
+  /** seconds from start to finish (includes stops): use for volume and totals */
+  elapsedTime: number;
   /** metros */
   elevation: number;
   /** Marcada como "competição" no Strava. */
@@ -20,6 +22,11 @@ export interface Activity {
   /** FC média / máxima (bpm), quando há monitor cardíaco. */
   hr?: number;
   hrMax?: number;
+  /** average cadence as Strava reports it (rpm; runs are per leg, so steps/min = 2x) */
+  cad?: number;
+  /** average power (W) and whether it comes from a real power meter */
+  watts?: number;
+  deviceWatts?: boolean;
 }
 
 /** Trajeto simplificado de uma atividade (servido à parte, em /api/geo). */
@@ -59,6 +66,7 @@ export interface RawActivity {
   type: string;
   distance: number;
   moving_time: number;
+  elapsed_time: number;
   total_elevation_gain: number;
   start_date_local: string;
   private?: boolean;
@@ -66,6 +74,9 @@ export interface RawActivity {
   trainer?: boolean;
   average_heartrate?: number;
   max_heartrate?: number;
+  average_cadence?: number;
+  average_watts?: number;
+  device_watts?: boolean;
   manual?: boolean;
   start_latlng?: number[] | null;
   map?: { summary_polyline?: string | null } | null;

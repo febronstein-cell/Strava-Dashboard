@@ -1,14 +1,18 @@
+"use client";
+
 import { siteConfig } from "@/site.config";
+import { useI18n } from "@/lib/i18n";
 
 export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athleteId?: number }) {
+  const { t, locale } = useI18n();
   const profileUrl =
     siteConfig.stravaProfileUrl || (athleteId ? `https://www.strava.com/athletes/${athleteId}` : "https://www.strava.com");
   const c = siteConfig.credits;
   const cols = [
-    { title: "Feito com", items: c.builtWith },
-    { title: "Mapas", items: c.maps },
-    { title: "Dados", items: c.data },
-    { title: "Fontes", items: c.fonts },
+    { title: t("Built with"), items: c.builtWith },
+    { title: t("Maps"), items: c.maps },
+    { title: t("Data"), items: c.data },
+    { title: t("Fonts"), items: c.fonts },
   ];
   return (
     <footer className="mx-auto w-full max-w-6xl px-5 pt-10 pb-14 sm:px-8">
@@ -27,12 +31,12 @@ export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athlet
 
       <div className="label mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
         <span>
-          Feito por <span className="text-fg">{siteConfig.madeBy}</span>
+          {t("Made by")} <span className="text-fg">{siteConfig.madeBy}</span>
           {siteConfig.handle && <span className="text-brand"> · @{siteConfig.handle}</span>}
         </span>
         <span suppressHydrationWarning>
-          Atualizado em{" "}
-          {new Intl.DateTimeFormat(siteConfig.locale, {
+          {t("Updated")}{" "}
+          {new Intl.DateTimeFormat(locale, {
             dateStyle: "medium",
             timeStyle: "short",
             timeZone: "America/Sao_Paulo",
@@ -48,11 +52,11 @@ export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athlet
         className="group mt-12 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius)] border border-line bg-elev px-6 py-6 transition-colors hover:border-[#fc4c02] sm:px-8"
       >
         <span className="min-w-0">
-          <span className="label block">Me acompanhe no Strava</span>
+          <span className="label block">{t("Follow me on Strava")}</span>
           <span className="num mt-2 block text-4xl uppercase sm:text-5xl">{siteConfig.nickname || siteConfig.madeBy}</span>
           {siteConfig.handle && <span className="label mt-2 block">@{siteConfig.handle}</span>}
         </span>
-        <span className="num text-3xl text-[#fc4c02] transition-transform group-hover:translate-x-1">Ver perfil ↗</span>
+        <span className="num text-3xl text-[#fc4c02] transition-transform group-hover:translate-x-1">{t("View profile")} ↗</span>
       </a>
     </footer>
   );

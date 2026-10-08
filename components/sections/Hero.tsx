@@ -1,6 +1,9 @@
+"use client";
+
 import { siteConfig } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
-import { hoursInt, int, km } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
+import { usePeriodLabel } from "@/lib/i18n/period";
 import { CountUp } from "@/components/CountUp";
 import { Reveal } from "@/components/Reveal";
 
@@ -8,43 +11,44 @@ const EARTH_KM = 40_075;
 const EVEREST_M = 8_849;
 const ISS_ORBIT_MIN = 92.9;
 
-const one = (n: number) => new Intl.NumberFormat(siteConfig.locale, { maximumFractionDigits: 1 }).format(n);
-
 export function Hero({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt } = useI18n();
+  const periodLabel = usePeriodLabel(ctx);
   const { overview, totals, allTotals, acts } = ctx;
   const name = siteConfig.nameOverride || overview.athlete.name;
   const activeDays = new Set(acts.map((a) => a.date.slice(0, 10))).size;
 
+  // Totals use ELAPSED time (start to finish), as agreed
   const stats = [
     {
-      label: "Distância",
+      label: t("Distance"),
       value: totals.distance / 1000,
       unit: "km",
-      note: `${one(totals.distance / 1000 / EARTH_KM)}× a volta na Terra`,
+      note: t("{x}× around the Earth", { x: fmt.num(totals.distance / 1000 / EARTH_KM, 1) }),
     },
     {
-      label: "Tempo em movimento",
-      value: totals.movingTime / 3600,
+      label: t("Elapsed time"),
+      value: totals.elapsedTime / 3600,
       unit: "h",
-      note: `${int((totals.movingTime / 60) / ISS_ORBIT_MIN)} órbitas da ISS`,
+      note: t("{x} ISS orbits", { x: fmt.int(totals.elapsedTime / 60 / ISS_ORBIT_MIN) }),
     },
     {
-      label: "Elevação",
+      label: t("Elevation"),
       value: totals.elevation,
       unit: "m",
-      note: `${one(totals.elevation / EVEREST_M)}× o Everest`,
+      note: t("{x}× Everest", { x: fmt.num(totals.elevation / EVEREST_M, 1) }),
     },
     {
-      label: "Atividades",
+      label: t("Activities"),
       value: totals.count,
       unit: "",
-      note: `${int(activeDays)} dias com treino`,
+      note: t("{n} active day|{n} active days", { n: activeDays }),
     },
   ];
 
   return (
     <header id="hero" className="relative overflow-hidden">
-      {/* Brilho de fundo nas cores das três modalidades */}
+      {/* Background glow in the colors of the three sports */}
       <div
         aria-hidden
         className="parallax-glow pointer-events-none absolute -top-40 left-1/2 h-[28rem] w-[60rem] opacity-30 blur-3xl"
@@ -57,7 +61,7 @@ export function Hero({ ctx }: { ctx: DashboardContext }) {
       <div className="relative mx-auto w-full max-w-6xl px-5 pb-10 pt-16 sm:px-8 sm:pb-20 sm:pt-24">
         <Reveal>
           <p className="label mb-4">
-            {siteConfig.tagline} · <span className="text-brand">{ctx.periodLabel}</span>
+            {t(siteConfig.tagline)} · <span className="text-brand">{periodLabel}</span>
           </p>
           <h1 className="parallax-name num text-[clamp(3.5rem,13vw,10.5rem)] uppercase">{name}</h1>
           {siteConfig.nickname && (
@@ -85,17 +89,20 @@ export function Hero({ ctx }: { ctx: DashboardContext }) {
 
         <Reveal delay={500}>
           <p className="label mt-10 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span>Desde {ctx.firstYear}</span>
-            <span className="text-fg">{km(allTotals.distance, 0)} km</span>
-            <span className="text-fg">{hoursInt(allTotals.movingTime)} h</span>
-            <span className="text-fg">{int(allTotals.count)} atividades</span>
+            <span>{t("Since {year}", { year: ctx.firstYear })}</span>
+            <span className="text-fg">{fmt.km(allTotals.distance, 0)} km</span>
+            <span className="text-fg">{fmt.hours(allTotals.elapsedTime)} h</span>
+            <span className="text-fg">{fmt.int(allTotals.count)} {t("activities")}</span>
             {ctx.isDemo && (
               <span className="rounded-full border border-line px-3 py-1.5">
-                Dados de demonstração · conecte o Strava para ver os seus
+                {t("Demo data · connect Strava to see yours")}
               </span>
             )}
           </p>
         </Reveal>
+        <p className="label mt-3 text-[0.6rem]">
+          {t("Totals use elapsed time; pace, heart rate and cadence use moving time")}
+        </p>
       </div>
     </header>
   );

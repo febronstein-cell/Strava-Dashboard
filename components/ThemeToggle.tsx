@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useI18n } from "@/lib/i18n";
 
 const subscribe = (cb: () => void) => {
   const obs = new MutationObserver(cb);
@@ -10,6 +11,7 @@ const subscribe = (cb: () => void) => {
 const getTheme = () => document.documentElement.dataset.theme ?? "dark";
 
 export function ThemeToggle() {
+  const { t } = useI18n();
   const theme = useSyncExternalStore(subscribe, getTheme, () => "dark");
 
   const toggle = () => {
@@ -23,11 +25,11 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      aria-label={theme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
-      className="label inline-flex h-9 items-center gap-2 rounded-full border border-line px-4 transition-colors hover:text-fg"
+      aria-label={theme === "dark" ? t("Switch to light mode") : t("Switch to dark mode")}
+      className="label inline-flex h-9 items-center gap-2 rounded-full border border-line px-3 transition-colors hover:text-fg sm:px-4"
     >
       <span className="inline-block size-2.5 rounded-full bg-accent" />
-      {theme === "dark" ? "Escuro" : "Claro"}
+      <span className="hidden sm:inline">{theme === "dark" ? t("Dark") : t("Light")}</span>
     </button>
   );
 }

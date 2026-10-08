@@ -4,9 +4,13 @@ import { useMemo } from "react";
 import { siteConfig, type SportKey } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import type { Activity } from "@/lib/strava/types";
+import { useI18n } from "@/lib/i18n";
+import { usePeriodLabel } from "@/lib/i18n/period";
+import { POWER_DURATIONS, powerLabel, records } from "@/lib/records";
 import { bestPace, maxBy, monthlyVolume, peak, weeklyVolume } from "@/lib/stats";
-import { dateLabel, duration, int, km, pace } from "@/lib/format";
 import { useActivityDialog } from "@/components/ActivityDialog";
+import { ChartCard } from "@/components/ChartCard";
+import { LineChart } from "@/components/charts/LineChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
 
@@ -19,10 +23,14 @@ interface Rec {
   activity?: Activity;
 }
 
-/** Recordes e destaques do período. Cada card com treino abre os detalhes ao clicar. */
+/** Records and highlights of the period, plus Strava best efforts (all time). */
 export function Notable({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt, locale } = useI18n();
   const open = useActivityDialog();
-  const { acts, period, firstYear, today } = ctx;
+  const periodLabel = usePeriodLabel(ctx);
+  const { acts, range } = ctx;
+
+  const byId = useMemo(() => new Map(ctx.all.map((a) => [a.id, a])), [ctx.all]);
 
   const recs = useMemo(() => {
     const out: Rec[] = [];
@@ -30,51 +38,60 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
       label: string,
       sport: SportKey,
       a: Activity | null,
-      fmt: (a: Activity) => { value: string; unit: string },
+      f: (a: Activity) => { value: string; unit: string },
     ) => {
-      if (a) out.push({ label, sport, activity: a, sub: a.distance > 0 ? `${km(a.distance, a.sport === "swim" ? 2 : 1)} km · ${a.name}` : a.name, ...fmt(a) });
+      if (a) {
+        const d = a.distance > 0 ? `${fmt.km(a.distance, a.sport === "swim" ? 2 : 1)} km · ` : "";
+        out.push({ label, sport, activity: a, sub: `${d}${a.name}`, ...f(a) });
+      }
     };
 
-    // "mais longa" = maior tempo em movimento; a distância vai na linha de baixo
-    add("Corrida mais longa", "run", maxBy(acts, (a) => a.movingTime, "run"), (a) => ({ value: duration(a.movingTime), unit: "" }));
-    add("Pedal mais longo", "ride", maxBy(acts, (a) => a.movingTime, "ride"), (a) => ({ value: duration(a.movingTime), unit: "" }));
-    add("Nado mais longo", "swim", maxBy(acts, (a) => a.movingTime, "swim"), (a) => ({ value: duration(a.movingTime), unit: "" }));
+    // "longest" = most MOVING time; the distance goes on the line below
+    add(t("Longest run"), "run", maxBy(acts, (a) => a.movingTime, "run"), (a) => ({ value: fmt.duration(a.movingTime), unit: "" }));
+    add(t("Longest ride"), "ride", maxBy(acts, (a) => a.movingTime, "ride"), (a) => ({ value: fmt.duration(a.movingTime), unit: "" }));
+    add(t("Longest swim"), "swim", maxBy(acts, (a) => a.movingTime, "swim"), (a) => ({ value: fmt.duration(a.movingTime), unit: "" }));
 
-    const climb = maxBy(acts, (a) => a.elevation);
-    add("Maior elevação", climb?.sport ?? "ride", climb, (a) => ({ value: int(a.elevation), unit: "m" }));
+    const climb = maxBy(
+      acts.filter((a) => a.sport !== "strength"),
+      (a) => a.elevation,
+    );
+    add(t("Most elevation"), climb?.sport ?? "ride", climb, (a) => ({ value: fmt.int(a.elevation), unit: "m" }));
 
     for (const sport of ["run", "ride", "swim"] as SportKey[]) {
-      const label =
-        sport === "ride" ? "Maior velocidade média" : `Melhor ritmo · ${siteConfig.sports[sport].label.toLowerCase()}`;
-      add(label, sport, bestPace(acts, sport), (a) => pace(sport, a.distance / a.movingTime));
+      const label = sport === "ride" ? t("Top average speed") : t("Best pace · {sport}", { sport: t(siteConfig.sports[sport].label).toLowerCase() });
+      add(label, sport, bestPace(acts, sport), (a) => fmt.pace(sport, a.distance / a.movingTime));
     }
 
-    // semana (ano) ou mês (todos) mais pesado
-    const series = period === "all" ? monthlyVolume(acts, period, firstYear, today) : weeklyVolume(acts, period, today);
-    const best = peak(series);
+    // heaviest week (or month, for long ranges) by ELAPSED time
+    const long = (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000 > 800;
+    const best = peak(long ? monthlyVolume(acts, range) : weeklyVolume(acts, range));
     if (best) {
       const key = best.point.key;
-      const when =
-        period === "all"
-          ? new Intl.DateTimeFormat(siteConfig.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
-              new Date(key + "-01T00:00:00Z"),
-            )
-          : "semana de " + dateLabel(key + "T00:00:00");
+      const when = long
+        ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${key}-01T00:00:00Z`))
+        : t("week of {date}", { date: fmt.dateLabel(`${key}T00:00:00`) });
       out.push({
-        label: period === "all" ? "Mês mais pesado" : "Semana mais pesada",
+        label: long ? t("Heaviest month") : t("Heaviest week"),
         sport: "run",
-        value: duration(best.seconds),
+        value: fmt.duration(best.seconds),
         unit: "",
-        sub: when,
+        sub: `${when} · ${t("elapsed time")}`,
       });
     }
     return out;
-  }, [acts, period, firstYear, today]);
+  }, [acts, range, fmt, locale, t]);
+
+  const analyzedAny = records.analyzed.rides > 0;
+  const powerPoints = POWER_DURATIONS.map((d) => ({ label: powerLabel(d), value: records.power[String(d)]?.watts ?? null }));
+  const powerVals = powerPoints.map((p) => p.value).filter((v): v is number => v !== null);
+  const pDomain: [number, number] = powerVals.length
+    ? [0, Math.ceil(Math.max(...powerVals) / 100) * 100]
+    : [0, 1];
 
   return (
-    <SectionShell id="notable" title="Destaques" kicker={ctx.periodLabel}>
+    <SectionShell id="notable" title={t("Highlights")} kicker={periodLabel}>
       {recs.length === 0 ? (
-        <p className="text-muted">Sem atividades neste período.</p>
+        <p className="text-muted">{t("No activities in this period.")}</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {recs.map((r, i) => {
@@ -98,7 +115,7 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
                   <p className="mt-5 truncate text-sm">{r.sub}</p>
                   {r.activity && (
                     <p className="mt-0.5 text-sm text-muted">
-                      {dateLabel(r.activity.date, { day: "2-digit", month: "short", year: "numeric" })}
+                      {fmt.dateLabel(r.activity.date, { day: "2-digit", month: "short", year: "numeric" })}
                     </p>
                   )}
                 </Tag>
@@ -108,10 +125,63 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
         </div>
       )}
       <p className="label mt-6 text-[0.62rem]">
-        Ritmo/velocidade só contam atividades acima de {km(siteConfig.rules.minDistanceForBestPace.run, 0)} km (corrida),{" "}
-        {km(siteConfig.rules.minDistanceForBestPace.ride, 0)} km (bike) e {int(siteConfig.rules.minDistanceForBestPace.swim)} m
-        (natação).
+        {t("Pace and speed only count activities above {run} km (run), {ride} km (bike) and {swim} m (swim).", {
+          run: fmt.km(siteConfig.rules.minDistanceForBestPace.run, 0),
+          ride: fmt.km(siteConfig.rules.minDistanceForBestPace.ride, 0),
+          swim: fmt.int(siteConfig.rules.minDistanceForBestPace.swim),
+        })}
       </p>
+
+      {/* ---- Strava best efforts (all time, indoor included) ---- */}
+      <div className="mt-14">
+        <Reveal>
+          <ChartCard
+            title={t("Notable power outputs")}
+            subtitle={t("Best average power from 5 seconds up to 3 hours, trainer and Zwift included")}
+            hint={t("all time")}
+          >
+            {powerVals.length === 0 ? (
+              <p className="py-6 text-muted">
+                {analyzedAny ? t("No power-meter rides yet.") : t("Power needs an extra Strava permission (activity:read_all). See the README.")}
+              </p>
+            ) : (
+              <>
+                <LineChart
+                  points={powerPoints}
+                  format={(v) => `${fmt.int(v)} W`}
+                  domain={pDomain}
+                  yTicks={[0, 1, 2, 3, 4].map((i) => (pDomain[1] * i) / 4)}
+                  color="var(--ride)"
+                />
+                <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+                  {POWER_DURATIONS.map((d) => {
+                    const b = records.power[String(d)];
+                    return (
+                      <li key={d}>
+                        <button
+                          disabled={!b}
+                          onClick={() => {
+                            const a = b && byId.get(b.id);
+                            if (a) open(a);
+                          }}
+                          className="flex w-full items-baseline justify-between gap-2 py-1 text-left disabled:opacity-40"
+                          title={b ? `${b.name} · ${fmt.dateLabel(b.date, { day: "2-digit", month: "short", year: "numeric" })}${b.indoor ? ` · ${t("Indoor")}` : ""}` : undefined}
+                        >
+                          <span className="label">{powerLabel(d)}</span>
+                          <span className="num text-xl">{b ? `${fmt.int(b.watts)} W` : "—"}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            <p className="label mt-4 text-[0.6rem]">
+              {t("{done} of {total} rides analyzed", { done: records.analyzed.rides, total: records.total.rides })}
+            </p>
+          </ChartCard>
+        </Reveal>
+      </div>
     </SectionShell>
   );
 }

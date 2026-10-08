@@ -84,9 +84,10 @@ const SPORT_MAP: Record<string, SportKey> = {
   Crossfit: "strength",
 };
 
+/** Anything not listed above (walk, hike, yoga, rowing...) counts as "other". */
+
 function normalize(raw: RawActivity): Activity | null {
-  const sport = SPORT_MAP[raw.sport_type] ?? SPORT_MAP[raw.type];
-  if (!sport) return null; // yoga, caminhada etc. ficam de fora
+  const sport: SportKey = SPORT_MAP[raw.sport_type] ?? SPORT_MAP[raw.type] ?? "other";
   // workout_type 1 = corrida de competição; 11 = pedal de competição
   const race = (raw.type === "Run" && raw.workout_type === 1) || (raw.type === "Ride" && raw.workout_type === 11);
   // sem GPS (esteira, rolo, piscina) ou virtual/rolo marcado = ambiente fechado
@@ -99,11 +100,14 @@ function normalize(raw: RawActivity): Activity | null {
     date: raw.start_date_local.replace("Z", ""),
     distance: sport === "strength" ? 0 : raw.distance,
     movingTime: raw.moving_time,
+    elapsedTime: raw.elapsed_time ?? raw.moving_time,
     elevation: sport === "strength" ? 0 : raw.total_elevation_gain,
     ...(race ? { race: true } : {}),
     ...(indoor ? { indoor: true } : {}),
     ...(raw.average_heartrate ? { hr: Math.round(raw.average_heartrate) } : {}),
     ...(raw.max_heartrate ? { hrMax: Math.round(raw.max_heartrate) } : {}),
+    ...(raw.average_cadence ? { cad: Math.round(raw.average_cadence * 10) / 10 } : {}),
+    ...(raw.average_watts ? { watts: Math.round(raw.average_watts), deviceWatts: !!raw.device_watts } : {}),
   };
 }
 

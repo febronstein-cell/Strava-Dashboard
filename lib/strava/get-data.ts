@@ -21,7 +21,10 @@ export async function getOverview(): Promise<StravaOverview> {
   cacheTag("strava-live");
 
   const now = new Date();
-  const currentYear = now.getFullYear();
+  // current year in Brasília time (the server runs in UTC, which would flip the year 3 h early)
+  const currentYear = Number(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(now),
+  );
 
   if (!hasStravaCredentials()) {
     return {

@@ -29,6 +29,13 @@ export function SportIcon({ sport, className = "size-6" }: { sport: SportKey; cl
       </svg>
     );
   }
+  if (sport === "other") {
+    return (
+      <svg {...common}>
+        <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+      </svg>
+    );
+  }
   if (sport === "strength") {
     return (
       <svg {...common}>

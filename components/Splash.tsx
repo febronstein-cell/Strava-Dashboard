@@ -1,13 +1,17 @@
+"use client";
+
 import { siteConfig } from "@/site.config";
+import { useI18n } from "@/lib/i18n";
 import { SportIcon } from "./SportIcon";
 
 /**
- * Abertura: um pulso cardíaco desenha a linha, o apelido aparece letra a letra e as
- * três modalidades acendem em sequência (nado → bike → corrida), como na transição
- * de uma prova. Só aparece na primeira visita da sessão (ver script no layout) e
- * funciona só com CSS, então some mesmo se o JavaScript falhar.
+ * Opening: a heartbeat draws the line, the nickname types in and the three sports light up
+ * in sequence (swim → bike → run), like a race transition. Only shows on the first visit of
+ * the session (see the script in the layout) and works with CSS only, so it disappears on its
+ * own even if JavaScript fails.
  */
 export function Splash() {
+  const { t } = useI18n();
   return (
     <div className="splash" aria-hidden="true">
       <div className="splash-inner">
@@ -39,7 +43,8 @@ export function Splash() {
         </div>
 
         <p className="label mt-6">
-          Carregando atividades<span className="splash-dots" />
+          {t("Loading activities")}
+          <span className="splash-dots" />
         </p>
       </div>
     </div>

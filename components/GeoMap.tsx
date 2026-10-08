@@ -30,21 +30,26 @@ const esri = (name: string) => ({
 export function GeoMap({
   routes,
   sport,
-  year,
+  range,
   focus,
   onPick,
+  gestureText,
 }: {
   routes: GeoActivity[];
   sport: SportKey | "all";
-  year: number | "all";
+  /** only routes with a date inside this range (YYYY-MM-DD, inclusive) are shown */
+  range: { from: string; to: string };
   focus: MapFocus;
   onPick: (activityId: number) => void;
+  /** texts of the scroll/touch hint, in the current language (read when the map is created) */
+  gestureText: { windows: string; mac: string; mobile: string };
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const readyRef = useRef(false);
   const onPickRef = useRef(onPick);
   const initialFocus = useRef(focus);
+  const gestures = useRef(gestureText); // read once, when the map is created
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -69,9 +74,9 @@ export function GeoMap({
         attributionControl: { compact: true },
         cooperativeGestures: true,
         locale: {
-          "CooperativeGesturesHandler.WindowsHelpText": "Use Ctrl + rolagem para dar zoom no mapa",
-          "CooperativeGesturesHandler.MacHelpText": "Use ⌘ + rolagem para dar zoom no mapa",
-          "CooperativeGesturesHandler.MobileHelpText": "Use dois dedos para mover o mapa",
+          "CooperativeGesturesHandler.WindowsHelpText": gestures.current.windows,
+          "CooperativeGesturesHandler.MacHelpText": gestures.current.mac,
+          "CooperativeGesturesHandler.MobileHelpText": gestures.current.mobile,
         },
         style: {
           version: 8,
@@ -116,6 +121,8 @@ export function GeoMap({
               colors.ride.color,
               "swim",
               colors.swim.color,
+              "other",
+              colors.other.color,
               "#ffffff",
             ],
             "line-opacity": 0.6,
@@ -161,7 +168,7 @@ export function GeoMap({
         type: "FeatureCollection",
         features: routes.map((r) => ({
           type: "Feature",
-          properties: { id: r.id, sport: r.sport, year: r.year },
+          properties: { id: r.id, sport: r.sport, d: r.date.slice(0, 10) },
           geometry: { type: "LineString", coordinates: decodePolyline(r.line).map(([la, ln]) => [ln, la]) },
         })),
       });
@@ -186,14 +193,14 @@ export function GeoMap({
       if (!map || !readyRef.current) return false;
       const filter: unknown[] = ["all"];
       if (sport !== "all") filter.push(["==", ["get", "sport"], sport]);
-      if (year !== "all") filter.push(["==", ["get", "year"], year]);
-      for (const id of ["routes-line", "routes-hit"]) map.setFilter(id, filter.length > 1 ? (filter as never) : null);
+      filter.push([">=", ["get", "d"], range.from], ["<=", ["get", "d"], range.to]);
+      for (const id of ["routes-line", "routes-hit"]) map.setFilter(id, filter as never);
       return true;
     };
     if (apply()) return;
     const t = setInterval(() => apply() && clearInterval(t), 200);
     return () => clearInterval(t);
-  }, [sport, year]);
+  }, [sport, range.from, range.to]);
 
   // voar até um lugar
   useEffect(() => {

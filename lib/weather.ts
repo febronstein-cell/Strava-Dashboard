@@ -1,23 +1,23 @@
-/** Faixas de temperatura e condições do tempo (isomórfico). */
+/** Temperature bands and weather conditions (isomorphic). */
 
 export const TEMP_BANDS = [
-  { id: "muito-frio", label: "Muito frio", range: "< 10°", max: 10 },
-  { id: "frio", label: "Frio", range: "10–15°", max: 15 },
-  { id: "fresco", label: "Fresco", range: "15–20°", max: 20 },
-  { id: "agradavel", label: "Agradável", range: "20–25°", max: 25 },
-  { id: "quente", label: "Quente", range: "25–30°", max: 30 },
-  { id: "muito-quente", label: "Muito quente", range: "30–35°", max: 35 },
-  { id: "extremo", label: "Calor extremo", range: "> 35°", max: Infinity },
+  { id: "muito-frio", label: "Very cold", range: "< 10°", max: 10 },
+  { id: "frio", label: "Cold", range: "10–15°", max: 15 },
+  { id: "fresco", label: "Cool", range: "15–20°", max: 20 },
+  { id: "agradavel", label: "Mild", range: "20–25°", max: 25 },
+  { id: "quente", label: "Warm", range: "25–30°", max: 30 },
+  { id: "muito-quente", label: "Hot", range: "30–35°", max: 35 },
+  { id: "extremo", label: "Very hot", range: "> 35°", max: Infinity },
 ] as const;
 
 export const CONDITIONS = [
-  { id: "limpo", label: "Céu limpo" },
-  { id: "nublado", label: "Nublado" },
-  { id: "neblina", label: "Neblina" },
-  { id: "garoa", label: "Garoa" },
-  { id: "chuva", label: "Chuva" },
-  { id: "trovoada", label: "Trovoada" },
-  { id: "neve", label: "Neve" },
+  { id: "limpo", label: "Clear sky" },
+  { id: "nublado", label: "Cloudy" },
+  { id: "neblina", label: "Fog" },
+  { id: "garoa", label: "Drizzle" },
+  { id: "chuva", label: "Rain" },
+  { id: "trovoada", label: "Thunderstorm" },
+  { id: "neve", label: "Snow" },
 ] as const;
 
 export const bandOf = (tempC: number): number => TEMP_BANDS.findIndex((b) => tempC < b.max);

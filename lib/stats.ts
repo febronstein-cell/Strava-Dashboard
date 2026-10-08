@@ -2,108 +2,161 @@ import { ALL_SPORTS, siteConfig, TRI_SPORTS, type SportKey } from "@/site.config
 import type { Activity } from "./strava/types";
 
 export { ALL_SPORTS, TRI_SPORTS };
-/** Ano específico ou "all" (histórico inteiro). */
-export type Period = number | "all";
 
-const zero = (): Record<SportKey, number> => ({ run: 0, ride: 0, swim: 0, strength: 0 });
+/**
+ * Time conventions used across the site:
+ *  - VOLUME and TOTALS (weekly/monthly/annual hours, totals, heatmap) use ELAPSED time.
+ *  - PACE, SPEED, HEART RATE, CADENCE and the single-activity view use MOVING time.
+ */
+
+/** A specific year, the whole history, the last 12 weeks, or a custom date range. */
+export type Period = number | "all" | "12w" | { from: string; to: string };
+
+export interface Range {
+  kind: "year" | "all" | "12w" | "custom";
+  /** YYYY-MM-DD, inclusive */
+  from: string;
+  to: string;
+  year?: number;
+}
+
+const zero = (): Record<SportKey, number> => ({ run: 0, ride: 0, swim: 0, strength: 0, other: 0 });
 const dayMs = 86_400_000;
 const parse = (iso: string) => new Date(iso.slice(0, 10) + "T00:00:00Z");
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
-export function inPeriod(acts: Activity[], period: Period): Activity[] {
-  return period === "all" ? acts : acts.filter((a) => a.date.startsWith(String(period)));
-}
-
-/** Segunda-feira da semana de `d` (UTC). */
+/** Monday of the week of `d` (UTC). */
 function weekStart(d: Date): Date {
-  const dow = (d.getUTCDay() + 6) % 7; // seg = 0
+  const dow = (d.getUTCDay() + 6) % 7; // Mon = 0
   return new Date(d.getTime() - dow * dayMs);
 }
 
-// ---------------------------------------------------------------- totais
+/** Turns a Period into concrete dates. `today` is the moment of the last sync. */
+export function resolveRange(period: Period, firstYear: number, today: Date): Range {
+  const todayKey = isoDay(today);
+  if (typeof period === "number") return { kind: "year", from: `${period}-01-01`, to: `${period}-12-31`, year: period };
+  if (period === "all") return { kind: "all", from: `${firstYear}-01-01`, to: todayKey };
+  if (period === "12w") {
+    return { kind: "12w", from: isoDay(new Date(weekStart(today).getTime() - 11 * 7 * dayMs)), to: todayKey };
+  }
+  const [from, to] = period.from <= period.to ? [period.from, period.to] : [period.to, period.from];
+  return { kind: "custom", from, to };
+}
+
+export function inRange(acts: Activity[], r: Range): Activity[] {
+  return acts.filter((a) => {
+    const d = a.date.slice(0, 10);
+    return d >= r.from && d <= r.to;
+  });
+}
+
+// ---------------------------------------------------------------- totals
 
 export interface Totals {
+  /** meters; only swim/bike/run count */
   distance: number;
+  /** seconds of movement (used for averages) */
   movingTime: number;
+  /** seconds from start to finish (used for totals and volume) */
+  elapsedTime: number;
+  /** meters; only swim/bike/run count */
   elevation: number;
   count: number;
 }
 
 export function totals(acts: Activity[]): Totals {
   return acts.reduce<Totals>(
-    (t, a) => ({
-      distance: t.distance + a.distance,
-      movingTime: t.movingTime + a.movingTime,
-      elevation: t.elevation + a.elevation,
-      count: t.count + 1,
-    }),
-    { distance: 0, movingTime: 0, elevation: 0, count: 0 },
+    (t, a) => {
+      const tri = TRI_SPORTS.includes(a.sport);
+      return {
+        distance: t.distance + (tri ? a.distance : 0),
+        movingTime: t.movingTime + a.movingTime,
+        elapsedTime: t.elapsedTime + a.elapsedTime,
+        elevation: t.elevation + (tri ? a.elevation : 0),
+        count: t.count + 1,
+      };
+    },
+    { distance: 0, movingTime: 0, elapsedTime: 0, elevation: 0, count: 0 },
   );
 }
 
 export interface SportStats extends Totals {
   sport: SportKey;
-  /** m/s médio ponderado (distância total / tempo total) */
+  /** average speed in m/s = distance / MOVING time */
   avgSpeed: number;
+  /** the activity with the most moving time */
   longest: Activity | null;
 }
 
 export function sportStats(acts: Activity[], sport: SportKey): SportStats {
   const mine = acts.filter((a) => a.sport === sport);
   const t = totals(mine);
-  // "mais longa" = maior tempo em movimento (não a maior distância)
+  const distance = mine.reduce((s, a) => s + a.distance, 0);
   const longest = mine.reduce<Activity | null>((best, a) => (!best || a.movingTime > best.movingTime ? a : best), null);
-  return { sport, ...t, avgSpeed: t.movingTime ? t.distance / t.movingTime : 0, longest };
+  return {
+    sport,
+    ...t,
+    distance: TRI_SPORTS.includes(sport) ? distance : 0,
+    avgSpeed: t.movingTime ? distance / t.movingTime : 0,
+    longest,
+  };
 }
 
 // ---------------------------------------------------------------- volume
 
 export interface VolumePoint {
   key: string;
-  /** segundos por modalidade */
+  /** ELAPSED seconds per sport */
   secs: Record<SportKey, number>;
-  /** metros por modalidade */
+  /** meters per sport */
   dist: Record<SportKey, number>;
+  /** number of sessions per sport */
+  count: Record<SportKey, number>;
 }
 
-const emptyPoint = (key: string): VolumePoint => ({ key, secs: zero(), dist: zero() });
+const emptyPoint = (key: string): VolumePoint => ({ key, secs: zero(), dist: zero(), count: zero() });
 
 function addTo(p: VolumePoint, a: Activity) {
-  p.secs[a.sport] += a.movingTime;
+  p.secs[a.sport] += a.elapsedTime;
   p.dist[a.sport] += a.distance;
+  p.count[a.sport] += 1;
 }
 
-/** Semanas (seg–dom) de um ano, até `today`. key = segunda-feira (AAAA-MM-DD). */
-export function weeklyVolume(acts: Activity[], year: number, today: Date): VolumePoint[] {
-  const first = weekStart(new Date(Date.UTC(year, 0, 1)));
-  const lastDay = new Date(Math.min(Date.UTC(year, 11, 31), today.getTime()));
+export const pointSeconds = (p: VolumePoint) => ALL_SPORTS.reduce((s, k) => s + p.secs[k], 0);
+export const pointCount = (p: VolumePoint) => ALL_SPORTS.reduce((s, k) => s + p.count[k], 0);
+
+/** Weeks (Mon–Sun) of a range. key = the Monday (YYYY-MM-DD). Always includes every sport. */
+export function weeklyVolume(acts: Activity[], r: Range): VolumePoint[] {
   const points = new Map<string, VolumePoint>();
-  for (let w = first; w <= lastDay; w = new Date(w.getTime() + 7 * dayMs)) {
+  const last = parse(r.to);
+  for (let w = weekStart(parse(r.from)); w <= last; w = new Date(w.getTime() + 7 * dayMs)) {
     points.set(isoDay(w), emptyPoint(isoDay(w)));
   }
   for (const a of acts) {
+    const d = a.date.slice(0, 10);
+    if (d < r.from || d > r.to) continue;
     const p = points.get(isoDay(weekStart(parse(a.date))));
     if (p) addTo(p, a);
   }
   return [...points.values()];
 }
 
-/** Meses de um ano (12) ou de todo o histórico até o mês atual. key = AAAA-MM. */
-export function monthlyVolume(acts: Activity[], period: Period, firstYear: number, today: Date): VolumePoint[] {
+/** Months of a range. key = YYYY-MM. */
+export function monthlyVolume(acts: Activity[], r: Range): VolumePoint[] {
   const keys: string[] = [];
-  if (period === "all") {
-    const last = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
-    for (let y = firstYear; y <= today.getUTCFullYear(); y++) {
-      for (let m = 1; m <= 12; m++) {
-        const k = `${y}-${String(m).padStart(2, "0")}`;
-        if (k <= last) keys.push(k);
-      }
-    }
-  } else {
-    for (let m = 1; m <= 12; m++) keys.push(`${period}-${String(m).padStart(2, "0")}`);
+  const [fy, fm] = r.from.split("-").map(Number);
+  const [ty, tm] = r.to.split("-").map(Number);
+  for (let y = fy, m = fm; y < ty || (y === ty && m <= tm); ) {
+    keys.push(`${y}-${String(m).padStart(2, "0")}`);
+    if (m === 12) {
+      y++;
+      m = 1;
+    } else m++;
   }
   const map = new Map(keys.map((k) => [k, emptyPoint(k)]));
   for (const a of acts) {
+    const d = a.date.slice(0, 10);
+    if (d < r.from || d > r.to) continue;
     const p = map.get(a.date.slice(0, 7));
     if (p) addTo(p, a);
   }
@@ -113,18 +166,19 @@ export function monthlyVolume(acts: Activity[], period: Period, firstYear: numbe
 // --------------------------------------------------------------- heatmap
 
 export interface HeatDay {
-  date: string; // AAAA-MM-DD
+  date: string; // YYYY-MM-DD
+  /** ELAPSED seconds trained that day */
   seconds: number;
   activities: Activity[];
-  /** modalidade com mais tempo no dia */
+  /** sport with the most elapsed time that day */
   dominant: SportKey | null;
   future: boolean;
-  /** coluna (semana) e linha (0 = segunda) */
+  /** column (week) and row (0 = Monday) */
   col: number;
   row: number;
 }
 
-/** Dias entre `startKey` e `endKey` (inclusive), dispostos em semanas. */
+/** Days between `startKey` and `endKey` (inclusive), laid out in weeks. */
 export function heatmapDays(acts: Activity[], startKey: string, endKey: string, todayKey: string): HeatDay[] {
   const byDay = new Map<string, Activity[]>();
   for (const a of acts) {
@@ -144,8 +198,8 @@ export function heatmapDays(acts: Activity[], startKey: string, endKey: string, 
     const key = isoDay(d);
     const list = byDay.get(key) ?? [];
     const secs = zero();
-    for (const a of list) secs[a.sport] += a.movingTime;
-    const seconds = secs.run + secs.ride + secs.swim + secs.strength;
+    for (const a of list) secs[a.sport] += a.elapsedTime;
+    const seconds = ALL_SPORTS.reduce((s, k) => s + secs[k], 0);
     const dominant =
       seconds > 0 ? ALL_SPORTS.reduce<SportKey>((best, s) => (secs[s] > secs[best] ? s : best), "run") : null;
     const offset = Math.round((d.getTime() - gridStart.getTime()) / dayMs);
@@ -174,7 +228,7 @@ export function streaks(days: HeatDay[]) {
       longest = Math.max(longest, run);
     } else run = 0;
   }
-  // sequência atual: de trás pra frente, tolerando "hoje ainda sem treino"
+  // current streak: walk backwards, tolerating "no workout yet today"
   let current = 0;
   for (let i = past.length - 1; i >= 0; i--) {
     if (past[i].seconds > 0) current++;
@@ -184,11 +238,12 @@ export function streaks(days: HeatDay[]) {
   return { longest, current, activeDays, totalDays: past.length, restDays: past.length - activeDays };
 }
 
-// ------------------------------------------------------ estatísticas extra
+// ------------------------------------------------------- extra statistics
 
 export interface YearTotals {
   year: number;
   dist: Record<SportKey, number>;
+  /** ELAPSED seconds */
   secs: Record<SportKey, number>;
   count: number;
 }
@@ -200,20 +255,20 @@ export function annualTotals(acts: Activity[], firstYear: number, lastYear: numb
     const t = list[Number(a.date.slice(0, 4)) - firstYear];
     if (!t) continue;
     t.dist[a.sport] += a.distance;
-    t.secs[a.sport] += a.movingTime;
+    t.secs[a.sport] += a.elapsedTime;
     t.count++;
   }
   return list;
 }
 
-/** Quantidade de atividades por hora do dia (0–23). */
+/** Number of activities per hour of the day (0–23). */
 export function hourHistogram(acts: Activity[]): number[] {
   const h = Array<number>(24).fill(0);
   for (const a of acts) h[Number(a.date.slice(11, 13))]++;
   return h;
 }
 
-/** Distância média (m) por dia da semana (seg…dom), por semana do período. */
+/** Average distance (m) per weekday (Mon…Sun), per week of the period. */
 export function weekdayAverages(acts: Activity[]): number[] {
   if (acts.length === 0) return Array<number>(7).fill(0);
   const sums = Array<number>(7).fill(0);
@@ -229,7 +284,7 @@ export function weekdayAverages(acts: Activity[]): number[] {
   return sums.map((s) => s / weeks);
 }
 
-// --------------------------------------------------------------- recordes
+// ---------------------------------------------------------------- records
 
 export function bestPace(acts: Activity[], sport: SportKey): Activity | null {
   const min = siteConfig.rules.minDistanceForBestPace[sport];
@@ -247,19 +302,19 @@ export function maxBy(acts: Activity[], pick: (a: Activity) => number, sport?: S
     .reduce<Activity | null>((best, a) => (!best || pick(a) > pick(best) ? a : best), null);
 }
 
-/** Maior valor entre os pontos (para "semana/mês mais pesado"). */
+/** Heaviest point of a series (by elapsed time). */
 export function peak(points: VolumePoint[]): { point: VolumePoint; seconds: number } | null {
   let best: { point: VolumePoint; seconds: number } | null = null;
   for (const p of points) {
-    const seconds = p.secs.run + p.secs.ride + p.secs.swim + p.secs.strength;
+    const seconds = pointSeconds(p);
     if (!best || seconds > best.seconds) best = { point: p, seconds };
   }
   return best && best.seconds > 0 ? best : null;
 }
 
-// ------------------------------------------------- distribuições e FC
+// ------------------------------------------- distributions and heart rate
 
-/** Faixas de distância (km; natação em m) para o gráfico de distribuição. */
+/** Distance bands (km) for the distribution chart. */
 const BINS: Record<SportKey, { label: string; max: number }[]> = {
   run: [
     { label: "< 5 km", max: 5 },
@@ -281,14 +336,15 @@ const BINS: Record<SportKey, { label: string; max: number }[]> = {
   ],
   swim: [
     { label: "< 1 km", max: 1 },
-    { label: "1–1,5 km", max: 1.5 },
-    { label: "1,5–2 km", max: 2 },
+    { label: "1–1.5 km", max: 1.5 },
+    { label: "1.5–2 km", max: 2 },
     { label: "2–3 km", max: 3 },
     { label: "3–4 km", max: 4 },
     { label: "4–5 km", max: 5 },
     { label: "5+ km", max: Infinity },
   ],
   strength: [],
+  other: [],
 };
 
 export function distanceDistribution(acts: Activity[], sport: SportKey): { label: string; count: number }[] {
@@ -302,18 +358,24 @@ export function distanceDistribution(acts: Activity[], sport: SportKey): { label
   return bins;
 }
 
-/** Distância mínima (m) e faixa plausível para entrar nos gráficos de ritmo. */
+/** Minimum distance (m) and plausible range for an activity to enter the pace charts. */
 const PACE_RULES: Record<SportKey, { minDist: number; lo: number; hi: number }> = {
   run: { minDist: 2000, lo: 150, hi: 600 }, // s/km
   ride: { minDist: 5000, lo: 10, hi: 50 }, // km/h
   swim: { minDist: 200, lo: 60, hi: 220 }, // s/100m
   strength: { minDist: Infinity, lo: 0, hi: 0 },
+  other: { minDist: Infinity, lo: 0, hi: 0 },
 };
 
-/** Valor de ritmo/velocidade da atividade na unidade do esporte (run s/km, ride km/h, swim s/100m). */
+/** Pace/speed of an activity in its sport unit (run s/km, ride km/h, swim s/100m). Uses MOVING time. */
 export function paceValue(a: Activity): number | null {
   if (a.movingTime <= 0 || a.distance <= 0) return null;
-  const v = a.sport === "run" ? a.movingTime / (a.distance / 1000) : a.sport === "swim" ? a.movingTime / (a.distance / 100) : (a.distance / a.movingTime) * 3.6;
+  const v =
+    a.sport === "run"
+      ? a.movingTime / (a.distance / 1000)
+      : a.sport === "swim"
+        ? a.movingTime / (a.distance / 100)
+        : (a.distance / a.movingTime) * 3.6;
   const r = PACE_RULES[a.sport];
   return a.distance >= r.minDist && v >= r.lo && v <= r.hi ? v : null;
 }
@@ -325,49 +387,50 @@ export function paceValues(acts: Activity[], sport: SportKey): number[] {
     .filter((v): v is number => v !== null);
 }
 
-/** Atividades com FC média. */
+/** Activities that have an average HR. */
 export const withHr = (acts: Activity[]) => acts.filter((a): a is Activity & { hr: number } => !!a.hr);
 
-/** Histograma da FC média por atividade, em faixas de `bin` bpm. */
-export function hrHistogram(acts: Activity[], bin = 5): { from: number; count: number }[] {
+/**
+ * Time spent (MOVING seconds) at each average-HR band of `bin` bpm. Each activity's
+ * moving time goes into the band of its average HR.
+ */
+export function hrTimeHistogram(acts: Activity[], bin = 5): { from: number; seconds: number; count: number }[] {
   const list = withHr(acts);
   if (list.length === 0) return [];
   const lo = Math.floor(Math.min(...list.map((a) => a.hr)) / bin) * bin;
   const hi = Math.floor(Math.max(...list.map((a) => a.hr)) / bin) * bin;
-  const bins = Array.from({ length: (hi - lo) / bin + 1 }, (_, i) => ({ from: lo + i * bin, count: 0 }));
-  for (const a of list) bins[Math.floor((a.hr - lo) / bin)].count++;
+  const bins = Array.from({ length: (hi - lo) / bin + 1 }, (_, i) => ({ from: lo + i * bin, seconds: 0, count: 0 }));
+  for (const a of list) {
+    const b = bins[Math.floor((a.hr - lo) / bin)];
+    b.seconds += a.movingTime;
+    b.count++;
+  }
   return bins;
 }
 
-/** Eficiência aeróbica: metros percorridos por batimento (maior = melhor). */
+/** Aerobic efficiency: meters covered per heartbeat (higher = better). Uses MOVING time. */
 export function efficiency(a: Activity): number | null {
   if (!a.hr || a.movingTime <= 0 || a.distance <= 0) return null;
   return ((a.distance / a.movingTime) * 60) / a.hr;
 }
 
 export interface MonthPoint {
-  key: string; // AAAA-MM
+  key: string; // YYYY-MM
   hr: number | null;
   eff: number | null;
 }
 
-/** Média mensal de FC e de eficiência para uma modalidade. */
-export function monthlyHr(acts: Activity[], sport: SportKey, period: Period, firstYear: number, today: Date): MonthPoint[] {
-  const keys: string[] = [];
-  const last = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
-  const years = period === "all" ? Array.from({ length: today.getUTCFullYear() - firstYear + 1 }, (_, i) => firstYear + i) : [period];
-  for (const y of years) for (let m = 1; m <= 12; m++) {
-    const k = `${y}-${String(m).padStart(2, "0")}`;
-    if (k <= last) keys.push(k);
-  }
-  const acc = new Map(keys.map((k) => [k, { hr: 0, hrN: 0, eff: 0, effN: 0 }]));
+/** Monthly average HR (weighted by moving time) and efficiency for one sport. */
+export function monthlyHr(acts: Activity[], sport: SportKey, r: Range): MonthPoint[] {
+  const keys = monthlyVolume([], r).map((p) => p.key);
+  const acc = new Map(keys.map((k) => [k, { hr: 0, hrW: 0, eff: 0, effN: 0 }]));
   const minDist = siteConfig.rules.minDistanceForBestPace[sport];
   for (const a of acts) {
     if (a.sport !== sport || !a.hr) continue;
     const o = acc.get(a.date.slice(0, 7));
     if (!o) continue;
-    o.hr += a.hr;
-    o.hrN++;
+    o.hr += a.hr * a.movingTime;
+    o.hrW += a.movingTime;
     const e = efficiency(a);
     if (e && a.distance >= minDist) {
       o.eff += e;
@@ -376,6 +439,6 @@ export function monthlyHr(acts: Activity[], sport: SportKey, period: Period, fir
   }
   return keys.map((key) => {
     const o = acc.get(key)!;
-    return { key, hr: o.hrN ? o.hr / o.hrN : null, eff: o.effN ? o.eff / o.effN : null };
+    return { key, hr: o.hrW ? o.hr / o.hrW : null, eff: o.effN ? o.eff / o.effN : null };
   });
 }

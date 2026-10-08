@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 
 const C = 150;
@@ -21,6 +22,7 @@ export function RadarChart({
   color?: string;
   defaultText?: string;
 }) {
+  const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null);
   const n = labels.length;
   const max = Math.max(...values, 0) || 1;
@@ -40,7 +42,7 @@ export function RadarChart({
             <p className="num mt-1.5 text-3xl">{format(values[active])}</p>
           </>
         ) : (
-          <p className="label pt-1">{defaultText ?? "Passe o mouse (ou toque) nos eixos"}</p>
+          <p className="label pt-1">{defaultText ?? t("Hover (or tap) the axes")}</p>
         )}
       </div>
 

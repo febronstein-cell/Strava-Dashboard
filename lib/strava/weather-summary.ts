@@ -5,7 +5,7 @@ import { getAllData } from "./get-data";
 import type { GeoActivity } from "./types";
 
 type BySport = Record<SportKey, number>;
-const zero = (): BySport => ({ run: 0, ride: 0, swim: 0, strength: 0 });
+const zero = (): BySport => ({ run: 0, ride: 0, swim: 0, strength: 0, other: 0 });
 
 export interface WeatherSummary {
   /** contagem por faixa de temperatura (mesma ordem de TEMP_BANDS) */

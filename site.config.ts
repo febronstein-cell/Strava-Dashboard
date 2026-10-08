@@ -1,14 +1,18 @@
 /**
  * ============================================================
- *  PONTO CENTRAL DE PERSONALIZAÇÃO
+ *  CENTRAL CUSTOMIZATION POINT
  * ============================================================
- * Quase tudo que dá identidade ao site passa por aqui, sem precisar mexer
- * nos componentes: textos, cores, provas, próxima meta, quais seções aparecem
- * e em que ordem. Cores/tipografia globais ficam em `app/globals.css`
- * (bloco "THEME TOKENS") e as fontes em `app/layout.tsx`.
+ * Almost everything that gives the site its identity lives here, without touching
+ * components: texts, colors, upcoming races, which sections show up and in what
+ * order. Global colors/typography live in `app/globals.css` ("THEME TOKENS" block)
+ * and fonts in `app/layout.tsx`.
+ *
+ * Texts are written in English (the main language). Portuguese translations live in
+ * `lib/i18n/pt.ts`, keyed by the English text.
  */
 
-export type SportKey = "run" | "ride" | "swim" | "strength";
+/** "other" = everything that is not swim/bike/run/strength (walk, hike, yoga, rowing...). */
+export type SportKey = "run" | "ride" | "swim" | "strength" | "other";
 
 export type SectionId =
   | "hero"
@@ -27,51 +31,53 @@ export type SectionId =
 export interface UpcomingRace {
   name: string;
   location?: string;
-  /** Data da prova (AAAA-MM-DD). */
+  /** Race date (YYYY-MM-DD). */
   date: string;
   note?: string;
 }
 
 export const siteConfig = {
-  // ----------------------------------------------------------- identidade
-  /** Deixe vazio para usar o nome do perfil no Strava. */
+  // ------------------------------------------------------------ identity
+  /** Leave empty to use the name from the Strava profile. */
   nameOverride: "",
-  /** Nome curto que aparece no topo da página. Vazio = automático. */
+  /** Short name shown in the top bar. Empty = automatic. */
   shortName: "TheEnduranceFreak",
-  /** Frase curta abaixo do nome no hero. */
-  tagline: "Natação · Ciclismo · Corrida",
-  /** Texto pequeno acima do nome (eyebrow). */
-  eyebrow: "Strava em números",
-  /** Apelido/handle (aparece no hero, no rodapé e no título da aba). */
+  /** Tagline under the name in the hero. */
+  tagline: "Swim · Bike · Run",
+  /** Small text above the name (eyebrow). */
+  eyebrow: "Strava in numbers",
+  /** Nickname (hero, footer and browser tab title). */
   nickname: "TheEnduranceFreak",
-  /** Seu @ (sem o @). Aparece no hero e no rodapé. */
+  /** Your @ (without the @). Shown in the hero and the footer. */
   handle: "bronsteintriathlon",
-  /** Assinatura do rodapé. */
+  /** Footer signature. */
   madeBy: "Felipe Bronstein",
-  locale: "pt-BR",
-  /** Link do perfil no Strava (rodapé). Vazio = montado automaticamente com o seu ID de atleta. */
+  /** Language used on first visit. The visitor can switch with the EN | PT button. */
+  defaultLang: "en" as "en" | "pt",
+  /** Strava profile link (footer). Empty = built automatically from your athlete ID. */
   stravaProfileUrl: "",
 
-  // ---------------------------------------------------------------- dados
-  /** Primeiro ano do histórico. `null` = ano em que sua conta Strava foi criada. */
+  // ---------------------------------------------------------------- data
+  /** First year of the history. `null` = the year your Strava account was created. */
   startYear: null as number | null,
 
-  // ---------------------------------------------------------------- cores
+  // -------------------------------------------------------------- colors
   /**
-   * Rótulos e cores de cada modalidade (viram variáveis CSS --run, --ride...).
-   * `brand` é o destaque geral do site; `goal` marca provas e a próxima meta.
+   * Label and color of each sport (they become the CSS variables --run, --ride...).
+   * `brand` is the general accent; `goal` marks races and the next goal.
    */
   sports: {
-    run: { label: "Corrida", color: "#ff5a1f", unitLabel: "ritmo" },
-    ride: { label: "Bike", color: "#c6f432", unitLabel: "velocidade" },
-    swim: { label: "Natação", color: "#2bd4ff", unitLabel: "ritmo" },
-    strength: { label: "Força", color: "#a78bfa", unitLabel: "" },
+    run: { label: "Run", color: "#ff5a1f", unitLabel: "pace" },
+    ride: { label: "Bike", color: "#c6f432", unitLabel: "speed" },
+    swim: { label: "Swim", color: "#2bd4ff", unitLabel: "pace" },
+    strength: { label: "Strength", color: "#a78bfa", unitLabel: "" },
+    other: { label: "Other", color: "#9aa7b8", unitLabel: "" },
   } satisfies Record<SportKey, { label: string; color: string; unitLabel: string }>,
   brand: "#1fe08a",
   goalColor: "#ff4d8d",
 
-  // -------------------------------------------------------------- seções
-  /** Ordem e visibilidade das seções. Reordene ou troque `enabled`. */
+  // ------------------------------------------------------------ sections
+  /** Order and visibility of the sections. Reorder or flip `enabled`. */
   sections: [
     { id: "hero", enabled: true },
     { id: "races", enabled: true },
@@ -87,94 +93,100 @@ export const siteConfig = {
     { id: "custom", enabled: false },
   ] as { id: SectionId; enabled: boolean }[],
 
-  /** Rótulos do menu de navegação (só seções com título). */
+  /** Labels of the navigation menu (only sections with a title). */
   nav: {
-    about: "Sobre",
-    races: "Provas",
-    sports: "Modalidades",
+    races: "Races",
+    sports: "Sports",
     volume: "Volume",
-    notable: "Destaques",
-    stats: "Estatísticas",
-    heart: "FC",
-    progression: "Progressão",
-    geography: "Geografia",
-    recent: "Recentes",
+    notable: "Highlights",
+    stats: "Stats",
+    heart: "HR",
+    progression: "Progression",
+    geography: "Geography",
+    recent: "Recent",
   } as Partial<Record<SectionId, string>>,
 
-  // ------------------------------------------------------- próximas provas
+  // ------------------------------------------------------ upcoming races
   /**
-   * Provas futuras, em qualquer ordem. A mais próxima vira o destaque com contagem
-   * regressiva; provas que já passaram somem sozinhas.
+   * Future races, in any order. The nearest one becomes the highlight with a
+   * countdown (and the pop-up); races that already happened disappear on their own.
    */
   upcomingRaces: [
     {
       name: "Ironman 70.3 Florianópolis",
       location: "Florianópolis, SC",
       date: "2026-10-18",
-      note: "1,9 km de natação · 90 km de bike · 21,1 km de corrida",
+      note: "1.9 km swim · 90 km bike · 21.1 km run",
     },
     {
-      name: "Troféu Brasil de Triathlon · 4ª etapa",
+      name: "Troféu Brasil de Triathlon · Stage 4",
       location: "Santos, SP · Praia da Aparecida",
       date: "2026-12-13",
-      note: "Última etapa do circuito de 2026",
+      note: "Final stage of the 2026 circuit",
     },
   ] as UpcomingRace[],
+  /** Show a pop-up about the next race once per visit. */
+  racePopup: true,
 
-  // ----------------------------------------------------------- conteúdo
+  // ------------------------------------------------------------- content
   about: {
-    title: "Sobre",
-    /** Seu texto (um parágrafo por linha em branco). */
+    title: "About",
+    /** Your text (one paragraph per blank line). */
     body: "",
-    /** Cidades, ex.: "Florianópolis · São Paulo". */
+    /** Cities, e.g. "Florianópolis · São Paulo". */
     places: "",
   },
 
-  // ---------------------------------------------------------- regras
+  // --------------------------------------------------------------- rules
   rules: {
-    /** Distância mínima (m) para uma atividade valer como "melhor ritmo". */
-    minDistanceForBestPace: { run: 3000, ride: 10000, swim: 400, strength: Infinity } satisfies Record<SportKey, number>,
-    /** Colorir o heatmap pela modalidade dominante do dia. */
+    /** Minimum distance (m) for an activity to count as a "best pace". */
+    minDistanceForBestPace: { run: 3000, ride: 10000, swim: 400, strength: Infinity, other: Infinity } satisfies Record<
+      SportKey,
+      number
+    >,
+    /** Color the heatmap by the day's dominant sport. */
     heatmapColorBySport: true,
   },
 
-  // ---------------------------------------------------- frequência cardíaca
+  // ---------------------------------------------------------- heart rate
   heartRate: {
     /**
-     * Zonas em bpm absolutos, aplicadas à FC média de cada atividade.
-     * `max` é o limite superior INCLUSIVO da zona (Z1 vai até 150 bpm, Z2 até 167...);
-     * a última zona não tem teto.
+     * Zones in absolute bpm, applied to each activity's average HR.
+     * `max` is the INCLUSIVE upper limit of the zone (Z1 goes up to 150 bpm, Z2 up to 167...);
+     * the last zone has no ceiling.
      */
     zones: [
-      { name: "Z1 · Recuperação", max: 150, color: "#2bd4ff" },
-      { name: "Z2 · Aeróbica", max: 167, color: "#1fe08a" },
+      { name: "Z1 · Recovery", max: 150, color: "#2bd4ff" },
+      { name: "Z2 · Aerobic", max: 167, color: "#1fe08a" },
       { name: "Z3 · Tempo", max: 181, color: "#c6f432" },
-      { name: "Z4 · Limiar", max: 187, color: "#ffb020" },
-      { name: "Z5 · Máximo", max: Infinity, color: "#ff5a1f" },
+      { name: "Z4 · Threshold", max: 187, color: "#ffb020" },
+      { name: "Z5 · Max", max: Infinity, color: "#ff5a1f" },
     ],
-    /** Largura de cada barra do histograma (bpm). */
+    /** Width of each histogram bar (bpm). */
     bin: 5,
   },
 
-  // --------------------------------------------------------- geografia
+  // ----------------------------------------------------------- geography
   geo: {
     /**
-     * PRIVACIDADE: para esconder o trecho perto de casa no mapa público, informe
-     * o ponto de casa e um raio. Com `home: null` (padrão) nada é escondido.
-     * Ex.: home: { lat: -27.59, lng: -48.55 }, radiusKm: 1
+     * PRIVACY: to hide the stretch near home on the public map, set the home point and a
+     * radius. With `home: null` (default) nothing is hidden.
+     * E.g.: home: { lat: -27.59, lng: -48.55 }, radiusKm: 1
      */
     privacy: { home: null as { lat: number; lng: number } | null, radiusKm: 1 },
   },
 
-  /** Créditos do rodapé. */
+  /** Footer credits. */
   credits: {
     builtWith: ["Next.js", "React", "Tailwind CSS", "TypeScript", "Vercel"],
     maps: ["MapLibre GL", "Esri", "© OpenStreetMap"],
-    data: ["Strava API", "Nominatim"],
+    data: ["Strava API", "Open-Meteo", "Nominatim"],
     fonts: ["Big Shoulders", "Geist", "Geist Mono"],
   },
 };
 
 export type SiteConfig = typeof siteConfig;
+/** The three triathlon sports (distance/elevation totals only count these). */
 export const TRI_SPORTS: SportKey[] = ["swim", "ride", "run"];
-export const ALL_SPORTS: SportKey[] = ["swim", "ride", "run", "strength"];
+/** Everything that gets a color/label. */
+export const ALL_SPORTS: SportKey[] = ["swim", "ride", "run", "strength", "other"];

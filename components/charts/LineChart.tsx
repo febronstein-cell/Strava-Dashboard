@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 
 export interface LinePoint {
@@ -27,9 +28,10 @@ export function LineChart({
   labelEvery?: number;
   color?: string;
 }) {
+  const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null);
   const known = points.filter((p) => p.value !== null).length;
-  if (known < 2) return <p className="py-10 text-muted">Poucos dados neste período.</p>;
+  if (known < 2) return <p className="py-10 text-muted">{t("Few data points in this period.")}</p>;
 
   const n = points.length;
   const px = (i: number) => M.l + (n === 1 ? 0.5 : i / (n - 1)) * (W - M.l - M.r);
@@ -57,7 +59,7 @@ export function LineChart({
             <span className="num text-3xl">{sel.value === null ? "—" : format(sel.value)}</span>
           </p>
         ) : (
-          <p className="label pt-1">Passe o mouse (ou toque) nos pontos</p>
+          <p className="label pt-1">{t("Hover (or tap) the points")}</p>
         )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">

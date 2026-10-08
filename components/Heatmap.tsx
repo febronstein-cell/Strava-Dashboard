@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { siteConfig } from "@/site.config";
+import { useI18n } from "@/lib/i18n";
 import type { HeatDay } from "@/lib/stats";
 
 function level(seconds: number): number {
@@ -11,14 +11,9 @@ function level(seconds: number): number {
   if (seconds < 100 * 60) return 3;
   return 4;
 }
-export const HEAT_MIX = [0, 32, 52, 76, 100]; // % da cor da modalidade por nível
+export const HEAT_MIX = [0, 32, 52, 76, 100]; // % of the sport color per level
 
-const monthShort = (iso: string) =>
-  new Intl.DateTimeFormat(siteConfig.locale, { month: "short", timeZone: "UTC" })
-    .format(new Date(iso + "T00:00:00Z"))
-    .replace(".", "");
-
-/** Grade de dias (semanas em colunas, segunda no topo), estilo GitHub. */
+/** Grid of days (weeks in columns, Monday on top), GitHub style. Intensity = ELAPSED time. */
 export function Heatmap({
   days,
   colorBySport,
@@ -36,20 +31,25 @@ export function Heatmap({
   scrollToEnd?: boolean;
   selected?: string | null;
   onSelect: (d: HeatDay) => void;
-  /** rótulo à esquerda (ex.: o ano, no modo "todos") */
+  /** label on the left (e.g. the year, in the "all" view) */
   label?: string;
 }) {
+  const { locale } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const cols = Math.max(...days.map((d) => d.col)) + 1;
   const lastCol = days.filter((d) => !d.future).at(-1)?.col ?? cols - 1;
   const step = cell + gap;
 
-  // Abre rolado até a semana atual (útil no celular).
+  // Opens scrolled to the current week (useful on phones).
   useEffect(() => {
     const el = scroller.current;
     if (el && scrollToEnd) el.scrollLeft = Math.max(0, lastCol * step - el.clientWidth + 80);
   }, [lastCol, step, scrollToEnd]);
 
+  const monthShort = (iso: string) =>
+    new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
+      .format(new Date(iso + "T00:00:00Z"))
+      .replace(".", "");
   const monthMarks = days.filter((d) => d.date.endsWith("-01") || d === days[0]);
 
   return (
@@ -84,7 +84,7 @@ export function Heatmap({
                   key={d.date}
                   type="button"
                   tabIndex={-1}
-                  aria-label={`${d.date}: ${Math.round(d.seconds / 60)} minutos`}
+                  aria-label={`${d.date}: ${Math.round(d.seconds / 60)} min`}
                   onMouseEnter={() => onSelect(d)}
                   onClick={() => onSelect(d)}
                   className="rounded-[3px] transition-transform hover:scale-125"

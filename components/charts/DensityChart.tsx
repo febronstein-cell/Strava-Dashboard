@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 const W = 600;
 const H = 230;
 const M = { l: 12, r: 12, t: 28, b: 30 };
@@ -28,7 +29,8 @@ export function DensityChart({
   unit?: string;
   color?: string;
 }) {
-  if (values.length < 3) return <p className="py-10 text-muted">Poucos dados neste período.</p>;
+  const { t } = useI18n();
+  if (values.length < 3) return <p className="py-10 text-muted">{t("Few data points in this period.")}</p>;
 
   const [lo, hi] = domain;
   const N = 140;
@@ -60,7 +62,7 @@ export function DensityChart({
 
       <line x1={px(mean)} x2={px(mean)} y1={M.t - 6} y2={H - M.b} stroke={color} strokeDasharray="3 4" opacity="0.8" />
       <text x={px(mean)} y={12} textAnchor="middle" fontSize="10" fill="var(--fg)" style={{ fontFamily: "var(--f-mono)" }}>
-        média: {format(mean)} {unit}
+        {t("avg:")} {format(mean)} {unit}
       </text>
 
       {ticks.map((t) => (

@@ -11,7 +11,7 @@ const mono = Geist_Mono({ variable: "--f-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: `${siteConfig.nickname} · ${siteConfig.eyebrow}`,
-  description: "Meus treinos de natação, ciclismo e corrida em números, direto do Strava.",
+  description: "My swim, bike and run training in numbers, straight from Strava.",
 };
 
 // Aplica o tema salvo (ou o do sistema) antes da primeira pintura: sem flash.
@@ -23,13 +23,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     "--ride": siteConfig.sports.ride.color,
     "--swim": siteConfig.sports.swim.color,
     "--strength": siteConfig.sports.strength.color,
+    "--other": siteConfig.sports.other.color,
     "--brand": siteConfig.brand,
     "--goal": siteConfig.goalColor,
   } as CSSProperties;
 
   return (
     <html
-      lang={siteConfig.locale}
+      lang={siteConfig.defaultLang}
       data-theme="dark"
       style={sportVars}
       suppressHydrationWarning

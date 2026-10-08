@@ -2,18 +2,13 @@
 
 import { siteConfig, type SectionId } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
+import { useI18n } from "@/lib/i18n";
 import type { Period } from "@/lib/stats";
 import { useNow } from "@/lib/use-now";
 import { ThemeToggle } from "./ThemeToggle";
 
-function syncLabel(ms: number): string {
-  const min = Math.max(0, Math.round(ms / 60_000));
-  if (min < 1) return "agora";
-  if (min < 60) return `há ${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `há ${h} h`;
-  return `há ${Math.floor(h / 24)} d`;
-}
+type Kind = "all" | "12w" | "custom" | number;
+const kindOf = (p: Period): Kind => (typeof p === "number" ? p : typeof p === "string" ? p : "custom");
 
 export function SiteHeader({
   ctx,
@@ -26,15 +21,41 @@ export function SiteHeader({
   onPeriod: (p: Period) => void;
   sections: SectionId[];
 }) {
+  const { t, lang, locale, setLang } = useI18n();
   const synced = new Date(ctx.overview.fetchedAt).getTime();
   const now = useNow(synced);
   const [first, ...rest] = ctx.overview.athlete.name.split(" ");
   const brand = siteConfig.shortName || (rest.length ? `${first} ${rest.at(-1)![0]}.` : first);
   const links = sections.filter((id) => siteConfig.nav[id]);
-  const pills: { value: Period; label: string }[] = [
-    { value: "all", label: "Todos" },
-    ...[...ctx.years].reverse().map((y) => ({ value: y as Period, label: String(y) })),
+  const active = kindOf(period);
+
+  const syncLabel = (ms: number): string => {
+    const min = Math.max(0, Math.round(ms / 60_000));
+    if (min < 1) return t("just now");
+    if (min < 60) return t("{n} min ago", { n: min });
+    const h = Math.floor(min / 60);
+    if (h < 24) return t("{n} h ago", { n: h });
+    return t("{n} d ago", { n: Math.floor(h / 24) });
+  };
+
+  const pills: { value: Kind; label: string }[] = [
+    { value: "all", label: t("All time") },
+    ...[...ctx.years].reverse().map((y) => ({ value: y as Kind, label: String(y) })),
+    { value: "12w", label: t("Last 12 weeks") },
+    { value: "custom", label: t("Custom") },
   ];
+
+  const todayKey = ctx.today.toISOString().slice(0, 10);
+
+  const pick = (k: Kind) => {
+    if (k === "custom") {
+      // starts with the last 30 days; the dates can be edited below
+      const from = new Date(ctx.today.getTime() - 29 * 86_400_000).toISOString().slice(0, 10);
+      onPeriod(typeof period === "object" ? period : { from, to: todayKey });
+    } else onPeriod(k);
+  };
+
+  const custom = typeof period === "object" ? period : null;
 
   return (
     <div className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
@@ -43,38 +64,54 @@ export function SiteHeader({
           {brand}
         </a>
 
-        <nav aria-label="Seções" className="hidden items-center gap-5 xl:flex">
+        <nav aria-label={t("Sections")} className="hidden items-center gap-5 xl:flex">
           {links.map((id) => (
             <a key={id} href={`#${id}`} className="label whitespace-nowrap transition-colors hover:text-fg">
-              {siteConfig.nav[id]}
+              {t(siteConfig.nav[id]!)}
             </a>
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <span className="label hidden items-center gap-2 whitespace-nowrap sm:inline-flex" title={`Última sincronização: ${new Date(synced).toLocaleString(siteConfig.locale)}`}>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span
+            className="label hidden items-center gap-2 whitespace-nowrap md:inline-flex"
+            title={t("Last sync: {when}", { when: new Date(synced).toLocaleString(locale) })}
+          >
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-brand" />
             </span>
-            {ctx.isDemo ? "Demonstração" : `Sync ${syncLabel(now - synced)}`}
+            {ctx.isDemo ? t("Demo") : t("Sync {when}", { when: syncLabel(now - synced) })}
           </span>
+
+          <div role="group" aria-label={t("Language")} className="label flex rounded-full border border-line p-0.5">
+            {(["en", "pt"] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                aria-pressed={lang === l}
+                className={`rounded-full px-2.5 py-1.5 transition-colors ${lang === l ? "bg-fg text-bg" : "hover:text-fg"}`}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
           <ThemeToggle />
         </div>
       </div>
 
-      {/* Seletor de período + menu rolável no celular */}
+      {/* period selector */}
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-5 pb-3 sm:px-8">
-        <span className="label hidden shrink-0 sm:block">Período</span>
-        <div role="tablist" aria-label="Período" className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+        <span className="label hidden shrink-0 sm:block">{t("Period")}</span>
+        <div role="tablist" aria-label={t("Period")} className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
           {pills.map((p) => (
             <button
               key={String(p.value)}
               role="tab"
-              aria-selected={period === p.value}
-              onClick={() => onPeriod(p.value)}
+              aria-selected={active === p.value}
+              onClick={() => pick(p.value)}
               className={`label shrink-0 rounded-full border px-3.5 py-1.5 transition-colors ${
-                period === p.value ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"
+                active === p.value ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"
               }`}
             >
               {p.label}
@@ -82,6 +119,33 @@ export function SiteHeader({
           ))}
         </div>
       </div>
+
+      {custom && (
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-5 pb-3 sm:px-8">
+          <label className="label flex items-center gap-2">
+            {t("From")}
+            <input
+              type="date"
+              value={custom.from}
+              max={custom.to}
+              min={`${ctx.firstYear}-01-01`}
+              onChange={(e) => e.target.value && onPeriod({ from: e.target.value, to: custom.to })}
+              className="rounded-full border border-line bg-elev px-3 py-1.5 text-fg"
+            />
+          </label>
+          <label className="label flex items-center gap-2">
+            {t("To")}
+            <input
+              type="date"
+              value={custom.to}
+              min={custom.from}
+              max={todayKey}
+              onChange={(e) => e.target.value && onPeriod({ from: custom.from, to: e.target.value })}
+              className="rounded-full border border-line bg-elev px-3 py-1.5 text-fg"
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
 
 export interface ScatterPoint {
@@ -38,8 +39,9 @@ export function ScatterChart({
   onPick: (id: number) => void;
   color?: string;
 }) {
+  const { t } = useI18n();
   const [active, setActive] = useState<ScatterPoint | null>(null);
-  if (points.length < 3) return <p className="py-10 text-muted">Poucos dados neste período.</p>;
+  if (points.length < 3) return <p className="py-10 text-muted">{t("Few data points in this period.")}</p>;
 
   const px = (x: number) => {
     const t = (x - xDomain[0]) / (xDomain[1] - xDomain[0]);
@@ -53,7 +55,7 @@ export function ScatterChart({
         {active ? (
           <p className="label pt-1 text-fg">{active.label}</p>
         ) : (
-          <p className="label pt-1">Passe o mouse num ponto; clique para abrir o treino</p>
+          <p className="label pt-1">{t("Hover a point; click to open the workout")}</p>
         )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">

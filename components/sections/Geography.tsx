@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { siteConfig, TRI_SPORTS, type SportKey } from "@/site.config";
+import { ALL_SPORTS, siteConfig, type SportKey } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import type { GeoSummary } from "@/lib/strava/geo-summary";
-import { dateLabel, int } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
+import { usePeriodLabel } from "@/lib/i18n/period";
 import { useActivityDialog } from "@/components/ActivityDialog";
 import { GeoMap, type MapFocus } from "@/components/GeoMap";
 import { Reveal } from "@/components/Reveal";
@@ -16,7 +17,9 @@ const placeName = (p: Place) =>
   p.name ? `${p.name}${p.countryCode ? `, ${p.countryCode}` : ""}` : `${p.lat.toFixed(2)}°, ${p.lng.toFixed(2)}°`;
 
 export function Geography({ ctx }: { ctx: DashboardContext }) {
+  const { t, fmt } = useI18n();
   const open = useActivityDialog();
+  const periodLabel = usePeriodLabel(ctx);
   const [data, setData] = useState<GeoSummary | null>(null);
   const [error, setError] = useState(false);
   const [sport, setSport] = useState<SportKey | "all">("all");
@@ -56,18 +59,18 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
 
   const facts = data
     ? [
-        { label: "Locais únicos", value: int(data.facts.uniqueLocations) },
-        { label: "Países", value: data.facts.countries ? int(data.facts.countries) : "—" },
-        { label: "Mais distante", value: `${int(data.facts.furthestKm)} km` },
-        { label: "Trajetos no mapa", value: int(data.facts.mappedActivities) },
+        { label: t("Unique places"), value: fmt.int(data.facts.uniqueLocations) },
+        { label: t("Countries"), value: data.facts.countries ? fmt.int(data.facts.countries) : "—" },
+        { label: t("Furthest"), value: `${fmt.int(data.facts.furthestKm)} km` },
+        { label: t("Routes on the map"), value: fmt.int(data.facts.mappedActivities) },
       ]
     : [];
 
   return (
-    <SectionShell id="geography" title="Geografia" kicker="onde eu treino">
+    <SectionShell id="geography" title={t("Geography")} kicker={t("where I train")}>
       <Reveal>
         {error ? (
-          <p className="card p-8 text-muted">Não consegui carregar o mapa agora. Tente recarregar a página.</p>
+          <p className="card p-8 text-muted">{t("Could not load the map right now. Try reloading the page.")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[22rem_1fr]">
             <div className="space-y-5">
@@ -81,7 +84,7 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
               </div>
 
               <div className="card p-5">
-                <p className="label">Lugares mais frequentes</p>
+                <p className="label">{t("Most frequent places")}</p>
                 <ul className="mt-3 space-y-1">
                   {top.map((p) => (
                     <li key={`${p.lat}${p.lng}`}>
@@ -90,17 +93,17 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
                         className="flex w-full items-baseline justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-soft"
                       >
                         <span className="truncate">{placeName(p)}</span>
-                        <span className="num text-xl text-muted">{int(p.count)}</span>
+                        <span className="num text-xl text-muted">{fmt.int(p.count)}</span>
                       </button>
                     </li>
                   ))}
-                  {data && top.length === 0 && <li className="text-muted">Sem trajetos com GPS ainda.</li>}
+                  {data && top.length === 0 && <li className="text-muted">{t("No GPS routes yet.")}</li>}
                 </ul>
               </div>
 
               {travel.length > 0 && (
                 <div className="card p-5">
-                  <p className="label">Destaques de viagem</p>
+                  <p className="label">{t("Travel highlights")}</p>
                   <ul className="mt-3 space-y-1">
                     {travel.map((p) => (
                       <li key={`${p.lat}${p.lng}`}>
@@ -110,14 +113,14 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
                         >
                           <span className="flex items-baseline justify-between gap-3">
                             <span className="truncate">{placeName(p)}</span>
-                            <span className="num text-xl text-muted">{int(p.count)}</span>
+                            <span className="num text-xl text-muted">{fmt.int(p.count)}</span>
                           </span>
                           <span className="label mt-0.5 block text-[0.6rem]">
-                            {dateLabel(p.firstDate + "T00:00:00", { month: "short", year: "numeric" })}
+                            {fmt.dateLabel(p.firstDate + "T00:00:00", { month: "short", year: "numeric" })}
                             {p.firstDate.slice(0, 7) !== p.lastDate.slice(0, 7) &&
-                              ` → ${dateLabel(p.lastDate + "T00:00:00", { month: "short", year: "numeric" })}`}
+                              ` → ${fmt.dateLabel(p.lastDate + "T00:00:00", { month: "short", year: "numeric" })}`}
                             {" · "}
-                            {int(p.distanceKm)} km de casa
+                            {t("{km} km from home", { km: fmt.int(p.distanceKm) })}
                           </span>
                         </button>
                       </li>
@@ -132,8 +135,13 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
                 <GeoMap
                   routes={data.routes}
                   sport={sport}
-                  year={ctx.period}
+                  range={ctx.range}
                   focus={focus ?? initial}
+                  gestureText={{
+                    windows: t("Use Ctrl + scroll to zoom the map"),
+                    mac: t("Use ⌘ + scroll to zoom the map"),
+                    mobile: t("Use two fingers to move the map"),
+                  }}
                   onPick={(id) => {
                     const a = byId.get(id);
                     if (a) open(a);
@@ -141,20 +149,20 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
                 />
               ) : (
                 <div className="grid size-full place-items-center">
-                  <p className="label animate-pulse">Carregando mapa…</p>
+                  <p className="label animate-pulse">{t("Loading map…")}</p>
                 </div>
               )}
 
               {data && (
-                <div className="label absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                  <div className="flex rounded-full border border-line bg-bg/85 p-1 backdrop-blur">
-                    {(["all", ...TRI_SPORTS] as const).map((s) => (
+                <div className="label absolute top-3 left-3 right-3 flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap rounded-full border border-line bg-bg/85 p-1 backdrop-blur">
+                    {(["all", ...ALL_SPORTS.filter((s) => s !== "strength")] as const).map((s) => (
                       <button
                         key={s}
                         onClick={() => setSport(s)}
                         className={`rounded-full px-3 py-1.5 transition-colors ${sport === s ? "bg-fg text-bg" : "hover:text-fg"}`}
                       >
-                        {s === "all" ? "Tudo" : siteConfig.sports[s].label}
+                        {s === "all" ? t("All") : t(siteConfig.sports[s].label)}
                       </button>
                     ))}
                   </div>
@@ -162,13 +170,13 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
                     onClick={worldView}
                     className="rounded-full border border-line bg-bg/85 px-3 py-2 backdrop-blur transition-colors hover:text-fg"
                   >
-                    Ver mundo
+                    {t("World view")}
                   </button>
                 </div>
               )}
               {data && (
                 <p className="label absolute bottom-3 left-3 rounded-full bg-bg/85 px-3 py-1.5 text-[0.6rem] backdrop-blur">
-                  {ctx.period === "all" ? "Todos os anos" : ctx.period} · clique numa rota para ver o treino
+                  {periodLabel} · {t("click a route to see the workout")}
                 </p>
               )}
             </div>

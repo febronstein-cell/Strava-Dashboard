@@ -1,21 +1,22 @@
 import { ALL_SPORTS, type SportKey } from "@/site.config";
 import type { Activity, StravaOverview } from "./strava/types";
-import { inPeriod, sportStats, totals, type Period, type SportStats, type Totals } from "./stats";
+import { inRange, resolveRange, sportStats, totals, type Period, type Range, type SportStats, type Totals } from "./stats";
 
-/** Tudo que as seções precisam, calculado no cliente a partir do período escolhido. */
+/** Everything the sections need, computed in the browser from the chosen period. */
 export interface DashboardContext {
   overview: StravaOverview;
   isDemo: boolean;
-  years: number[]; // do mais antigo ao mais recente
+  years: number[]; // oldest to newest
   firstYear: number;
   currentYear: number;
   period: Period;
-  periodLabel: string;
-  /** histórico inteiro, mais recentes primeiro */
+  /** concrete dates of the chosen period */
+  range: Range;
+  /** whole history, newest first */
   all: Activity[];
-  /** só o período escolhido */
+  /** only the chosen period */
   acts: Activity[];
-  /** momento da última sincronização (estável entre renders) */
+  /** moment of the last sync (stable across renders) */
   today: Date;
   totals: Totals;
   allTotals: Totals;
@@ -23,7 +24,9 @@ export interface DashboardContext {
 }
 
 export function buildContext(overview: StravaOverview, all: Activity[], period: Period): DashboardContext {
-  const acts = inPeriod(all, period);
+  const today = new Date(overview.fetchedAt);
+  const range = resolveRange(period, overview.startYear, today);
+  const acts = inRange(all, range);
   const years: number[] = [];
   for (let y = overview.startYear; y <= overview.currentYear; y++) years.push(y);
   return {
@@ -33,10 +36,10 @@ export function buildContext(overview: StravaOverview, all: Activity[], period: 
     firstYear: overview.startYear,
     currentYear: overview.currentYear,
     period,
-    periodLabel: period === "all" ? "Todos os anos" : String(period),
+    range,
     all,
     acts,
-    today: new Date(overview.fetchedAt),
+    today,
     totals: totals(acts),
     allTotals: totals(all),
     sports: Object.fromEntries(ALL_SPORTS.map((s) => [s, sportStats(acts, s)])) as Record<SportKey, SportStats>,

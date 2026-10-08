@@ -69,7 +69,9 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
     const trip = dow === 6 && (month === 4 || month === 9) && d.getUTCDate() < 8 ? (month === 4 ? 2 : 1) : 0;
     const place = trip ? DEMO_PLACES[trip] : DEMO_PLACES[0];
 
-    for (const sport of plan[dow]) {
+    const todays: SportKey[] = [...plan[dow]];
+    if (rand() < 0.12) todays.push("other"); // caminhada/trilha ocasional
+    for (const sport of todays) {
       if (rand() < 0.14) continue;
       const hour = sport === "strength" ? 18 : 5 + Math.floor(rand() * 13);
       const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(hour)}:${pad(Math.floor(rand() * 60))}:00`;
@@ -84,29 +86,38 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
         distance = (long ? 12000 + rand() * 10000 : 5000 + rand() * 5000) * form;
         speed = 1000 / (340 - rand() * 50 - month * 3 - (year - 2020) * 6);
         elevation = distance * (0.005 + rand() * 0.01);
-        name = long ? "Longão de domingo" : ["Corrida leve", "Tiros na pista", "Rodagem matinal"][Math.floor(rand() * 3)];
+        name = long ? "Sunday long run" : ["Easy run", "Track intervals", "Morning run"][Math.floor(rand() * 3)];
         if (trip && dow === 6) {
           race = true;
-          name = "Meia Maratona";
+          name = "Half Marathon";
           distance = 21097;
         }
       } else if (sport === "ride") {
         distance = (long ? 60000 + rand() * 60000 : 30000 + rand() * 25000) * form;
         speed = 6.6 + rand() * 2.2 + month * 0.05 + (year - 2020) * 0.1;
         elevation = distance * (0.008 + rand() * 0.012);
-        name = long ? "Pedal longo de sábado" : ["Pedal de base", "Intervalado na bike", "Rolê de recuperação"][Math.floor(rand() * 3)];
+        name = long ? "Saturday long ride" : ["Base ride", "Bike intervals", "Recovery spin"][Math.floor(rand() * 3)];
       } else if (sport === "swim") {
         distance = (1500 + rand() * 2000) * Math.min(form, 1.1);
         speed = 100 / (125 - rand() * 20 - month - (year - 2020) * 2);
-        name = ["Treino técnico", "Série de 400m", "Nado contínuo"][Math.floor(rand() * 3)];
+        name = ["Technique session", "400m repeats", "Continuous swim"][Math.floor(rand() * 3)];
+      } else if (sport === "other") {
+        distance = 3000 + rand() * 9000;
+        speed = 1.3 + rand() * 0.4;
+        elevation = distance * (0.01 + rand() * 0.03);
+        name = ["Evening walk", "Trail hike", "Park walk"][Math.floor(rand() * 3)];
       } else {
-        name = ["Treino de força", "Core e mobilidade", "Perna + glúteo"][Math.floor(rand() * 3)];
+        name = ["Strength session", "Core and mobility", "Legs + glutes"][Math.floor(rand() * 3)];
       }
       distance = Math.round(distance);
       const movingTime = sport === "strength" ? Math.round(2400 + rand() * 1800) : Math.round(distance / speed);
 
       // ao ar livre (com trajeto) ou ambiente fechado (esteira, rolo, piscina)
-      const outdoor = sport === "run" || sport === "ride" ? rand() > 0.18 : sport === "swim" ? rand() < 0.15 : false;
+      const outdoor =
+        sport === "run" || sport === "ride" ? rand() > 0.18 : sport === "swim" ? rand() < 0.15 : sport === "other";
+      // tempo decorrido = em movimento + paradas (semáforo, descanso entre séries...)
+      const stops = sport === "swim" ? 0.18 : sport === "ride" ? 0.07 + rand() * 0.1 : sport === "other" ? 0.12 : 0.03;
+      const elapsedTime = Math.round(movingTime * (1 + stops + rand() * 0.02));
       const hr =
         sport === "run"
           ? 138 + (speed - 3.2) * 40 + (rand() - 0.5) * 22
@@ -114,7 +125,9 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
             ? 128 + (speed - 7.5) * 6 + (rand() - 0.5) * 20
             : sport === "strength"
               ? 105 + rand() * 20
-              : 0;
+              : sport === "other"
+                ? 100 + rand() * 25
+                : 0;
 
       const act: Activity = {
         id: id++,
@@ -123,10 +136,12 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
         date,
         distance,
         movingTime,
+        elapsedTime,
         elevation: Math.round(elevation),
         ...(race ? { race: true } : {}),
         ...(sport !== "strength" && !outdoor ? { indoor: true } : {}),
         ...(hr ? { hr: Math.round(hr), hrMax: Math.round(hr + 14 + rand() * 18) } : {}),
+        ...(sport === "run" ? { cad: Math.round(82 + rand() * 6) } : sport === "ride" ? { cad: Math.round(80 + rand() * 12), watts: Math.round(150 + speed * 12 + rand() * 30), deviceWatts: !outdoor } : {}),
       };
       activities.push(act);
 
