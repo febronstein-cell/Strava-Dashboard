@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   THEME TOKENS  —  é aqui que mudamos a identidade visual do site.
+   As cores das modalidades (--run, --ride, --swim) vêm de `site.config.ts`
+   e são injetadas no <body> em `app/layout.tsx`.
+   ========================================================================== */
+:root {
+  /* Modo escuro é o padrão */
+  --bg: #0b0b0c;
+  --bg-elev: #131315;
+  --bg-soft: #1a1a1d;
+  --fg: #f2f0ea;
+  --muted: #8d8b85;
+  --line: #26262a;
+  --accent: var(--run);
+  --radius: 1.25rem;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f4f1ea;
+  --bg-elev: #fbf9f4;
+  --bg-soft: #ebe7dd;
+  --fg: #141413;
+  --muted: #77736a;
+  --line: #dcd7ca;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-soft: var(--bg-soft);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-run: var(--run);
+  --color-ride: var(--ride);
+  --color-swim: var(--swim);
+  --color-accent: var(--accent);
+  --font-sans: var(--f-body);
+  --font-mono: var(--f-mono);
+  --font-display: var(--f-display);
+  --radius-card: var(--radius);
+}
+
+html {
+  background: var(--bg);
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--f-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+::selection {
+  background: var(--accent);
+  color: #0b0b0c;
+}
+
+/* Números grandes: fonte display, algarismos tabulares, sem pular ao animar */
+.num {
+  font-family: var(--f-display), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 0.9;
+}
+
+.label {
+  font-family: var(--f-mono), monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* Animação de entrada sutil (usada por <Reveal />) */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Barras do gráfico crescem de baixo para cima */
+@keyframes grow-up {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.bar-seg {
+  transform-origin: bottom;
+  animation: grow-up 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .bar-seg {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
