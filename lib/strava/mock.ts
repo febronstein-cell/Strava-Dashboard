@@ -105,6 +105,17 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
       distance = Math.round(distance);
       const movingTime = sport === "strength" ? Math.round(2400 + rand() * 1800) : Math.round(distance / speed);
 
+      // ao ar livre (com trajeto) ou ambiente fechado (esteira, rolo, piscina)
+      const outdoor = sport === "run" || sport === "ride" ? rand() > 0.18 : sport === "swim" ? rand() < 0.15 : false;
+      const hr =
+        sport === "run"
+          ? 138 + (speed - 3.2) * 40 + (rand() - 0.5) * 22
+          : sport === "ride"
+            ? 128 + (speed - 7.5) * 6 + (rand() - 0.5) * 20
+            : sport === "strength"
+              ? 105 + rand() * 20
+              : 0;
+
       const act: Activity = {
         id: id++,
         name,
@@ -114,11 +125,13 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
         movingTime,
         elevation: Math.round(elevation),
         ...(race ? { race: true } : {}),
+        ...(sport !== "strength" && !outdoor ? { indoor: true } : {}),
+        ...(hr ? { hr: Math.round(hr), hrMax: Math.round(hr + 14 + rand() * 18) } : {}),
       };
       activities.push(act);
 
       // trajeto: só corrida/bike ao ar livre e uma parte da natação (águas abertas)
-      if (sport === "run" || sport === "ride" || (sport === "swim" && rand() < 0.15)) {
+      if (outdoor) {
         const center: LatLng = [
           place.lat + (rand() - 0.5) * 0.12,
           place.lng + (rand() - 0.5) * 0.12,

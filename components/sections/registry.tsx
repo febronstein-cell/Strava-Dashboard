@@ -4,6 +4,7 @@ import type { DashboardContext } from "@/lib/dashboard";
 import { About } from "./About";
 import { Custom } from "./Custom";
 import { Geography } from "./Geography";
+import { HeartRate } from "./HeartRate";
 import { Hero } from "./Hero";
 import { Notable } from "./Notable";
 import { Progression } from "./Progression";
@@ -25,6 +26,7 @@ export const sectionRegistry: Record<SectionId, (ctx: DashboardContext) => React
   volume: (ctx) => <Volume ctx={ctx} />,
   notable: (ctx) => <Notable ctx={ctx} />,
   stats: (ctx) => <Stats ctx={ctx} />,
+  heart: (ctx) => <HeartRate ctx={ctx} />,
   progression: (ctx) => <Progression ctx={ctx} />,
   geography: (ctx) => <Geography ctx={ctx} />,
   recent: (ctx) => <Recent ctx={ctx} />,

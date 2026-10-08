@@ -43,11 +43,11 @@ export function Hero({ ctx }: { ctx: DashboardContext }) {
   ];
 
   return (
-    <header className="relative overflow-hidden">
+    <header id="hero" className="relative overflow-hidden">
       {/* Brilho de fundo nas cores das três modalidades */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-40 left-1/2 h-[28rem] w-[60rem] -translate-x-1/2 opacity-30 blur-3xl"
+        className="parallax-glow pointer-events-none absolute -top-40 left-1/2 h-[28rem] w-[60rem] opacity-30 blur-3xl"
         style={{
           background:
             "radial-gradient(40% 60% at 25% 50%, var(--swim), transparent), radial-gradient(40% 60% at 50% 50%, var(--ride), transparent), radial-gradient(40% 60% at 75% 50%, var(--run), transparent)",
@@ -59,7 +59,7 @@ export function Hero({ ctx }: { ctx: DashboardContext }) {
           <p className="label mb-4">
             {siteConfig.tagline} · <span className="text-brand">{ctx.periodLabel}</span>
           </p>
-          <h1 className="num text-[clamp(3.5rem,13vw,10.5rem)] uppercase">{name}</h1>
+          <h1 className="parallax-name num text-[clamp(3.5rem,13vw,10.5rem)] uppercase">{name}</h1>
           {siteConfig.nickname && (
             <p className="num mt-4 flex flex-wrap items-baseline gap-x-4 text-3xl sm:text-5xl">
               <span className="text-brand">{siteConfig.nickname}</span>

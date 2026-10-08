@@ -1,4 +1,4 @@
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { clusterPlaces, haversineKm, type Place } from "@/lib/geo";
 import { getAllData } from "./get-data";
 import { reverseGeocode } from "./geocode";
@@ -25,7 +25,8 @@ const NAMED_FAR = 10;
 
 export async function getGeoSummary(): Promise<GeoSummary> {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
+  cacheTag("strava-live");
 
   const { overview, years } = await getAllData();
   const routes = years.flatMap((y) => y.geo).sort((a, b) => (a.date < b.date ? 1 : -1));

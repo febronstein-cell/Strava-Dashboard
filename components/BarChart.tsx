@@ -5,6 +5,8 @@ import { useState } from "react";
 export interface BarItem {
   key: string;
   label: string;
+  /** texto curto no eixo (se omitido, usa `label`) */
+  axis?: string;
   /** partes empilhadas da barra */
   segments: { name: string; value: number; color: string }[];
 }
@@ -90,7 +92,7 @@ export function BarChart({
       <div className="mt-2 flex gap-[3px]">
         {items.map((it, i) => (
           <span key={it.key} className="label flex-1 text-center text-[0.6rem]">
-            {i % labelEvery === 0 ? it.label : ""}
+            {i % labelEvery === 0 ? (it.axis ?? it.label) : ""}
           </span>
         ))}
       </div>

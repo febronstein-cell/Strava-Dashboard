@@ -89,6 +89,9 @@ function normalize(raw: RawActivity): Activity | null {
   if (!sport) return null; // yoga, caminhada etc. ficam de fora
   // workout_type 1 = corrida de competição; 11 = pedal de competição
   const race = (raw.type === "Run" && raw.workout_type === 1) || (raw.type === "Ride" && raw.workout_type === 11);
+  // sem GPS (esteira, rolo, piscina) ou virtual/rolo marcado = ambiente fechado
+  const indoor =
+    sport !== "strength" && (raw.sport_type.startsWith("Virtual") || !!raw.trainer || !raw.map?.summary_polyline);
   return {
     id: raw.id,
     name: raw.name,
@@ -98,6 +101,9 @@ function normalize(raw: RawActivity): Activity | null {
     movingTime: raw.moving_time,
     elevation: sport === "strength" ? 0 : raw.total_elevation_gain,
     ...(race ? { race: true } : {}),
+    ...(indoor ? { indoor: true } : {}),
+    ...(raw.average_heartrate ? { hr: Math.round(raw.average_heartrate) } : {}),
+    ...(raw.max_heartrate ? { hrMax: Math.round(raw.max_heartrate) } : {}),
   };
 }
 

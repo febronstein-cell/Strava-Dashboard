@@ -51,7 +51,8 @@ export interface SportStats extends Totals {
 export function sportStats(acts: Activity[], sport: SportKey): SportStats {
   const mine = acts.filter((a) => a.sport === sport);
   const t = totals(mine);
-  const longest = mine.reduce<Activity | null>((best, a) => (!best || a.distance > best.distance ? a : best), null);
+  // "mais longa" = maior tempo em movimento (não a maior distância)
+  const longest = mine.reduce<Activity | null>((best, a) => (!best || a.movingTime > best.movingTime ? a : best), null);
   return { sport, ...t, avgSpeed: t.movingTime ? t.distance / t.movingTime : 0, longest };
 }
 
@@ -254,4 +255,127 @@ export function peak(points: VolumePoint[]): { point: VolumePoint; seconds: numb
     if (!best || seconds > best.seconds) best = { point: p, seconds };
   }
   return best && best.seconds > 0 ? best : null;
+}
+
+// ------------------------------------------------- distribuições e FC
+
+/** Faixas de distância (km; natação em m) para o gráfico de distribuição. */
+const BINS: Record<SportKey, { label: string; max: number }[]> = {
+  run: [
+    { label: "< 5 km", max: 5 },
+    { label: "5–10 km", max: 10 },
+    { label: "10–15 km", max: 15 },
+    { label: "15–21 km", max: 21.1 },
+    { label: "21–30 km", max: 30 },
+    { label: "30–42 km", max: 42.2 },
+    { label: "42+ km", max: Infinity },
+  ],
+  ride: [
+    { label: "< 20 km", max: 20 },
+    { label: "20–40 km", max: 40 },
+    { label: "40–60 km", max: 60 },
+    { label: "60–90 km", max: 90 },
+    { label: "90–120 km", max: 120 },
+    { label: "120–160 km", max: 160 },
+    { label: "160+ km", max: Infinity },
+  ],
+  swim: [
+    { label: "< 1 km", max: 1 },
+    { label: "1–1,5 km", max: 1.5 },
+    { label: "1,5–2 km", max: 2 },
+    { label: "2–3 km", max: 3 },
+    { label: "3–4 km", max: 4 },
+    { label: "4–5 km", max: 5 },
+    { label: "5+ km", max: Infinity },
+  ],
+  strength: [],
+};
+
+export function distanceDistribution(acts: Activity[], sport: SportKey): { label: string; count: number }[] {
+  const bins = BINS[sport].map((b) => ({ label: b.label, count: 0 }));
+  for (const a of acts) {
+    if (a.sport !== sport || a.distance <= 0) continue;
+    const km = a.distance / 1000;
+    const i = BINS[sport].findIndex((b) => km < b.max);
+    if (i >= 0) bins[i].count++;
+  }
+  return bins;
+}
+
+/** Distância mínima (m) e faixa plausível para entrar nos gráficos de ritmo. */
+const PACE_RULES: Record<SportKey, { minDist: number; lo: number; hi: number }> = {
+  run: { minDist: 2000, lo: 150, hi: 600 }, // s/km
+  ride: { minDist: 5000, lo: 10, hi: 50 }, // km/h
+  swim: { minDist: 200, lo: 60, hi: 220 }, // s/100m
+  strength: { minDist: Infinity, lo: 0, hi: 0 },
+};
+
+/** Valor de ritmo/velocidade da atividade na unidade do esporte (run s/km, ride km/h, swim s/100m). */
+export function paceValue(a: Activity): number | null {
+  if (a.movingTime <= 0 || a.distance <= 0) return null;
+  const v = a.sport === "run" ? a.movingTime / (a.distance / 1000) : a.sport === "swim" ? a.movingTime / (a.distance / 100) : (a.distance / a.movingTime) * 3.6;
+  const r = PACE_RULES[a.sport];
+  return a.distance >= r.minDist && v >= r.lo && v <= r.hi ? v : null;
+}
+
+export function paceValues(acts: Activity[], sport: SportKey): number[] {
+  return acts
+    .filter((a) => a.sport === sport)
+    .map(paceValue)
+    .filter((v): v is number => v !== null);
+}
+
+/** Atividades com FC média. */
+export const withHr = (acts: Activity[]) => acts.filter((a): a is Activity & { hr: number } => !!a.hr);
+
+/** Histograma da FC média por atividade, em faixas de `bin` bpm. */
+export function hrHistogram(acts: Activity[], bin = 5): { from: number; count: number }[] {
+  const list = withHr(acts);
+  if (list.length === 0) return [];
+  const lo = Math.floor(Math.min(...list.map((a) => a.hr)) / bin) * bin;
+  const hi = Math.floor(Math.max(...list.map((a) => a.hr)) / bin) * bin;
+  const bins = Array.from({ length: (hi - lo) / bin + 1 }, (_, i) => ({ from: lo + i * bin, count: 0 }));
+  for (const a of list) bins[Math.floor((a.hr - lo) / bin)].count++;
+  return bins;
+}
+
+/** Eficiência aeróbica: metros percorridos por batimento (maior = melhor). */
+export function efficiency(a: Activity): number | null {
+  if (!a.hr || a.movingTime <= 0 || a.distance <= 0) return null;
+  return ((a.distance / a.movingTime) * 60) / a.hr;
+}
+
+export interface MonthPoint {
+  key: string; // AAAA-MM
+  hr: number | null;
+  eff: number | null;
+}
+
+/** Média mensal de FC e de eficiência para uma modalidade. */
+export function monthlyHr(acts: Activity[], sport: SportKey, period: Period, firstYear: number, today: Date): MonthPoint[] {
+  const keys: string[] = [];
+  const last = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+  const years = period === "all" ? Array.from({ length: today.getUTCFullYear() - firstYear + 1 }, (_, i) => firstYear + i) : [period];
+  for (const y of years) for (let m = 1; m <= 12; m++) {
+    const k = `${y}-${String(m).padStart(2, "0")}`;
+    if (k <= last) keys.push(k);
+  }
+  const acc = new Map(keys.map((k) => [k, { hr: 0, hrN: 0, eff: 0, effN: 0 }]));
+  const minDist = siteConfig.rules.minDistanceForBestPace[sport];
+  for (const a of acts) {
+    if (a.sport !== sport || !a.hr) continue;
+    const o = acc.get(a.date.slice(0, 7));
+    if (!o) continue;
+    o.hr += a.hr;
+    o.hrN++;
+    const e = efficiency(a);
+    if (e && a.distance >= minDist) {
+      o.eff += e;
+      o.effN++;
+    }
+  }
+  return keys.map((key) => {
+    const o = acc.get(key)!;
+    return { key, hr: o.hrN ? o.hr / o.hrN : null, eff: o.effN ? o.eff / o.effN : null };
+  });
 }

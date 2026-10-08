@@ -1,4 +1,4 @@
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { siteConfig } from "@/site.config";
 import { fetchAthlete, fetchYear, hasStravaCredentials } from "./client";
 import { generateDemoYear } from "./mock";
@@ -6,15 +6,19 @@ import type { StravaOverview, YearData } from "./types";
 
 /**
  * Fontes de dados da página, todas cacheadas:
- *  - visão geral (nome, 1º ano): 1 h
- *  - cada ano: ano corrente 1 h; anos passados 1 dia (quase nunca mudam)
+ *  - visão geral (nome, 1º ano): 15 min
+ *  - cada ano: ano corrente 15 min; anos passados 1 dia (quase nunca mudam)
+ *
+ * Tag "strava-live": o webhook do Strava (app/api/strava/webhook) a invalida assim que
+ * você salva uma atividade, então o site atualiza em segundos, sem esperar o intervalo.
  * Assim o Strava recebe poucas requisições (limite: 100 / 15 min e 1000 / dia),
  * mesmo com o histórico completo. Sem credenciais, devolve dados de demonstração.
  */
 
 export async function getOverview(): Promise<StravaOverview> {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
+  cacheTag("strava-live");
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -48,7 +52,8 @@ export async function getOverview(): Promise<StravaOverview> {
 export async function getYearData(year: number, currentYear: number, demo: boolean): Promise<YearData> {
   "use cache: remote";
   if (year >= currentYear) {
-    cacheLife({ stale: 300, revalidate: 3600, expire: 86400 });
+    cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
+    cacheTag("strava-live");
   } else {
     cacheLife({ stale: 3600, revalidate: 86400, expire: 604800 });
   }

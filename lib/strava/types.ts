@@ -15,6 +15,11 @@ export interface Activity {
   elevation: number;
   /** Marcada como "competição" no Strava. */
   race?: boolean;
+  /** Esteira, rolo, Zwift ou piscina (sem GPS). */
+  indoor?: boolean;
+  /** FC média / máxima (bpm), quando há monitor cardíaco. */
+  hr?: number;
+  hrMax?: number;
 }
 
 /** Trajeto simplificado de uma atividade (servido à parte, em /api/geo). */
@@ -59,6 +64,8 @@ export interface RawActivity {
   private?: boolean;
   workout_type?: number | null;
   trainer?: boolean;
+  average_heartrate?: number;
+  max_heartrate?: number;
   manual?: boolean;
   start_latlng?: number[] | null;
   map?: { summary_polyline?: string | null } | null;

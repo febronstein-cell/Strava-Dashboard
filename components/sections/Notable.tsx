@@ -32,12 +32,13 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
       a: Activity | null,
       fmt: (a: Activity) => { value: string; unit: string },
     ) => {
-      if (a) out.push({ label, sport, activity: a, sub: a.name, ...fmt(a) });
+      if (a) out.push({ label, sport, activity: a, sub: a.distance > 0 ? `${km(a.distance, a.sport === "swim" ? 2 : 1)} km · ${a.name}` : a.name, ...fmt(a) });
     };
 
-    add("Maior corrida", "run", maxBy(acts, (a) => a.distance, "run"), (a) => ({ value: km(a.distance, 1), unit: "km" }));
-    add("Maior pedal", "ride", maxBy(acts, (a) => a.distance, "ride"), (a) => ({ value: km(a.distance, 1), unit: "km" }));
-    add("Maior nado", "swim", maxBy(acts, (a) => a.distance, "swim"), (a) => ({ value: km(a.distance, 2), unit: "km" }));
+    // "mais longa" = maior tempo em movimento; a distância vai na linha de baixo
+    add("Corrida mais longa", "run", maxBy(acts, (a) => a.movingTime, "run"), (a) => ({ value: duration(a.movingTime), unit: "" }));
+    add("Pedal mais longo", "ride", maxBy(acts, (a) => a.movingTime, "ride"), (a) => ({ value: duration(a.movingTime), unit: "" }));
+    add("Nado mais longo", "swim", maxBy(acts, (a) => a.movingTime, "swim"), (a) => ({ value: duration(a.movingTime), unit: "" }));
 
     const climb = maxBy(acts, (a) => a.elevation);
     add("Maior elevação", climb?.sport ?? "ride", climb, (a) => ({ value: int(a.elevation), unit: "m" }));
@@ -47,9 +48,6 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
         sport === "ride" ? "Maior velocidade média" : `Melhor ritmo · ${siteConfig.sports[sport].label.toLowerCase()}`;
       add(label, sport, bestPace(acts, sport), (a) => pace(sport, a.distance / a.movingTime));
     }
-
-    const longestTime = maxBy(acts, (a) => a.movingTime);
-    add("Treino mais longo", longestTime?.sport ?? "run", longestTime, (a) => ({ value: duration(a.movingTime), unit: "" }));
 
     // semana (ano) ou mês (todos) mais pesado
     const series = period === "all" ? monthlyVolume(acts, period, firstYear, today) : weeklyVolume(acts, period, today);

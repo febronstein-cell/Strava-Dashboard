@@ -55,8 +55,25 @@ Para testar como em produção (build + cache de 1 h): `npm run build && npm sta
 1. Suba o projeto para o GitHub (o `.env.local` fica de fora) e importe o repositório em <https://vercel.com/new> (Framework: Next.js, sem mudar nada).
 2. Em **Settings → Environment Variables**, cadastre `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` e `STRAVA_REFRESH_TOKEN` (valores do `.env.local`, marcados como Sensitive) e faça **Redeploy**.
 3. **Sempre a versão mais nova:** com o GitHub conectado, **todo `git push` na branch `main` gera um deploy de produção sozinho**. Confira em **Settings → Git**: *Production Branch = main*. Pushes em outras branches geram só links de pré-visualização.
-4. **Dados sempre recentes:** o site se atualiza sozinho a cada **1 hora** (ISR). Quando alguém abre o site depois de 1 h, ele mostra a versão atual e, em segundo plano, busca o Strava de novo; a visita seguinte já vê os dados novos. Uma atividade nova aparece em até ~1 h (+1 visita). Não precisa de cron nem de novo deploy.
+4. **Dados sempre recentes:** o site se atualiza sozinho a cada **15 minutos** (ISR): quando alguém abre depois desse prazo, ele mostra a versão atual e, em segundo plano, busca o Strava de novo. Para atualizar **em segundos**, ative a sincronização instantânea (seção abaixo).
 5. Domínio próprio: **Settings → Domains → Add** e crie no seu registrador os registros DNS que a Vercel mostrar.
+
+### Sincronização instantânea (webhook do Strava)
+
+O Strava pode avisar o site no momento em que você salva uma atividade. O site então busca os dados novos na hora (em cerca de 1 minuto você já vê o treino), sem depender de visitas e em qualquer plano da Vercel. Configure uma vez, **depois que o site estiver no ar**:
+
+1. Gere o token de verificação (grava no `.env.local`, sem mostrar):
+   ```
+   node --env-file=.env.local scripts/strava-webhook.mjs prepare
+   ```
+2. Na Vercel (**Settings → Environment Variables**), cadastre `STRAVA_WEBHOOK_VERIFY_TOKEN` com o mesmo valor do `.env.local` e faça **Redeploy**.
+3. Registre o aviso, com o endereço do seu site:
+   ```
+   node --env-file=.env.local scripts/strava-webhook.mjs create https://SEU-SITE.com
+   ```
+   Deve responder `HTTP 200` com um `id`. Para conferir depois: `... view`. Para cancelar: `... delete <id>`.
+
+O endpoint (`/api/strava/webhook`) só aceita avisos do seu perfil, ignora rajadas e responde ao Strava em milissegundos. O intervalo de 15 min continua valendo como rede de segurança.
 
 **Se os dados pararem de atualizar:** veja **Logs** do projeto na Vercel. Se aparecer "falha ao renovar o token", o Strava invalidou o refresh token: rode `node scripts/strava-auth.mjs` no seu computador, copie o novo `STRAVA_REFRESH_TOKEN` para a Vercel e faça Redeploy. Enquanto isso o site continua no ar com os últimos dados.
 
@@ -89,5 +106,9 @@ scripts/                  ← strava-auth.mjs (autorização única), copy-mapli
 - Cache por ano: o ano corrente atualiza a cada 1 h; anos passados a cada 1 dia. O 1º carregamento é lento (~30 s); depois é instantâneo.
 - Só natação, bike, corrida e força entram. Atividades **virtuais/rolo/manuais** (ex.: Zwift) contam nos totais, mas **não aparecem no mapa**.
 - Nomes de cidades vêm do OpenStreetMap (Nominatim), com cache longo. Mapa-base: Esri (sem chave de API).
+- Clima (temperatura e condição) vem do Open-Meteo (sem chave), só para treinos ao ar livre com GPS; o histórico tem ~5 dias de atraso. Carrega quando você abre "Mostrar mais gráficos".
+- Frequência cardíaca: usa a FC **média de cada atividade** (não o tempo em cada zona, que exigiria baixar o detalhe de cada treino). As zonas são bpm absolutos em `heartRate.zones` no `site.config.ts`: ajuste aos seus valores.
+- "Ambiente fechado" = esteira, rolo, Zwift ou piscina (atividade sem GPS ou marcada como virtual).
+- Efeitos: abertura animada (só na 1ª visita da sessão) e barra de progresso na base da tela com mini atleta (desligados com "reduzir movimento" do sistema).
 - "Melhor ritmo" exige distância mínima por modalidade (`rules.minDistanceForBestPace`).
 - O rodapé mantém "Powered by Strava" e os créditos de mapa, por exigência dos provedores.

@@ -43,9 +43,9 @@ export function SiteHeader({
           {brand}
         </a>
 
-        <nav aria-label="Seções" className="hidden items-center gap-6 lg:flex">
+        <nav aria-label="Seções" className="hidden items-center gap-5 xl:flex">
           {links.map((id) => (
-            <a key={id} href={`#${id}`} className="label transition-colors hover:text-fg">
+            <a key={id} href={`#${id}`} className="label whitespace-nowrap transition-colors hover:text-fg">
               {siteConfig.nav[id]}
             </a>
           ))}

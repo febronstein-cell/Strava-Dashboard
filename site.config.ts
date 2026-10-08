@@ -18,6 +18,7 @@ export type SectionId =
   | "volume"
   | "notable"
   | "stats"
+  | "heart"
   | "progression"
   | "geography"
   | "recent"
@@ -79,6 +80,7 @@ export const siteConfig = {
     { id: "volume", enabled: true },
     { id: "notable", enabled: true },
     { id: "stats", enabled: true },
+    { id: "heart", enabled: true },
     { id: "progression", enabled: true },
     { id: "geography", enabled: true },
     { id: "recent", enabled: true },
@@ -93,6 +95,7 @@ export const siteConfig = {
     volume: "Volume",
     notable: "Destaques",
     stats: "Estatísticas",
+    heart: "FC",
     progression: "Progressão",
     geography: "Geografia",
     recent: "Recentes",
@@ -133,6 +136,23 @@ export const siteConfig = {
     minDistanceForBestPace: { run: 3000, ride: 10000, swim: 400, strength: Infinity } satisfies Record<SportKey, number>,
     /** Colorir o heatmap pela modalidade dominante do dia. */
     heatmapColorBySport: true,
+  },
+
+  // ---------------------------------------------------- frequência cardíaca
+  heartRate: {
+    /**
+     * Zonas em bpm absolutos (FC média da atividade). Ajuste aos seus valores:
+     * `max` é o limite superior de cada zona.
+     */
+    zones: [
+      { name: "Recuperação", max: 120, color: "#2bd4ff" },
+      { name: "Leve", max: 140, color: "#1fe08a" },
+      { name: "Tempo", max: 160, color: "#c6f432" },
+      { name: "Limiar", max: 180, color: "#ffb020" },
+      { name: "Máximo", max: Infinity, color: "#ff5a1f" },
+    ],
+    /** Largura de cada barra do histograma (bpm). */
+    bin: 5,
   },
 
   // --------------------------------------------------------- geografia

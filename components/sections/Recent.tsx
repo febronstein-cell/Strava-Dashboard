@@ -6,6 +6,7 @@ import type { DashboardContext } from "@/lib/dashboard";
 import type { Activity } from "@/lib/strava/types";
 import { dateLabel, duration, int, km, meters, pace } from "@/lib/format";
 import { useActivityDialog } from "@/components/ActivityDialog";
+import { DonutChart } from "@/components/charts/DonutChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
 import { SportIcon } from "@/components/SportIcon";
@@ -60,6 +61,7 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
   const breakdown = ALL_SPORTS.map((s) => ({
     sport: s,
     secs: list.filter((a) => a.sport === s).reduce((t, a) => t + a.movingTime, 0),
+    dist: list.filter((a) => a.sport === s).reduce((t, a) => t + a.distance, 0),
   })).filter((b) => b.secs > 0);
 
   const visible = showAll ? list : list.slice(0, 10);
@@ -87,26 +89,26 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
             ))}
           </div>
 
-          <div className="grid gap-6 border-b border-line px-5 py-6 sm:grid-cols-[auto_auto_1fr] sm:items-center sm:gap-10 sm:px-7">
-            <Summary label="Atividades" value={int(list.length)} />
-            <Summary label="Tempo total" value={duration(totalSecs)} />
-            <div>
-              <p className="label">Distância {km(totalDist, 0)} km · divisão do tempo</p>
-              <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-soft">
-                {breakdown.map((b) => (
-                  <div key={b.sport} style={{ flex: `${b.secs} 1 0%`, background: `var(--${b.sport})` }} />
-                ))}
+          <div className="grid gap-8 border-b border-line px-5 py-6 sm:px-7 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-14">
+            <dl className="grid grid-cols-3 gap-6 lg:grid-cols-1 lg:gap-5">
+              <Summary label="Atividades" value={int(list.length)} />
+              <Summary label="Tempo total" value={duration(totalSecs)} />
+              <Summary label="Distância total" value={`${km(totalDist, 0)} km`} />
+            </dl>
+            {breakdown.length > 0 && (
+              <div>
+                <p className="label mb-4">Divisão do tempo</p>
+                <DonutChart
+                  segments={breakdown.map((b) => ({
+                    name: siteConfig.sports[b.sport].label,
+                    value: b.secs,
+                    color: `var(--${b.sport})`,
+                    detail: `${duration(b.secs)}${b.dist > 0 ? ` · ${km(b.dist, 0)} km` : ""}`,
+                  }))}
+                  format={(v) => `${Math.round((v / totalSecs) * 100)}%`}
+                />
               </div>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
-                {breakdown.map((b) => (
-                  <span key={b.sport} className="inline-flex items-center gap-2">
-                    <span className="size-2 rounded-full" style={{ background: `var(--${b.sport})` }} />
-                    {siteConfig.sports[b.sport].label} {Math.round((b.secs / totalSecs) * 100)}%{" "}
-                    <span className="text-fg">{duration(b.secs)}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           {list.length === 0 ? (
@@ -136,8 +138,8 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
 function Summary({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="label">{label}</p>
-      <p className="num mt-1.5 text-5xl">{value}</p>
+      <dt className="label">{label}</dt>
+      <dd className="num mt-1.5 text-3xl sm:text-5xl">{value}</dd>
     </div>
   );
 }

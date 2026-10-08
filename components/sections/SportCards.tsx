@@ -54,10 +54,10 @@ export function SportCards({ ctx }: { ctx: DashboardContext }) {
                     onClick={() => open(st.longest!)}
                     className="mt-8 block w-full border-t border-line pt-4 text-left transition-opacity hover:opacity-80"
                   >
-                    <p className="label">Maior atividade ↗</p>
+                    <p className="label">Mais longa · tempo em movimento ↗</p>
                     <p className="mt-2 truncate font-medium">{st.longest.name}</p>
                     <p className="mt-1 text-sm text-muted">
-                      {km(st.longest.distance, 1)} km · {duration(st.longest.movingTime)} · {dateLabel(st.longest.date)}
+                      <span className="text-fg">{duration(st.longest.movingTime)}</span> · {km(st.longest.distance, 1)} km · {dateLabel(st.longest.date)}
                     </p>
                   </button>
                 )}

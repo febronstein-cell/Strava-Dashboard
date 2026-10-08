@@ -7,6 +7,7 @@ import { upcoming } from "@/lib/races";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { ActivityDialogProvider } from "./ActivityDialog";
+import { ScrollEffects } from "./ScrollEffects";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { Splash } from "./Splash";
@@ -29,6 +30,7 @@ export function Dashboard({ overview, activities }: { overview: StravaOverview; 
   return (
     <ActivityDialogProvider isDemo={ctx.isDemo}>
       <Splash />
+      <ScrollEffects />
       <div id="topo" />
       <SiteHeader ctx={ctx} period={period} onPeriod={setPeriod} sections={enabled} />
       <main className="flex-1">
