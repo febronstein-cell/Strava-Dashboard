@@ -26,7 +26,7 @@ export function clock(totalSeconds: number): string {
 
 /** Velocidade média (m/s) formatada no padrão de cada modalidade. */
 export function pace(sport: SportKey, metersPerSecond: number): { value: string; unit: string } {
-  if (!metersPerSecond || !isFinite(metersPerSecond)) return { value: "—", unit: "" };
+  if (sport === "strength" || !metersPerSecond || !isFinite(metersPerSecond)) return { value: "—", unit: "" };
   if (sport === "ride") {
     return { value: nf(1).format(metersPerSecond * 3.6), unit: "km/h" };
   }
@@ -42,3 +42,9 @@ export function dateLabel(iso: string, opts: Intl.DateTimeFormatOptions = { day:
     .format(new Date(iso + "Z"))
     .replace(".", "");
 }
+
+/** "08:15" a partir do horário local ISO. */
+export const timeOfDay = (iso: string) => iso.slice(11, 16);
+
+/** Horas decimais -> "1.234h" */
+export const hoursInt = (seconds: number) => nf(0).format(Math.round(seconds / 3600));

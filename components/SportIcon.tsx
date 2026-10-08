@@ -1,6 +1,6 @@
 import type { SportKey } from "@/site.config";
 
-/** Ícones simples de traço. Troque por outros quando definirmos a identidade. */
+/** Ícones simples de traço. Podemos trocar por outros quando definirmos a identidade. */
 export function SportIcon({ sport, className = "size-6" }: { sport: SportKey; className?: string }) {
   const common = {
     viewBox: "0 0 24 24",
@@ -26,6 +26,13 @@ export function SportIcon({ sport, className = "size-6" }: { sport: SportKey; cl
         <circle cx="6" cy="16" r="3.5" />
         <circle cx="18" cy="16" r="3.5" />
         <path d="M6 16l4-8h5l3 8M10 8l4.5 8M9 6h3" />
+      </svg>
+    );
+  }
+  if (sport === "strength") {
+    return (
+      <svg {...common}>
+        <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />
       </svg>
     );
   }

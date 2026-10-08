@@ -10,18 +10,21 @@ const body = Geist({ variable: "--f-body", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--f-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: `${siteConfig.eyebrow} — ${siteConfig.tagline}`,
+  title: `${siteConfig.nickname} · ${siteConfig.eyebrow}`,
   description: "Meus treinos de natação, ciclismo e corrida em números, direto do Strava.",
 };
 
 // Aplica o tema salvo (ou o do sistema) antes da primeira pintura: sem flash.
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t}catch(e){}})();`;
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t;if(sessionStorage.getItem('splash')){document.documentElement.dataset.splash='off'}else{sessionStorage.setItem('splash','1')}}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const sportVars = {
     "--run": siteConfig.sports.run.color,
     "--ride": siteConfig.sports.ride.color,
     "--swim": siteConfig.sports.swim.color,
+    "--strength": siteConfig.sports.strength.color,
+    "--brand": siteConfig.brand,
+    "--goal": siteConfig.goalColor,
   } as CSSProperties;
 
   return (

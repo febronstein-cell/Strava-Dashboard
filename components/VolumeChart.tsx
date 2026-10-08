@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { siteConfig, type SportKey } from "@/site.config";
+import { ALL_SPORTS, siteConfig, type SportKey } from "@/site.config";
 import type { VolumePoint } from "@/lib/stats";
 
-const SPORT_ORDER: SportKey[] = ["swim", "ride", "run"]; // de baixo para cima na barra
+const STACK_ORDER: SportKey[] = ["strength", "swim", "ride", "run"]; // de baixo para cima na barra
 type Mode = "weekly" | "monthly";
 
 const fmtHours = (s: number) => {
@@ -12,92 +12,84 @@ const fmtHours = (s: number) => {
   const m = Math.round((s % 3600) / 60);
   return h ? `${h}h${String(m).padStart(2, "0")}` : `${m}min`;
 };
+const totalOf = (p: VolumePoint) => ALL_SPORTS.reduce((a, s) => a + p.secs[s], 0);
 
-function niceMax(seconds: number) {
-  // múltiplo de 4 h, para o eixo ter 4 divisões inteiras (0, 1/4, 1/2, 3/4, topo)
-  return Math.max(4, Math.ceil(seconds / 3600 / 4) * 4);
-}
+/** Múltiplo de 4 h, para o eixo ter divisões inteiras. */
+const niceMax = (seconds: number) => Math.max(4, Math.ceil(seconds / 3600 / 4) * 4);
 
-export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[]; monthly: VolumePoint[] }) {
-  const [mode, setMode] = useState<Mode>("weekly");
+const monthShort = (iso: string) =>
+  new Intl.DateTimeFormat(siteConfig.locale, { month: "short", timeZone: "UTC" }).format(new Date(iso)).replace(".", "");
+
+export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null; monthly: VolumePoint[] }) {
+  const [wanted, setWanted] = useState<Mode>("weekly");
   const [active, setActive] = useState<number | null>(null);
-  const points = mode === "weekly" ? weekly : monthly;
+  // sem semanas (período "todos"): só mensal
+  const mode: Mode = weekly ? wanted : "monthly";
+  const points = mode === "weekly" && weekly ? weekly : monthly;
+  const sel = active !== null && active < points.length ? points[active] : null;
 
-  const maxHours = useMemo(
-    () => niceMax(Math.max(...points.map((p) => p.run + p.ride + p.swim), 0)),
-    [points],
-  );
+  const maxHours = useMemo(() => niceMax(Math.max(...points.map(totalOf), 0)), [points]);
   const grid = [1, 0.75, 0.5, 0.25, 0].map((f) => maxHours * f);
+  const many = points.length > 24; // semanas, ou meses de vários anos
 
   const label = (p: VolumePoint, i: number): string => {
     if (mode === "monthly") {
-      return new Intl.DateTimeFormat(siteConfig.locale, { month: "short", timeZone: "UTC" })
-        .format(new Date(p.key + "-01T00:00:00Z"))
-        .replace(".", "");
+      if (monthly.length > 12) return p.key.endsWith("-01") ? p.key.slice(0, 4) : "";
+      return monthShort(p.key + "-01T00:00:00Z");
     }
-    // semanal: a semana pertence ao mês da sua quinta-feira (como na ISO 8601);
-    // rótulo só quando o mês muda
+    // semana pertence ao mês da sua quinta-feira (como na ISO 8601); rótulo só quando o mês muda
     const mid = (key: string) => new Date(new Date(key + "T00:00:00Z").getTime() + 3 * 86_400_000);
     const d = mid(p.key);
     if (i > 0 && mid(points[i - 1].key).getUTCMonth() === d.getUTCMonth()) return "";
-    return new Intl.DateTimeFormat(siteConfig.locale, { month: "short", timeZone: "UTC" })
-      .format(d)
-      .replace(".", "");
+    return monthShort(d.toISOString());
   };
 
-  const readout = (p: VolumePoint | null) => {
-    if (!p) {
-      const total = points.reduce((a, q) => a + q.run + q.ride + q.swim, 0);
-      return { title: mode === "weekly" ? "Total no ano" : "Total no ano", total, sel: null as VolumePoint | null };
+  const title = (p: VolumePoint | null): string => {
+    if (!p) return "Total no período";
+    if (mode === "weekly") {
+      return (
+        "Semana de " +
+        new Intl.DateTimeFormat(siteConfig.locale, { day: "2-digit", month: "short", timeZone: "UTC" })
+          .format(new Date(p.key + "T00:00:00Z"))
+          .replace(".", "")
+      );
     }
-    const title =
-      mode === "weekly"
-        ? "Semana de " +
-          new Intl.DateTimeFormat(siteConfig.locale, { day: "2-digit", month: "short", timeZone: "UTC" })
-            .format(new Date(p.key + "T00:00:00Z"))
-            .replace(".", "")
-        : new Intl.DateTimeFormat(siteConfig.locale, { month: "long", timeZone: "UTC" }).format(
-            new Date(p.key + "-01T00:00:00Z"),
-          );
-    return { title, total: p.run + p.ride + p.swim, sel: p };
+    return new Intl.DateTimeFormat(siteConfig.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
+      new Date(p.key + "-01T00:00:00Z"),
+    );
   };
-  const info = readout(active === null ? null : points[active]);
+
+  const secsBySport = (s: SportKey) => (sel ? sel.secs[s] : points.reduce((a, q) => a + q.secs[s], 0));
+  const total = sel ? totalOf(sel) : points.reduce((a, q) => a + totalOf(q), 0);
 
   return (
     <div className="card p-5 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="label">{info.title}</p>
-          <p className="num mt-2 text-5xl sm:text-6xl">{fmtHours(info.total)}</p>
+          <p className="label">{title(sel)}</p>
+          <p className="num mt-2 text-5xl sm:text-6xl">{fmtHours(total)}</p>
           <div className="mt-3 flex min-h-5 flex-wrap gap-x-5 gap-y-1 text-sm">
-            {SPORT_ORDER.slice()
-              .reverse()
-              .map((s) => {
-                const secs = info.sel
-                  ? info.sel[s]
-                  : points.reduce((a, q) => a + q[s], 0);
-                return (
-                  <span key={s} className="inline-flex items-center gap-2 text-muted">
-                    <span className="size-2.5 rounded-full" style={{ background: `var(--${s})` }} />
-                    {siteConfig.sports[s].label}{" "}
-                    <span className="text-fg">{fmtHours(secs)}</span>
-                  </span>
-                );
-              })}
+            {[...STACK_ORDER].reverse().map((s) => (
+              <span key={s} className="inline-flex items-center gap-2 text-muted">
+                <span className="size-2.5 rounded-full" style={{ background: `var(--${s})` }} />
+                {siteConfig.sports[s].label} <span className="text-fg">{fmtHours(secsBySport(s))}</span>
+              </span>
+            ))}
           </div>
         </div>
 
-        <div role="tablist" aria-label="Período" className="label flex rounded-full border border-line p-1">
+        <div role="tablist" aria-label="Agrupamento" className="label flex rounded-full border border-line p-1">
           {(["weekly", "monthly"] as Mode[]).map((m) => (
             <button
               key={m}
               role="tab"
               aria-selected={mode === m}
+              disabled={m === "weekly" && !weekly}
               onClick={() => {
-                setMode(m);
+                setWanted(m);
                 setActive(null);
               }}
-              className={`rounded-full px-4 py-1.5 transition-colors ${
+              className={`rounded-full px-4 py-1.5 transition-colors disabled:opacity-30 ${
                 mode === m ? "bg-fg text-bg" : "hover:text-fg"
               }`}
             >
@@ -108,7 +100,6 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[]; monthl
       </div>
 
       <div className="relative mt-8 h-64 sm:h-80" onMouseLeave={() => setActive(null)}>
-        {/* linhas de grade + eixo (horas) */}
         {grid.map((h, i) => (
           <div
             key={h}
@@ -121,16 +112,16 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[]; monthl
         ))}
 
         <div
-          key={mode}
-          className={`absolute inset-y-0 right-0 left-11 flex items-stretch ${mode === "weekly" ? "gap-[2px]" : "gap-2"}`}
+          key={`${mode}-${points.length}`}
+          className={`absolute inset-y-0 right-0 left-11 flex items-stretch ${many ? "gap-[2px]" : "gap-2"}`}
         >
           {points.map((p, i) => {
-            const total = p.run + p.ride + p.swim;
+            const t = totalOf(p);
             return (
               <button
                 key={p.key}
                 type="button"
-                aria-label={`${readout(p).title}: ${fmtHours(total)}`}
+                aria-label={`${title(p)}: ${fmtHours(t)}`}
                 onMouseEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onClick={() => setActive(i)}
@@ -139,19 +130,19 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[]; monthl
                 <div
                   className="flex flex-col-reverse overflow-hidden rounded-t-[3px] transition-opacity"
                   style={{
-                    height: `${(total / 3600 / maxHours) * 100}%`,
+                    height: `${(t / 3600 / maxHours) * 100}%`,
                     opacity: active === null || active === i ? 1 : 0.35,
                   }}
                 >
-                  {SPORT_ORDER.map((s) =>
-                    p[s] > 0 ? (
+                  {STACK_ORDER.map((s) =>
+                    p.secs[s] > 0 ? (
                       <div
                         key={s}
                         className="bar-seg"
                         style={{
-                          flex: `${p[s]} 1 0%`,
+                          flex: `${p.secs[s]} 1 0%`,
                           background: `var(--${s})`,
-                          animationDelay: `${i * (mode === "weekly" ? 14 : 60)}ms`,
+                          animationDelay: `${i * (many ? Math.min(14, 900 / points.length) : 60)}ms`,
                         }}
                       />
                     ) : null,

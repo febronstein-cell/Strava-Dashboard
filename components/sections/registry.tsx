@@ -3,12 +3,14 @@ import type { SectionId } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import { About } from "./About";
 import { Custom } from "./Custom";
-import { HeatmapSection } from "./HeatmapSection";
+import { Geography } from "./Geography";
 import { Hero } from "./Hero";
+import { Notable } from "./Notable";
+import { Progression } from "./Progression";
 import { Races } from "./Races";
 import { Recent } from "./Recent";
-import { Records } from "./Records";
 import { SportCards } from "./SportCards";
+import { Stats } from "./Stats";
 import { Volume } from "./Volume";
 
 /**
@@ -17,12 +19,14 @@ import { Volume } from "./Volume";
  */
 export const sectionRegistry: Record<SectionId, (ctx: DashboardContext) => ReactNode> = {
   hero: (ctx) => <Hero ctx={ctx} />,
+  races: (ctx) => <Races ctx={ctx} />,
+  about: () => <About />,
   sports: (ctx) => <SportCards ctx={ctx} />,
   volume: (ctx) => <Volume ctx={ctx} />,
-  heatmap: (ctx) => <HeatmapSection ctx={ctx} />,
-  records: (ctx) => <Records ctx={ctx} />,
+  notable: (ctx) => <Notable ctx={ctx} />,
+  stats: (ctx) => <Stats ctx={ctx} />,
+  progression: (ctx) => <Progression ctx={ctx} />,
+  geography: (ctx) => <Geography ctx={ctx} />,
   recent: (ctx) => <Recent ctx={ctx} />,
-  about: () => <About />,
-  races: () => <Races />,
   custom: (ctx) => <Custom ctx={ctx} />,
 };

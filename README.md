@@ -50,34 +50,44 @@ npm run dev        # http://localhost:3000
 
 Para testar como em produção (build + cache de 1 h): `npm run build && npm start`.
 
-## 4. Deploy na Vercel
+## 4. Deploy na Vercel (automático)
 
-1. Suba o projeto para um repositório no GitHub (o `.env.local` fica de fora).
-2. Em <https://vercel.com/new> importe o repositório (Framework: Next.js, sem mudar nada).
-3. Em **Settings → Environment Variables**, cadastre `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` e `STRAVA_REFRESH_TOKEN` (mesmos valores do `.env.local`).
-4. Deploy. Depois, no Strava, atualize o **Website** do app para a URL da Vercel (o callback domain `localhost` continua só para o script local).
+1. Suba o projeto para o GitHub (o `.env.local` fica de fora) e importe o repositório em <https://vercel.com/new> (Framework: Next.js, sem mudar nada).
+2. Em **Settings → Environment Variables**, cadastre `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` e `STRAVA_REFRESH_TOKEN` (valores do `.env.local`, marcados como Sensitive) e faça **Redeploy**.
+3. **Sempre a versão mais nova:** com o GitHub conectado, **todo `git push` na branch `main` gera um deploy de produção sozinho**. Confira em **Settings → Git**: *Production Branch = main*. Pushes em outras branches geram só links de pré-visualização.
+4. **Dados sempre recentes:** o site se atualiza sozinho a cada **1 hora** (ISR). Quando alguém abre o site depois de 1 h, ele mostra a versão atual e, em segundo plano, busca o Strava de novo; a visita seguinte já vê os dados novos. Uma atividade nova aparece em até ~1 h (+1 visita). Não precisa de cron nem de novo deploy.
+5. Domínio próprio: **Settings → Domains → Add** e crie no seu registrador os registros DNS que a Vercel mostrar.
+
+**Se os dados pararem de atualizar:** veja **Logs** do projeto na Vercel. Se aparecer "falha ao renovar o token", o Strava invalidou o refresh token: rode `node scripts/strava-auth.mjs` no seu computador, copie o novo `STRAVA_REFRESH_TOKEN` para a Vercel e faça Redeploy. Enquanto isso o site continua no ar com os últimos dados.
 
 ## Estrutura
 
 ```
-site.config.ts            ← textos, cores por modalidade, ordem/visibilidade das seções
-app/                      ← layout (fontes), globals.css (THEME TOKENS), page.tsx
-lib/strava/               ← client (OAuth + API), get-data (cache 1h), mock (demo), types
+site.config.ts            ← textos, cores, próxima meta, provas, seções, privacidade do mapa
+app/                      ← layout (fontes, tema), globals.css (THEME TOKENS), page.tsx, api/geo
+lib/strava/               ← client (OAuth + API), get-data (cache), geo-summary, geocode, mock, types
 lib/stats.ts, format.ts   ← agregações (semana/mês/dia, recordes) e formatação
+components/Dashboard.tsx  ← casca: período escolhido, cabeçalho, seções, rodapé
 components/sections/      ← cada seção da página + registry.tsx
-components/               ← CountUp, Reveal, VolumeChart, Heatmap, ThemeToggle...
-scripts/strava-auth.mjs   ← autorização única
+components/               ← GeoMap, Heatmap, BarChart, VolumeChart, ActivityDialog, Splash...
+scripts/                  ← strava-auth.mjs (autorização única), copy-maplibre-worker.mjs
 ```
 
-## Personalização
+## Personalização (tudo em `site.config.ts`)
 
-- **Texto, cores das modalidades, ordem das seções**: `site.config.ts`.
-- **Paleta, raio, modo claro/escuro**: bloco `THEME TOKENS` em `app/globals.css`.
-- **Fontes**: `app/layout.tsx`.
-- **Seção nova**: crie o componente em `components/sections/`, registre em `registry.tsx` e inclua em `siteConfig.sections`. Já existem espaços reservados (`about`, `races`, `custom`), desligados por padrão.
+- **Próximas provas**: `upcomingRaces` (nome, local, `date: "AAAA-MM-DD"`). A mais próxima vira destaque com contagem regressiva; as que já passaram somem sozinhas.
+- **Apelido e @**: `nickname` e `handle`.
+- **Sobre**: `about.body` + `enabled: true` na seção `about`.
+- **Cores**: `sports` (4 modalidades), `brand` (destaque geral) e `goalColor` (provas e meta).
+- **Ordem/visibilidade das seções**: `sections`. Nova seção: crie em `components/sections/`, registre em `registry.tsx`.
+- **Privacidade do mapa**: `geo.privacy.home` + `radiusKm` escondem o trecho perto de casa. Desligado por padrão.
+- **Paleta/raio/modo claro**: bloco `THEME TOKENS` em `app/globals.css`. **Fontes**: `app/layout.tsx`.
 
-## Observações
+## Como os dados funcionam
 
-- Só entram natação, bike e corrida (incluindo trail, virtual, gravel, e-bike). Outras atividades são ignoradas.
-- "Melhor ritmo" exige distância mínima por modalidade (`rules.minDistanceForBestPace`), para um sprint de 200 m não virar recorde.
-- Por exigência do Strava, o rodapé mantém "Powered by Strava".
+- Histórico completo, desde o ano em que sua conta Strava foi criada (ou `startYear`).
+- Cache por ano: o ano corrente atualiza a cada 1 h; anos passados a cada 1 dia. O 1º carregamento é lento (~30 s); depois é instantâneo.
+- Só natação, bike, corrida e força entram. Atividades **virtuais/rolo/manuais** (ex.: Zwift) contam nos totais, mas **não aparecem no mapa**.
+- Nomes de cidades vêm do OpenStreetMap (Nominatim), com cache longo. Mapa-base: Esri (sem chave de API).
+- "Melhor ritmo" exige distância mínima por modalidade (`rules.minDistanceForBestPace`).
+- O rodapé mantém "Powered by Strava" e os créditos de mapa, por exigência dos provedores.
