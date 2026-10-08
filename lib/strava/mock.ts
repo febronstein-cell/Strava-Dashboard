@@ -141,7 +141,7 @@ export function generateDemoYear(year: number, today: Date): { activities: Activ
         ...(race ? { race: true } : {}),
         ...(sport !== "strength" && !outdoor ? { indoor: true } : {}),
         ...(hr ? { hr: Math.round(hr), hrMax: Math.round(hr + 14 + rand() * 18) } : {}),
-        ...(sport === "run" ? { cad: Math.round(82 + rand() * 6) } : sport === "ride" ? { cad: Math.round(80 + rand() * 12), watts: Math.round(150 + speed * 12 + rand() * 30), deviceWatts: !outdoor } : {}),
+        ...(sport === "run" ? { cad: Math.round(82 + rand() * 6) } : sport === "ride" ? { cad: Math.round(80 + rand() * 12), watts: Math.round(150 + speed * 12 + rand() * 30), deviceWatts: true, np: Math.round(165 + speed * 12 + rand() * 40) } : {}),
       };
       activities.push(act);
 

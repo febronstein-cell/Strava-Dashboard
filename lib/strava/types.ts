@@ -27,6 +27,8 @@ export interface Activity {
   /** average power (W) and whether it comes from a real power meter */
   watts?: number;
   deviceWatts?: boolean;
+  /** normalized (weighted average) power in W, from a power meter */
+  np?: number;
 }
 
 /** Trajeto simplificado de uma atividade (servido à parte, em /api/geo). */
@@ -76,6 +78,7 @@ export interface RawActivity {
   max_heartrate?: number;
   average_cadence?: number;
   average_watts?: number;
+  weighted_average_watts?: number;
   device_watts?: boolean;
   manual?: boolean;
   start_latlng?: number[] | null;

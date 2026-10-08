@@ -79,15 +79,16 @@ export const siteConfig = {
   // ------------------------------------------------------------ sections
   /** Order and visibility of the sections. Reorder or flip `enabled`. */
   sections: [
+    // summary -> volume -> consistency -> analysis -> records -> map -> latest workouts
     { id: "hero", enabled: true },
     { id: "races", enabled: true },
     { id: "about", enabled: false },
     { id: "sports", enabled: true },
     { id: "volume", enabled: true },
-    { id: "notable", enabled: true },
+    { id: "progression", enabled: true },
     { id: "stats", enabled: true },
     { id: "heart", enabled: true },
-    { id: "progression", enabled: true },
+    { id: "notable", enabled: true },
     { id: "geography", enabled: true },
     { id: "recent", enabled: true },
     { id: "custom", enabled: false },

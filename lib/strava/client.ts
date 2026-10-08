@@ -108,6 +108,7 @@ function normalize(raw: RawActivity): Activity | null {
     ...(raw.max_heartrate ? { hrMax: Math.round(raw.max_heartrate) } : {}),
     ...(raw.average_cadence ? { cad: Math.round(raw.average_cadence * 10) / 10 } : {}),
     ...(raw.average_watts ? { watts: Math.round(raw.average_watts), deviceWatts: !!raw.device_watts } : {}),
+    ...(raw.weighted_average_watts && raw.device_watts ? { np: Math.round(raw.weighted_average_watts) } : {}),
   };
 }
 

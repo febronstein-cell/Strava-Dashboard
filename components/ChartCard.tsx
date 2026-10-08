@@ -1,17 +1,20 @@
 import type { ReactNode } from "react";
 
-/** Moldura padrão dos gráficos: título, legenda curta e insight em destaque. */
+/** Standard frame of the charts: title, short caption, highlighted insight and an optional controls row. */
 export function ChartCard({
   title,
   subtitle,
   insight,
   hint,
+  controls,
   children,
 }: {
   title: string;
   subtitle?: string;
   insight?: string;
   hint?: string;
+  /** filters shown under the header (sport chips, "hide small values"...) */
+  controls?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -25,6 +28,7 @@ export function ChartCard({
           </p>
         </div>
         {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
+        {controls && <div className="mt-3 flex flex-wrap items-center gap-2">{controls}</div>}
       </div>
       {children}
     </div>

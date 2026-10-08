@@ -124,10 +124,18 @@ O site abre em **inglês** e tem o botão **EN | PT** no topo (a escolha fica sa
 - O volume inclui **todos os esportes** (natação, bike, corrida, força e outros, como caminhada); os outros esportes com GPS também aparecem no mapa.
 - Período: um ano, tudo, **últimas 12 semanas** ou **personalizado** (duas datas), no topo da página.
 
-## Potências notáveis (curva de potência da bike)
+## Potências notáveis (bike)
 
-A curva (melhor potência média de 5 s até 3 h, incluindo rolo e Zwift) vem de `data/records.json`, gerado por um script local, porque o Strava só entrega a série de potência um pedal por vez.
+O cartão **Notable power outputs** funciona hoje com os dados que o Strava já entrega por pedal: a **melhor potência média por duração do pedal** (10 min, 20 min, 30 min, 1 h, 2 h, 3 h; é a média do pedal inteiro, então é um piso do seu melhor real) e as **maiores potências normalizadas**. Só entram pedais com medidor de potência (inclui rolo e Zwift), com filtro Todos / Ar livre / Indoor.
 
-1. O Strava só devolve a série de potência para apps com a permissão `activity:read_all`. Autorize uma vez, no seu computador: `node scripts/strava-auth.mjs --all`. As atividades privadas continuam escondidas do site.
+Para ter também a **curva de potência de 5 s a 3 h**, o Strava exige a permissão `activity:read_all` (sem ela não devolve a série de potência):
+
+1. Autorize uma vez, no seu computador: `node scripts/strava-auth.mjs --all`. As atividades privadas continuam escondidas do site.
 2. Copie o novo `STRAVA_REFRESH_TOKEN` (já gravado no `.env.local`) para a Vercel e faça Redeploy.
 3. Rode `npm run strava:records` (use `npm.cmd` no PowerShell). O script respeita o limite do Strava (pausa sozinho, pode ser interrompido e retomado) e salva o progresso em `data/records-cache.json`. Depois faça commit de `data/` e `git push`.
+
+## Filtros, temas e organização
+
+- **Esconder valores pequenos:** os minigráficos com categorias (distribuição de distâncias, temperatura, condições do tempo, zonas de FC, rosca de tempo, lugares do mapa) têm o botão *Hide small values*. No Volume, a legenda é clicável (liga/desliga cada esporte) e há *Hide small sports*.
+- **Três temas:** escuro, claro e **oceano** (azul-noite). O botão do topo alterna entre eles e a escolha fica salva. Os tokens do tema estão em `app/globals.css`.
+- **Ordem das seções** (em `site.config.ts`): resumo → provas → modalidades → volume → progressão → estatísticas → FC → destaques → mapa → recentes. Cada seção tem uma linha de descrição dizendo o que mostra e qual base de tempo usa.

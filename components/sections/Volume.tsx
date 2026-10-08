@@ -24,13 +24,15 @@ export function Volume({ ctx }: { ctx: DashboardContext }) {
   const monthly = useMemo(() => monthlyVolume(acts, range), [acts, range]);
 
   return (
-    <SectionShell id="volume" title={t("Volume")} kicker={periodLabel}>
+    <SectionShell
+      id="volume"
+      title={t("Volume")}
+      kicker={periodLabel}
+      description={t("How much you trained by week or month, across all sports. Time is elapsed (start to finish). Click a sport in the legend to hide it.")}
+    >
       <Reveal>
         <VolumeChart weekly={weekly} monthly={monthly} />
       </Reveal>
-      <p className="label mt-4 text-[0.62rem]">
-        {t("Volume uses elapsed time and includes every sport, not just swim, bike and run")}
-      </p>
     </SectionShell>
   );
 }

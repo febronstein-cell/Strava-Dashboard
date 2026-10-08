@@ -10,8 +10,12 @@ import { useActivityDialog } from "@/components/ActivityDialog";
 import { GeoMap, type MapFocus } from "@/components/GeoMap";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
+import { SmallToggle } from "@/components/SmallToggle";
 
 type Place = GeoSummary["places"][number];
+
+/** With "hide small places" on, only places with at least this many activities are listed. */
+const MIN_ACTIVITIES = 3;
 
 const placeName = (p: Place) =>
   p.name ? `${p.name}${p.countryCode ? `, ${p.countryCode}` : ""}` : `${p.lat.toFixed(2)}°, ${p.lng.toFixed(2)}°`;
@@ -24,6 +28,7 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
   const [error, setError] = useState(false);
   const [sport, setSport] = useState<SportKey | "all">("all");
   const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [smallPlaces, setSmallPlaces] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -45,12 +50,12 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
   const travel = useMemo(
     () =>
       (data?.places ?? [])
-        .filter((p) => p.distanceKm > 50)
+        .filter((p) => p.distanceKm > 50 && (!smallPlaces || p.count >= MIN_ACTIVITIES))
         .sort((a, b) => b.count - a.count)
         .slice(0, 8),
-    [data],
+    [data, smallPlaces],
   );
-  const top = data?.places.slice(0, 6) ?? [];
+  const top = (data?.places ?? []).filter((p) => !smallPlaces || p.count >= MIN_ACTIVITIES).slice(0, 6);
 
   const goTo = (lat: number, lng: number, zoom: number) =>
     setFocus((prev) => ({ lat, lng, zoom, nonce: (prev?.nonce ?? 0) + 1 }));
@@ -67,7 +72,12 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
     : [];
 
   return (
-    <SectionShell id="geography" title={t("Geography")} kicker={t("where I train")}>
+    <SectionShell
+      id="geography"
+      title={t("Geography")}
+      kicker={t("where I train")}
+      description={t("Routes, favorite places and trips. Click a route to open its workout.")}
+    >
       <Reveal>
         {error ? (
           <p className="card p-8 text-muted">{t("Could not load the map right now. Try reloading the page.")}</p>
@@ -85,6 +95,14 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
 
               <div className="card p-5">
                 <p className="label">{t("Most frequent places")}</p>
+                <div className="mt-3">
+                  <SmallToggle
+                    on={smallPlaces}
+                    onChange={setSmallPlaces}
+                    label={t("Hide small places")}
+                    hint={t("Hide places with fewer than {n} activities", { n: MIN_ACTIVITIES })}
+                  />
+                </div>
                 <ul className="mt-3 space-y-1">
                   {top.map((p) => (
                     <li key={`${p.lat}${p.lng}`}>

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { ALL_SPORTS, siteConfig, type SportKey } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
-import { pointCount, pointSeconds, type VolumePoint } from "@/lib/stats";
+import type { VolumePoint } from "@/lib/stats";
+import { SMALL_SHARE, SmallToggle } from "./SmallToggle";
 
 const STACK_ORDER: SportKey[] = ["other", "strength", "swim", "ride", "run"]; // bottom to top of each bar
 type Mode = "weekly" | "monthly";
@@ -13,26 +14,38 @@ type Metric = "time" | "sessions";
 const niceMax = (v: number) => Math.max(4, Math.ceil(v / 4) * 4);
 
 /**
- * Volume chart. ALWAYS includes every sport (swim, bike, run, strength and other).
+ * Volume chart. Includes every sport (swim, bike, run, strength and other).
  * "Time" is ELAPSED time (start to finish); "Sessions" counts activities.
+ * Filters: click a sport in the legend to hide/show it, or hide the sports that are
+ * a tiny part of the total.
  */
 export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null; monthly: VolumePoint[] }) {
   const { t, fmt, locale } = useI18n();
   const [wanted, setWanted] = useState<Mode>("weekly");
   const [metric, setMetric] = useState<Metric>("time");
   const [active, setActive] = useState<number | null>(null);
+  const [hidden, setHidden] = useState<SportKey[]>([]);
+  const [hideSmall, setHideSmall] = useState(false);
   const mode: Mode = weekly ? wanted : "monthly"; // without weekly data, only monthly
   const points = mode === "weekly" && weekly ? weekly : monthly;
   const sel = active !== null && active < points.length ? points[active] : null;
 
-  const value = (p: VolumePoint, s: SportKey) => (metric === "time" ? p.secs[s] / 3600 : p.count[s]);
-  const total = (p: VolumePoint) => (metric === "time" ? pointSeconds(p) / 3600 : pointCount(p));
+  const raw = (p: VolumePoint, s: SportKey) => (metric === "time" ? p.secs[s] / 3600 : p.count[s]);
+
+  // share of each sport in the whole period (decides what "small" means)
+  const share = useMemo(() => {
+    const sums = Object.fromEntries(ALL_SPORTS.map((s) => [s, points.reduce((a, p) => a + raw(p, s), 0)])) as Record<SportKey, number>;
+    const total = Object.values(sums).reduce((a, b) => a + b, 0) || 1;
+    return Object.fromEntries(ALL_SPORTS.map((s) => [s, sums[s] / total])) as Record<SportKey, number>;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, metric]);
+
+  const visible = (s: SportKey) => !hidden.includes(s) && !(hideSmall && share[s] < SMALL_SHARE);
+  const value = (p: VolumePoint, s: SportKey) => (visible(s) ? raw(p, s) : 0);
+  const total = (p: VolumePoint) => STACK_ORDER.reduce((a, s) => a + value(p, s), 0);
   const show = (v: number) => (metric === "time" ? fmt.duration(v * 3600) : fmt.int(v));
 
-  const max = useMemo(
-    () => niceMax(Math.max(...points.map((p) => (metric === "time" ? pointSeconds(p) / 3600 : pointCount(p))), 0)),
-    [points, metric],
-  );
+  const max = niceMax(Math.max(...points.map(total), 0));
   const grid = [1, 0.75, 0.5, 0.25, 0].map((f) => max * f);
   const many = points.length > 24;
 
@@ -54,21 +67,20 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null;
   const title = (p: VolumePoint | null): string => {
     if (!p) return t("Total in the period");
     if (mode === "weekly") {
-      return (
-        t("Week of {date}", {
-          date: new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", timeZone: "UTC" })
-            .format(new Date(p.key + "T00:00:00Z"))
-            .replace(".", ""),
-        })
-      );
+      return t("Week of {date}", {
+        date: new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", timeZone: "UTC" })
+          .format(new Date(p.key + "T00:00:00Z"))
+          .replace(".", ""),
+      });
     }
     return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
       new Date(p.key + "-01T00:00:00Z"),
     );
   };
 
-  const sportTotal = (s: SportKey) => (sel ? value(sel, s) : points.reduce((a, q) => a + value(q, s), 0));
+  const sportTotal = (s: SportKey) => (sel ? raw(sel, s) : points.reduce((a, q) => a + raw(q, s), 0));
   const grand = sel ? total(sel) : points.reduce((a, q) => a + total(q), 0);
+  const toggleSport = (s: SportKey) => setHidden((h) => (h.includes(s) ? h.filter((x) => x !== s) : [...h, s]));
 
   return (
     <div className="card p-5 sm:p-8">
@@ -78,18 +90,26 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null;
             {title(sel)} · {metric === "time" ? t("elapsed time") : t("sessions")}
           </p>
           <p className="num mt-2 text-5xl sm:text-6xl">{show(grand)}</p>
-          <div className="mt-3 flex min-h-5 flex-wrap gap-x-5 gap-y-1 text-sm">
+          <div className="mt-3 flex min-h-5 flex-wrap gap-x-2 gap-y-1 text-sm">
             {[...STACK_ORDER].reverse().map((s) => {
               const v = sportTotal(s);
-              if (v === 0 && s !== "run" && s !== "ride" && s !== "swim") return null;
+              if (v === 0 && !["run", "ride", "swim"].includes(s)) return null;
+              const on = visible(s);
               return (
-                <span key={s} className="inline-flex items-center gap-2 text-muted">
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleSport(s)}
+                  title={t("Click to hide or show this sport")}
+                  className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 transition-opacity hover:bg-soft ${on ? "text-muted" : "opacity-40 line-through"}`}
+                >
                   <span className="size-2.5 rounded-full" style={{ background: `var(--${s})` }} />
                   {t(siteConfig.sports[s].label)} <span className="text-fg">{show(v)}</span>
-                  {metric === "sessions" && grand > 0 && (
+                  {metric === "sessions" && grand > 0 && on && (
                     <span className="text-[0.7rem]">({Math.round((v / grand) * 100)}%)</span>
                   )}
-                </span>
+                </button>
               );
             })}
           </div>
@@ -131,6 +151,7 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null;
               </button>
             ))}
           </div>
+          <SmallToggle on={hideSmall} onChange={setHideSmall} label={t("Hide small sports")} />
         </div>
       </div>
 
@@ -169,7 +190,7 @@ export function VolumeChart({ weekly, monthly }: { weekly: VolumePoint[] | null;
                   className="flex flex-col-reverse overflow-hidden rounded-t-[3px] transition-opacity"
                   style={{ height: `${(tot / max) * 100}%`, opacity: active === null || active === i ? 1 : 0.35 }}
                 >
-                  {STACK_ORDER.filter((s) => ALL_SPORTS.includes(s)).map((s) =>
+                  {STACK_ORDER.map((s) =>
                     value(p, s) > 0 ? (
                       <div
                         key={s}

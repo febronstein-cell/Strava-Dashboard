@@ -54,6 +54,7 @@ export function Progression({ ctx }: { ctx: DashboardContext }) {
       id="progression"
       title={t("Progression")}
       kicker={t("consistency")}
+      description={t("Training day by day. Click a day to open its workouts.")}
       aside={
         <dl className="flex gap-6">
           {chips.map((c) => (

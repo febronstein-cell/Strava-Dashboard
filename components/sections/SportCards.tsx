@@ -21,7 +21,12 @@ export function SportCards({ ctx }: { ctx: DashboardContext }) {
   const other = ctx.sports.other;
 
   return (
-    <SectionShell id="sports" title={t("By sport")} kicker={periodLabel}>
+    <SectionShell
+      id="sports"
+      title={t("By sport")}
+      kicker={periodLabel}
+      description={t("Totals and averages per sport. Time is elapsed; pace and speed use moving time.")}
+    >
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {ORDER.filter((s) => TRI_SPORTS.includes(s)).map((sport, i) => {
           const st = ctx.sports[sport];

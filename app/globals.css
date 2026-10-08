@@ -28,6 +28,17 @@
   color-scheme: light;
 }
 
+/* Third theme: deep ocean blue */
+[data-theme="ocean"] {
+  --bg: #06121e;
+  --bg-elev: #0b1d2e;
+  --bg-soft: #12304a;
+  --fg: #e6f3ff;
+  --muted: #7c98b0;
+  --line: #17384f;
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-elev: var(--bg-elev);

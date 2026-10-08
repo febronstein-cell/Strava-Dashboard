@@ -9,6 +9,7 @@ import { useActivityDialog } from "@/components/ActivityDialog";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
+import { dropSmall, SmallToggle } from "@/components/SmallToggle";
 import { SportIcon } from "@/components/SportIcon";
 
 const DAY = 86_400_000;
@@ -47,6 +48,7 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
   const open = useActivityDialog();
   const [range, setRange] = useState<RangeId>("week");
   const [showAll, setShowAll] = useState(false);
+  const [smallDonut, setSmallDonut] = useState(false);
 
   const list = useMemo(() => {
     const [from, to] = rangeOf(range, ctx.today);
@@ -69,7 +71,12 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
   const visible = showAll ? list : list.slice(0, 10);
 
   return (
-    <SectionShell id="recent" title={t("Recent activities")} kicker={t("stalk me if you must")}>
+    <SectionShell
+      id="recent"
+      title={t("Recent activities")}
+      kicker={t("stalk me if you must")}
+      description={t("Latest workouts. The group totals use elapsed time; each activity shows its moving time.")}
+    >
       <Reveal>
         <div className="card overflow-hidden">
           <div
@@ -103,9 +110,12 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
             </dl>
             {breakdown.length > 0 && (
               <div>
-                <p className="label mb-4">{t("Time breakdown (elapsed)")}</p>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <p className="label">{t("Time breakdown (elapsed)")}</p>
+                  <SmallToggle on={smallDonut} onChange={setSmallDonut} />
+                </div>
                 <DonutChart
-                  segments={breakdown.map((b) => ({
+                  segments={(smallDonut ? dropSmall(breakdown, (b) => b.secs) : breakdown).map((b) => ({
                     name: t(siteConfig.sports[b.sport].label),
                     value: b.secs,
                     color: `var(--${b.sport})`,

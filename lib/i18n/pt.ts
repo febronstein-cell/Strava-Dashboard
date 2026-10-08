@@ -19,8 +19,6 @@ export const pt: Record<string, string> = {
   Language: "Idioma",
   Dark: "Escuro",
   Light: "Claro",
-  "Switch to dark mode": "Ativar modo escuro",
-  "Switch to light mode": "Ativar modo claro",
   Period: "Período",
   "All time": "Todo o período",
   "Last 12 weeks": "Últimas 12 semanas",
@@ -75,8 +73,6 @@ export const pt: Record<string, string> = {
   "Avg speed": "Velocidade média",
   "Totals use elapsed time; pace, heart rate and cadence use moving time":
     "Totais usam o tempo decorrido; ritmo, frequência cardíaca e cadência usam o tempo em movimento",
-  "Volume uses elapsed time and includes every sport, not just swim, bike and run":
-    "O volume usa o tempo decorrido e inclui todos os esportes, não só natação, bike e corrida",
 
   // hero
   "{x}× around the Earth": "{x}× a volta na Terra",
@@ -128,12 +124,7 @@ export const pt: Record<string, string> = {
   "Pace and speed only count activities above {run} km (run), {ride} km (bike) and {swim} m (swim).":
     "Ritmo e velocidade só contam atividades acima de {run} km (corrida), {ride} km (bike) e {swim} m (natação).",
   "Notable power outputs": "Potências notáveis",
-  "Power needs an extra Strava permission (activity:read_all). See the README.":
-    "A potência precisa de uma permissão extra do Strava (activity:read_all). Veja o README.",
   "{done} of {total} rides analyzed": "{done} de {total} pedais analisados",
-  "Best average power from 5 seconds up to 3 hours, trainer and Zwift included":
-    "Melhor potência média de 5 segundos a 3 horas, incluindo rolo e Zwift",
-  "No power-meter rides yet.": "Ainda sem pedais com medidor de potência.",
 
   // stats
   "measured, not guessed": "medido, não chutado",
@@ -309,4 +300,35 @@ export const pt: Record<string, string> = {
     "Seção reservada. Você tem {n} atividades no histórico para contar uma história aqui.",
   "Write your triathlon story here (siteConfig.about.body).":
     "Escreva aqui a sua história no triathlon (siteConfig.about.body).",
+
+  // review round: filters, power, descriptions
+  "Average of the whole ride, for rides at least that long (a lower bound of your true best).": "Média do pedal inteiro, para pedais com pelo menos essa duração (um piso do seu melhor real).",
+  "Best average power by ride length": "Melhor potência média por duração do pedal",
+  "Best average power by ride length and best normalized power. Power-meter rides only.": "Melhor potência média por duração do pedal e melhor potência normalizada. Só pedais com medidor de potência.",
+  "Best average power from 5 seconds up to 3 hours, plus your best whole rides": "Melhor potência média de 5 segundos a 3 horas, mais os seus melhores pedais inteiros",
+  "Change theme (now: {theme})": "Trocar o tema (agora: {theme})",
+  "Click to hide or show this sport": "Clique para esconder ou mostrar este esporte",
+  "Distance and pace": "Distância e ritmo",
+  Environment: "Ambiente",
+  "For the full 5 s to 3 h power curve, authorize the extra Strava permission (see the README).": "Para a curva de potência completa de 5 s a 3 h, autorize a permissão extra do Strava (veja o README).",
+  "Hide categories under {x}% of the total": "Esconder categorias abaixo de {x}% do total",
+  "Hide places with fewer than {n} activities": "Esconder lugares com menos de {n} atividades",
+  "Hide small places": "Esconder lugares pequenos",
+  "Hide small sports": "Esconder esportes pequenos",
+  "Hide small values": "Esconder valores pequenos",
+  "How much you trained by week or month, across all sports. Time is elapsed (start to finish). Click a sport in the legend to hide it.": "Quanto você treinou por semana ou mês, em todos os esportes. O tempo é decorrido (do início ao fim). Clique num esporte da legenda para escondê-lo.",
+  "Indoor vs outdoor": "Ambiente fechado × ar livre",
+  "Latest workouts. The group totals use elapsed time; each activity shows its moving time.": "Últimos treinos. Os totais do grupo usam o tempo decorrido; cada atividade mostra o tempo em movimento.",
+  "No normalized power recorded yet.": "Ainda sem potência normalizada registrada.",
+  "No power-meter rides in your history yet.": "Ainda sem pedais com medidor de potência no histórico.",
+  Ocean: "Oceano",
+  "Records of the chosen period and your best power outputs on the bike.": "Recordes do período escolhido e suas melhores potências na bike.",
+  "Routes, favorite places and trips. Click a route to open its workout.": "Rotas, lugares favoritos e viagens. Clique numa rota para abrir o treino.",
+  "The next goals, with a countdown and the recent weekly load.": "As próximas metas, com contagem regressiva e a carga semanal recente.",
+  "Time spent in each heart-rate zone, pace versus effort and aerobic efficiency. Everything here uses moving time.": "Tempo gasto em cada zona de frequência cardíaca, ritmo versus esforço e eficiência aeróbica. Tudo aqui usa o tempo em movimento.",
+  "Top normalized power": "Maiores potências normalizadas",
+  "Totals and averages per sport. Time is elapsed; pace and speed use moving time.": "Totais e médias por modalidade. O tempo é decorrido; ritmo e velocidade usam o tempo em movimento.",
+  "Training day by day. Click a day to open its workouts.": "O treino dia a dia. Clique num dia para abrir os treinos.",
+  Weather: "Clima",
+  "When, how much and where you train. Pick a sport to focus; open more charts for distances, pace, indoor vs outdoor and weather.": "Quando, quanto e onde você treina. Escolha um esporte para focar; abra mais gráficos para distâncias, ritmo, ambiente fechado × ar livre e clima.",
 };

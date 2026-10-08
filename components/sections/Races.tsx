@@ -22,7 +22,12 @@ export function Races({ ctx }: { ctx: DashboardContext }) {
   const recentSecs = ctx.all.filter((a) => a.date.slice(0, 10) >= since).reduce((s, a) => s + a.elapsedTime, 0);
 
   return (
-    <SectionShell id="races" title={t("Upcoming races")} kicker={t("the focus")}>
+    <SectionShell
+      id="races"
+      title={t("Upcoming races")}
+      kicker={t("the focus")}
+      description={t("The next goals, with a countdown and the recent weekly load.")}
+    >
       <Reveal>
         <div className="relative overflow-hidden rounded-[var(--radius)] border border-goal/40 bg-elev p-6 sm:p-10">
           <div

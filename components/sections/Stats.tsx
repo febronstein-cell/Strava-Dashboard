@@ -17,12 +17,15 @@ import { HBarChart } from "@/components/charts/HBarChart";
 import { RadarChart } from "@/components/charts/RadarChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
+import { dropSmall, SmallToggle } from "@/components/SmallToggle";
 
 type Filter = "all" | SportKey;
 type Units = "metric" | "imperial";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MI = 1609.344;
+/** Applies the "hide small values" filter when it is on. */
+const trim = <T,>(items: T[], on: boolean, value: (i: T) => number) => (on ? dropSmall(items, value) : items);
 const pct = (arr: number[], p: number) => {
   const s = [...arr].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor(p * s.length))];
@@ -54,6 +57,9 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [units, setUnits] = useState<Units>("metric");
   const [more, setMore] = useState(false);
+  const [smallDist, setSmallDist] = useState(false);
+  const [smallTemp, setSmallTemp] = useState(false);
+  const [smallCond, setSmallCond] = useState(false);
   const [weather, setWeather] = useState<WeatherSummary | null>(null);
   const [weatherFailed, setWeatherFailed] = useState(false);
 
@@ -146,6 +152,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
       id="stats"
       title={t("Stats")}
       kicker={t("measured, not guessed")}
+      description={t("When, how much and where you train. Pick a sport to focus; open more charts for distances, pace, indoor vs outdoor and weather.")}
       aside={
         <div className="flex flex-wrap items-center gap-3">
           <div role="tablist" aria-label={t("Sport")} className="label flex flex-wrap rounded-full border border-line p-1">
@@ -226,6 +233,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
 
         {more && (
           <>
+            <p className="label border-b border-line pb-2 pt-4 lg:col-span-2">{t("Indoor vs outdoor")}</p>
             <Reveal>
               <ChartCard
                 title={t("Run: outdoor × treadmill")}
@@ -266,9 +274,11 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
               </ChartCard>
             </Reveal>
 
+            <p className="label border-b border-line pb-2 pt-4 lg:col-span-2">{t("Distance and pace")}</p>
             <Reveal>
               <ChartCard
                 title={t("Distance distribution")}
+                controls={<SmallToggle on={smallDist} onChange={setSmallDist} />}
                 subtitle={byTime ? undefined : t("{sport} activities by distance band", { sport: focusLabel })}
                 hint={periodLabel}
                 insight={filter === "all" ? t("run") : undefined}
@@ -277,7 +287,11 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
                   <p className="py-10 text-muted">{t("No distance for this sport.")}</p>
                 ) : (
                   <HBarChart
-                    items={bins.map((b) => ({ label: t(b.label), value: b.count, color: color(focus) }))}
+                    items={trim(
+                      bins.map((b) => ({ label: t(b.label), value: b.count, color: color(focus) })),
+                      smallDist,
+                      (i) => i.value,
+                    )}
                     format={(v) => fmt.num(v, 0)}
                   />
                 )}
@@ -312,9 +326,11 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
               </ChartCard>
             </Reveal>
 
+            <p className="label border-b border-line pb-2 pt-4 lg:col-span-2">{t("Weather")}</p>
             <Reveal>
               <ChartCard
                 title={t("Temperature")}
+                controls={<SmallToggle on={smallTemp} onChange={setSmallTemp} />}
                 subtitle={t("Temperature bands in outdoor workouts")}
                 insight={weather?.avgTemp != null ? t("avg {x}°C", { x: fmt.num(weather.avgTemp, 1) }) : undefined}
                 hint={t("all years")}
@@ -326,13 +342,18 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
                 ) : byTime ? (
                   <p className="py-10 text-muted">{t("No weather for this sport.")}</p>
                 ) : (
-                  <HBarChart items={wTemp} format={(v) => fmt.num(v, 0)} />
+                  <HBarChart items={trim(wTemp, smallTemp, (i) => i.value)} format={(v) => fmt.num(v, 0)} />
                 )}
               </ChartCard>
             </Reveal>
 
             <Reveal delay={90}>
-              <ChartCard title={t("Weather conditions")} subtitle={t("What the weather was like when you trained")} hint={t("all years")}>
+              <ChartCard
+                title={t("Weather conditions")}
+                subtitle={t("What the weather was like when you trained")}
+                hint={t("all years")}
+                controls={<SmallToggle on={smallCond} onChange={setSmallCond} />}
+              >
                 {weatherFailed ? (
                   <p className="py-10 text-muted">{t("Could not load the weather right now.")}</p>
                 ) : !weather ? (
@@ -340,7 +361,7 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
                 ) : byTime || wCond.length === 0 ? (
                   <p className="py-10 text-muted">{t("No weather data for this selection.")}</p>
                 ) : (
-                  <HBarChart items={wCond} format={(v) => fmt.num(v, 0)} color="var(--swim)" />
+                  <HBarChart items={trim(wCond, smallCond, (i) => i.value)} format={(v) => fmt.num(v, 0)} color="var(--swim)" />
                 )}
               </ChartCard>
             </Reveal>

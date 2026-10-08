@@ -14,6 +14,7 @@ import { LineChart } from "@/components/charts/LineChart";
 import { ScatterChart, type ScatterPoint } from "@/components/charts/ScatterChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
+import { dropSmall, SmallToggle } from "@/components/SmallToggle";
 
 type Tab = "run" | "ride" | "all";
 
@@ -34,6 +35,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
   const open = useActivityDialog();
   const periodLabel = usePeriodLabel(ctx);
   const [tab, setTab] = useState<Tab>("run");
+  const [smallZones, setSmallZones] = useState(false);
   const focus: SportKey = tab === "all" ? "run" : tab;
   const focusLabel = t(siteConfig.sports[focus].label).toLowerCase();
 
@@ -71,6 +73,12 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
       };
     });
   }, [list]);
+
+  // "hide small values": drops the bands with almost no time (under 3% of the total)
+  const bars = useMemo(
+    () => (smallZones ? dropSmall(histogram, (b) => b.segments.reduce((a, x) => a + x.value, 0), 0.03) : histogram),
+    [histogram, smallZones],
+  );
 
   // scatter: pace (or speed) × HR
   const scatter = useMemo(() => {
@@ -159,6 +167,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
       id="heart"
       title={t("Heart rate")}
       kicker={periodLabel}
+      description={t("Time spent in each heart-rate zone, pace versus effort and aerobic efficiency. Everything here uses moving time.")}
       aside={
         <div role="tablist" aria-label={t("Sport")} className="label flex rounded-full border border-line p-1">
           {tabs.map((x) => (
@@ -197,15 +206,16 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
             <Reveal className="lg:col-span-2">
               <ChartCard
                 title={t("Time spent in heart rate zones")}
+                controls={<SmallToggle on={smallZones} onChange={setSmallZones} share={0.03} />}
                 subtitle={t("Moving time of each activity, grouped by its average HR in 5 bpm bands")}
                 hint={periodLabel}
                 insight={t("most time: {zone}", { zone: t(zones[stats.top].name) })}
               >
                 <BarChart
-                  items={histogram}
+                  items={bars}
                   format={(v) => fmt.duration(v * 3600)}
                   height={190}
-                  labelEvery={Math.max(1, Math.ceil(histogram.length / 12))}
+                  labelEvery={Math.max(1, Math.ceil(bars.length / 12))}
                 />
                 <div className="label mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-[0.62rem]">
                   {zones.map((z, i) => (
