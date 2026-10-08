@@ -111,12 +111,14 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
   const paces = useMemo(() => paceValues(ctx.acts, focus), [ctx.acts, focus]);
   const view = useMemo(() => (paces.length >= 3 ? paceView(focus, paces) : null), [paces, focus]);
 
-  const split = useMemo(() => {
-    const list = ctx.acts.filter((a) => sports.includes(a.sport));
+  // ar livre × fechado, separado por modalidade (não depende do filtro de cima)
+  const splitOf = (sport: SportKey) => {
+    const list = ctx.acts.filter((a) => a.sport === sport);
     const closed = list.filter((a) => a.indoor).length;
     return { open: list.length - closed, closed };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.acts, filter]);
+  };
+  const runSplit = useMemo(() => splitOf("run"), [ctx.acts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rideSplit = useMemo(() => splitOf("ride"), [ctx.acts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sum = (it: BarItem) => it.segments.reduce((a, s) => a + s.value, 0);
   const bestYear = annual.reduce((b, it) => (sum(it) > sum(b) ? it : b), annual[0]);
@@ -226,6 +228,46 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
           <>
             <Reveal>
               <ChartCard
+                title="Corrida: ar livre × esteira"
+                subtitle="Corrida sem GPS (esteira) conta como ambiente fechado"
+                hint={ctx.periodLabel}
+              >
+                {runSplit.open + runSplit.closed === 0 ? (
+                  <p className="py-10 text-muted">Sem corridas neste período.</p>
+                ) : (
+                  <DonutChart
+                    segments={[
+                      { name: "Ar livre", value: runSplit.open, color: "var(--run)" },
+                      { name: "Esteira", value: runSplit.closed, color: "var(--muted)" },
+                    ]}
+                    format={(v) => nf(0).format(v)}
+                  />
+                )}
+              </ChartCard>
+            </Reveal>
+
+            <Reveal delay={90}>
+              <ChartCard
+                title="Bike: ar livre × rolo/Zwift"
+                subtitle="Rolo, Zwift e pedal sem GPS contam como ambiente fechado"
+                hint={ctx.periodLabel}
+              >
+                {rideSplit.open + rideSplit.closed === 0 ? (
+                  <p className="py-10 text-muted">Sem pedais neste período.</p>
+                ) : (
+                  <DonutChart
+                    segments={[
+                      { name: "Ar livre", value: rideSplit.open, color: "var(--ride)" },
+                      { name: "Rolo / Zwift", value: rideSplit.closed, color: "var(--muted)" },
+                    ]}
+                    format={(v) => nf(0).format(v)}
+                  />
+                )}
+              </ChartCard>
+            </Reveal>
+
+            <Reveal>
+              <ChartCard
                 title="Distribuição de distâncias"
                 subtitle={byTime ? undefined : `Atividades de ${focusLabel} por faixa de distância`}
                 hint={ctx.periodLabel}
@@ -243,26 +285,6 @@ export function Stats({ ctx }: { ctx: DashboardContext }) {
             </Reveal>
 
             <Reveal delay={90}>
-              <ChartCard
-                title="Ar livre × ambiente fechado"
-                subtitle="Esteira, rolo, Zwift e piscina contam como fechado"
-                hint={ctx.periodLabel}
-              >
-                {split.open + split.closed === 0 ? (
-                  <p className="py-10 text-muted">Sem atividades neste período.</p>
-                ) : (
-                  <DonutChart
-                    segments={[
-                      { name: "Ar livre", value: split.open, color: "var(--brand)" },
-                      { name: "Ambiente fechado", value: split.closed, color: "var(--muted)" },
-                    ]}
-                    format={(v) => nf(0).format(v)}
-                  />
-                )}
-              </ChartCard>
-            </Reveal>
-
-            <Reveal className="lg:col-span-2">
               <ChartCard
                 title={focus === "ride" ? "Distribuição de velocidade" : "Distribuição de ritmo"}
                 subtitle={`Como as suas atividades de ${focusLabel} se distribuem${focus === "ride" ? "" : " (mais rápido à direita)"}`}

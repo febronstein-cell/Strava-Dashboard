@@ -141,15 +141,16 @@ export const siteConfig = {
   // ---------------------------------------------------- frequência cardíaca
   heartRate: {
     /**
-     * Zonas em bpm absolutos (FC média da atividade). Ajuste aos seus valores:
-     * `max` é o limite superior de cada zona.
+     * Zonas em bpm absolutos, aplicadas à FC média de cada atividade.
+     * `max` é o limite superior INCLUSIVO da zona (Z1 vai até 150 bpm, Z2 até 167...);
+     * a última zona não tem teto.
      */
     zones: [
-      { name: "Recuperação", max: 120, color: "#2bd4ff" },
-      { name: "Leve", max: 140, color: "#1fe08a" },
-      { name: "Tempo", max: 160, color: "#c6f432" },
-      { name: "Limiar", max: 180, color: "#ffb020" },
-      { name: "Máximo", max: Infinity, color: "#ff5a1f" },
+      { name: "Z1 · Recuperação", max: 150, color: "#2bd4ff" },
+      { name: "Z2 · Aeróbica", max: 167, color: "#1fe08a" },
+      { name: "Z3 · Tempo", max: 181, color: "#c6f432" },
+      { name: "Z4 · Limiar", max: 187, color: "#ffb020" },
+      { name: "Z5 · Máximo", max: Infinity, color: "#ff5a1f" },
     ],
     /** Largura de cada barra do histograma (bpm). */
     bin: 5,

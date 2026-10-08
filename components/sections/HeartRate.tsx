@@ -16,7 +16,8 @@ import { SectionShell } from "@/components/SectionShell";
 type Tab = "run" | "ride" | "all";
 
 const zones = siteConfig.heartRate.zones;
-const zoneIndex = (hr: number) => zones.findIndex((z) => hr < z.max);
+/** Índice da zona de um bpm (limite superior inclusivo). */
+const zoneIndex = (hr: number) => zones.findIndex((z) => hr <= z.max);
 const nf = (d: number) => new Intl.NumberFormat(siteConfig.locale, { maximumFractionDigits: d });
 const pct = (arr: number[], p: number) => {
   const s = [...arr].sort((a, b) => a - b);
@@ -55,15 +56,17 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
     return { avg, max, counts, top, coverage: scope.length ? list.length / scope.length : 0 };
   }, [list, scope.length]);
 
+  // histograma em faixas de 5 bpm; cada barra é empilhada por zona (uma faixa pode cruzar o corte)
   const histogram = useMemo<BarItem[]>(() => {
     const bin = siteConfig.heartRate.bin;
     return hrHistogram(list, bin).map((b) => {
-      const z = zones[zoneIndex(b.from + bin / 2)];
+      const perZone = zones.map(() => 0);
+      for (const a of list) if (a.hr >= b.from && a.hr < b.from + bin) perZone[zoneIndex(a.hr)]++;
       return {
         key: String(b.from),
-        label: `${b.from}–${b.from + bin - 1} bpm · ${z.name}`,
+        label: `${b.from}–${b.from + bin - 1} bpm`,
         axis: String(b.from),
-        segments: [{ name: z.name, value: b.count, color: z.color }],
+        segments: zones.map((z, i) => ({ name: z.name, value: perZone[i], color: z.color })),
       };
     });
   }, [list]);
@@ -190,7 +193,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
                 title="Zonas de frequência cardíaca"
                 subtitle="FC média de cada atividade, agrupada em faixas de 5 bpm"
                 hint={ctx.periodLabel}
-                insight={`mais frequente: ${zones[stats.top].name.toLowerCase()}`}
+                insight={`mais frequente: ${zones[stats.top].name}`}
               >
                 <BarChart
                   items={histogram}
@@ -204,7 +207,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
                       <span className="size-2.5 rounded-full" style={{ background: z.color }} />
                       {z.name}
                       <span className="text-fg">
-                        {i === 0 ? `< ${z.max}` : z.max === Infinity ? `${zones[i - 1].max}+` : `${zones[i - 1].max}–${z.max}`} bpm
+                        {i === 0 ? `até ${z.max}` : z.max === Infinity ? `${zones[i - 1].max + 1}+` : `${zones[i - 1].max + 1}–${z.max}`} bpm
                       </span>
                       <span>· {stats.counts[i]}</span>
                     </span>
