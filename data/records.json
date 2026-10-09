@@ -1,10 +1,88 @@
 {
-  "generatedAt": null,
+  "generatedAt": "2026-10-09T00:30:24.283Z",
   "analyzed": {
-    "rides": 0
+    "rides": 170
   },
   "total": {
-    "rides": 0
+    "rides": 253
   },
-  "power": {}
+  "power": {
+    "5": {
+      "watts": 1303,
+      "id": 20207549588,
+      "name": "Zwift - New Workout",
+      "date": "2026-09-16T18:43:59",
+      "indoor": true
+    },
+    "10": {
+      "watts": 1124,
+      "id": 20207549588,
+      "name": "Zwift - New Workout",
+      "date": "2026-09-16T18:43:59",
+      "indoor": true
+    },
+    "30": {
+      "watts": 729,
+      "id": 17918226399,
+      "name": "Zwift - INDOORw 13a/2026 A.2",
+      "date": "2026-03-30T18:55:52",
+      "indoor": true
+    },
+    "60": {
+      "watts": 617,
+      "id": 18878217127,
+      "name": "Zwift - INDOORw 23a/2026 B.1 (1)",
+      "date": "2026-06-11T07:57:46",
+      "indoor": true
+    },
+    "300": {
+      "watts": 380,
+      "id": 17666067109,
+      "name": "Zwift - INDOORw 10a/2026 A.2",
+      "date": "2026-03-09T19:07:32",
+      "indoor": true
+    },
+    "600": {
+      "watts": 344,
+      "id": 18950389688,
+      "name": "Zwift - New Workout",
+      "date": "2026-06-16T19:01:42",
+      "indoor": true
+    },
+    "1200": {
+      "watts": 331,
+      "id": 18950389688,
+      "name": "Zwift - New Workout",
+      "date": "2026-06-16T19:01:42",
+      "indoor": true
+    },
+    "1800": {
+      "watts": 329,
+      "id": 18950389688,
+      "name": "Zwift - New Workout",
+      "date": "2026-06-16T19:01:42",
+      "indoor": true
+    },
+    "3600": {
+      "watts": 304,
+      "id": 18532468583,
+      "name": "Zwift - Flat Route in Watopia",
+      "date": "2026-05-16T12:51:08",
+      "indoor": true
+    },
+    "7200": {
+      "watts": 276,
+      "id": 18895158230,
+      "name": "Zwift - Race Pace / Race Elevation: 274w",
+      "date": "2026-06-12T15:50:09",
+      "indoor": true
+    },
+    "10800": {
+      "watts": 248,
+      "id": 20161004614,
+      "name": "Zwift - 70.3 Semana 7 T2",
+      "date": "2026-09-13T10:18:51",
+      "indoor": true
+    }
+  }
 }

@@ -10,7 +10,6 @@ import { POWER_DURATIONS, powerLabel, records } from "@/lib/records";
 import { bestPace, maxBy, monthlyVolume, peak, weeklyVolume } from "@/lib/stats";
 import { useActivityDialog } from "@/components/ActivityDialog";
 import { ChartCard } from "@/components/ChartCard";
-import { LineChart } from "@/components/charts/LineChart";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
 
@@ -105,10 +104,6 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
     });
   }, [ctx.all, hasCurve]);
 
-  const powerPoints = POWER_DURATIONS.map((d) => ({ label: powerLabel(d), value: records.power[String(d)]?.watts ?? null }));
-  const powerVals = powerPoints.map((p) => p.value).filter((v): v is number => v !== null);
-  const pDomain: [number, number] = powerVals.length ? [0, Math.ceil(Math.max(...powerVals) / 100) * 100] : [0, 1];
-
   return (
     <SectionShell
       id="notable"
@@ -174,18 +169,6 @@ export function Notable({ ctx }: { ctx: DashboardContext }) {
               <p className="py-6 text-muted">{t("No power-meter rides in your history yet.")}</p>
             ) : (
               <>
-                {hasCurve && (
-                  <div className="mb-8">
-                    <LineChart
-                      points={powerPoints}
-                      format={(v) => `${fmt.int(v)} W`}
-                      domain={pDomain}
-                      yTicks={[0, 1, 2, 3, 4].map((i) => (pDomain[1] * i) / 4)}
-                      color="var(--ride)"
-                    />
-                  </div>
-                )}
-
                 <ul className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
                   {POWER_DURATIONS.map((sec, i) => {
                     const e = entries[i];
