@@ -11,9 +11,12 @@
     "predev": "node scripts/copy-maplibre-worker.mjs",
     "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "strava:webhook": "node --env-file=.env.local scripts/strava-webhook.mjs",
-    "strava:records": "node --env-file=.env.local scripts/strava-records.mjs"
+    "strava:records": "node --env-file=.env.local scripts/strava-records.mjs",
+    "strava:backfill": "node --env-file=.env.local scripts/strava-backfill.mjs",
+    "supabase:check": "node --env-file=.env.local scripts/supabase-check.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
     "maplibre-gl": "^6.13.0",
     "next": "16.4.0",
     "react": "19.3.0",

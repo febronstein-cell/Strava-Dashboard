@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { clusterPlaces, haversineKm, type Place } from "@/lib/geo";
-import { getAllData } from "./get-data";
+import { getOverview, getRoutes } from "./get-data";
 import { reverseGeocode } from "./geocode";
 import { DEMO_PLACES } from "./mock";
 import type { GeoActivity } from "./types";
@@ -28,8 +28,8 @@ export async function getGeoSummary(): Promise<GeoSummary> {
   cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
   cacheTag("strava-live");
 
-  const { overview, years } = await getAllData();
-  const routes = years.flatMap((y) => y.geo).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const overview = await getOverview();
+  const routes = [...(await getRoutes())].sort((a, b) => (a.date < b.date ? 1 : -1));
   const clusters = clusterPlaces(routes);
   const home = clusters[0];
 

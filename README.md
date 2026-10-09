@@ -113,6 +113,17 @@ scripts/                  ← strava-auth.mjs (autorização única), copy-mapli
 - "Melhor ritmo" exige distância mínima por modalidade (`rules.minDistanceForBestPace`).
 - O rodapé mantém "Powered by Strava" e os créditos de mapa, por exigência dos provedores.
 
+## Banco de dados (Supabase)
+
+Com o banco ligado, o site **não baixa mais o histórico do Strava a cada build/atualização**: as atividades ficam numa tabela do Supabase e o Strava só é consultado de forma incremental (evita o erro 429).
+
+1. Crie um projeto no Supabase e rode `supabase/schema.sql` no SQL Editor (tabelas `activities`, `power_curve`, `races`, `training_weeks`, `thresholds`, `sync_state`; RLS ligado, sem políticas — só o servidor acessa).
+2. Coloque `SUPABASE_URL` e `SUPABASE_SECRET_KEY` (chave **secret**, nunca no navegador) no `.env.local` **e** nas variáveis da Vercel.
+3. Teste a conexão: `npm run supabase:check`.
+4. Importe todo o histórico uma única vez: `npm run strava:backfill` (~11 chamadas ao Strava; pode rodar de novo quando quiser, não duplica).
+
+Depois disso: o webhook salva/atualiza/apaga **uma** atividade no banco assim que o Strava avisa, e a cada ~10 min o site busca só o que mudou nos últimos dias. Sem as variáveis do Supabase (ou antes do backfill) o site volta sozinho ao modo antigo, lendo direto do Strava. Atividades privadas não entram (use `STRAVA_INCLUDE_PRIVATE=true` para incluí-las). As tabelas `races`, `training_weeks` e `thresholds` já existem para as futuras abas de provas, plano de treino e limiares.
+
 ## Idioma (English / Português)
 
 O site abre em **inglês** e tem o botão **EN | PT** no topo (a escolha fica salva no navegador). Todos os textos estão escritos em inglês no código; as traduções para português ficam em `lib/i18n/pt.ts`, indexadas pelo texto em inglês (o que não tiver tradução aparece em inglês). Para trocar o idioma inicial, use `defaultLang` no `site.config.ts`.

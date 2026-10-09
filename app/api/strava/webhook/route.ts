@@ -1,13 +1,16 @@
 import { revalidateTag } from "next/cache";
 import { after, type NextRequest } from "next/server";
+import { dbBackfilled } from "@/lib/strava/db";
 import { getOverview } from "@/lib/strava/get-data";
+import { deleteOne, syncOne } from "@/lib/strava/sync";
 
 export const maxDuration = 60;
 
 /**
- * Webhook do Strava: ele avisa o site assim que uma atividade é criada, editada ou
- * apagada. Aqui só invalidamos o cache "strava-live" e aquecemos a página, então o
- * site mostra o treino novo em segundos (e não em até 15 min).
+ * Strava webhook: Strava tells the site as soon as an activity is created, edited or deleted.
+ * With the database on, the activity is saved right away (1 Strava request); then the
+ * "strava-live" cache is invalidated and the page warmed up, so the new workout shows in
+ * seconds instead of waiting for the next 15-minute refresh.
  *
  * Como ativar (uma vez): README, seção "Sincronização instantânea".
  */
@@ -45,19 +48,30 @@ export async function POST(request: NextRequest) {
   // O Strava exige resposta rápida (2 s): respondemos já e trabalhamos depois.
   const origin = request.nextUrl.origin;
   after(async () => {
-    if (event.object_type !== "activity") return;
+    if (event.object_type !== "activity" || !event.object_id) return;
 
-    // só aceita avisos sobre o SEU perfil (o ID vem do próprio Strava, via cache)
+    // only accepts notices about YOUR profile (the id comes from Strava itself, via cache)
     const { athlete } = await getOverview();
     if (athlete.id && event.owner_id !== athlete.id) return;
 
+    // 1) save the change in the database (every event, no throttling)
+    try {
+      if (await dbBackfilled()) {
+        if (event.aspect_type === "delete") await deleteOne(event.object_id);
+        else await syncOne(event.object_id);
+      }
+    } catch (e) {
+      console.error("Webhook: could not update the database:", e);
+    }
+
+    // 2) refresh the page (bursts of notices become a single refresh)
     const now = Date.now();
     if (now - lastRefresh < MIN_GAP_MS) return;
     lastRefresh = now;
 
-    // { expire: 0 }: o próximo acesso já busca dado novo (nada de servir o antigo)
+    // { expire: 0 }: the next visit already gets new data (no stale copy)
     revalidateTag("strava-live", { expire: 0 });
-    // aquece a página e o mapa para o primeiro visitante não esperar
+    // warms the page and the map so the first visitor does not wait
     await Promise.allSettled([fetch(`${origin}/`), fetch(`${origin}/api/geo`)]);
   });
 

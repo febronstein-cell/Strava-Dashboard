@@ -1,19 +1,28 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { siteConfig } from "@/site.config";
 import { fetchAthlete, fetchYear, hasStravaCredentials } from "./client";
+import { dbAthlete, dbBackfilled, dbRoutes, dbYear } from "./db";
 import { generateDemoYear } from "./mock";
-import type { StravaOverview, YearData } from "./types";
+import { syncRecent } from "./sync";
+import type { GeoActivity, StravaOverview, YearData } from "./types";
 
 /**
- * Fontes de dados da página, todas cacheadas:
- *  - visão geral (nome, 1º ano): 15 min
- *  - cada ano: ano corrente 15 min; anos passados 1 dia (quase nunca mudam)
+ * Data sources of the page, all cached.
  *
- * Tag "strava-live": o webhook do Strava (app/api/strava/webhook) a invalida assim que
- * você salva uma atividade, então o site atualiza em segundos, sem esperar o intervalo.
- * Assim o Strava recebe poucas requisições (limite: 100 / 15 min e 1000 / dia),
- * mesmo com o histórico completo. Sem credenciais, devolve dados de demonstração.
+ * Preferred path: the SUPABASE DATABASE (after scripts/strava-backfill.mjs has run). The page then
+ * reads the stored history and the Strava API is only asked for what is new:
+ *   - getOverview() asks for the latest activities at most every 10 minutes (1 request);
+ *   - the Strava webhook saves each new activity right away (1 request).
+ * Fallback path: no database (or not filled yet) -> downloads the history from Strava, year by year,
+ * exactly as before. Without Strava credentials either, demo data.
+ *
+ * Tag "strava-live": the webhook invalidates it as soon as a new activity arrives.
  */
+
+/** True when the database is configured AND already holds the full history. */
+async function dbIsReady(): Promise<boolean> {
+  return dbBackfilled();
+}
 
 export async function getOverview(): Promise<StravaOverview> {
   "use cache";
@@ -25,6 +34,24 @@ export async function getOverview(): Promise<StravaOverview> {
   const currentYear = Number(
     new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(now),
   );
+
+  if (await dbIsReady()) {
+    try {
+      await syncRecent({ minIntervalMs: 10 * 60_000 }); // only what is new; a failure keeps the stored data
+    } catch (e) {
+      console.error("Incremental sync failed (the stored data is still served):", e);
+    }
+    const a = await dbAthlete();
+    if (a) {
+      return {
+        athlete: { id: a.id, name: a.name, avatar: a.avatar },
+        startYear: Math.min(siteConfig.startYear ?? a.createdYear, currentYear),
+        currentYear,
+        source: "strava",
+        fetchedAt: now.toISOString(),
+      };
+    }
+  }
 
   if (!hasStravaCredentials()) {
     return {
@@ -48,9 +75,8 @@ export async function getOverview(): Promise<StravaOverview> {
 }
 
 /**
- * `use cache: remote`: guarda o resultado num cache compartilhado (na Vercel, entre
- * instâncias). Sem isso, cada atualização horária refaria o histórico inteiro,
- * porque os servidores da Vercel são efêmeros.
+ * `use cache: remote`: keeps the result in a shared cache (on Vercel, across instances).
+ * Without it, every refresh would redo the whole history, because Vercel servers are ephemeral.
  */
 export async function getYearData(year: number, currentYear: number, demo: boolean): Promise<YearData> {
   "use cache: remote";
@@ -62,10 +88,22 @@ export async function getYearData(year: number, currentYear: number, demo: boole
   }
 
   if (demo) return { year, ...generateDemoYear(year, new Date()) };
+  if (await dbIsReady()) return { year, activities: await dbYear(year), geo: [] };
   return { year, ...(await fetchYear(year)) };
 }
 
-/** Visão geral + todos os anos (mais antigo → mais recente). */
+/** Routes for the map and the weather: from the database, or (fallback) from the Strava download. */
+export async function getRoutes(): Promise<GeoActivity[]> {
+  "use cache: remote";
+  cacheLife({ stale: 120, revalidate: 3600, expire: 86400 });
+  cacheTag("strava-live");
+
+  if (await dbIsReady()) return dbRoutes();
+  const { years } = await getAllData();
+  return years.flatMap((y) => y.geo);
+}
+
+/** Overview + every year (oldest -> newest). */
 export async function getAllData() {
   const overview = await getOverview();
   const years: number[] = [];

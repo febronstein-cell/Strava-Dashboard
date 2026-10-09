@@ -1,13 +1,12 @@
 import "server-only";
-import { siteConfig, type SportKey } from "@/site.config";
-import { decimate, decodePolyline, encodePolyline, trimAroundHome, type LatLng } from "@/lib/geo";
+import type { SportKey } from "@/site.config";
+import { simplifyRoute } from "./route";
 import type { Activity, GeoActivity, RawActivity } from "./types";
 
 const API = "https://www.strava.com/api/v3";
 const TOKEN_URL = "https://www.strava.com/oauth/token";
 const PER_PAGE = 200;
 const MAX_PAGES = 15; // 3000 atividades por ano: mais que suficiente
-const MAX_POINTS = 60; // pontos por trajeto no mapa
 
 export function hasStravaCredentials() {
   return Boolean(
@@ -55,7 +54,7 @@ async function getAccessToken(): Promise<string> {
   return json.access_token;
 }
 
-async function stravaGet<T>(path: string): Promise<T> {
+export async function stravaGet<T>(path: string): Promise<T> {
   const token = await getAccessToken();
   const res = await fetch(`${API}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -86,7 +85,7 @@ const SPORT_MAP: Record<string, SportKey> = {
 
 /** Anything not listed above (walk, hike, yoga, rowing...) counts as "other". */
 
-function normalize(raw: RawActivity): Activity | null {
+export function normalize(raw: RawActivity): Activity | null {
   const sport: SportKey = SPORT_MAP[raw.sport_type] ?? SPORT_MAP[raw.type] ?? "other";
   // workout_type 1 = corrida de competição; 11 = pedal de competição
   const race = (raw.type === "Run" && raw.workout_type === 1) || (raw.type === "Ride" && raw.workout_type === 11);
@@ -114,24 +113,20 @@ function normalize(raw: RawActivity): Activity | null {
 
 function toGeo(raw: RawActivity, act: Activity, year: number): GeoActivity | null {
   const poly = raw.map?.summary_polyline;
-  // Zwift/rolo/manual têm "GPS" de um mundo fictício: não entram no mapa
+  // Zwift/trainer/manual have "GPS" from a fictional world: they do not go on the map
   const indoor = raw.sport_type.startsWith("Virtual") || raw.trainer || raw.manual;
   if (!poly || act.sport === "strength" || indoor) return null;
-  let points: LatLng[] = decodePolyline(poly);
-  const { home, radiusKm } = siteConfig.geo.privacy;
-  if (home) points = trimAroundHome(points, [home.lat, home.lng], radiusKm);
-  if (points.length < 2) return null;
-  const line = encodePolyline(decimate(points, MAX_POINTS));
-  const [lat, lng] = points[0];
+  const route = simplifyRoute(poly);
+  if (!route) return null;
   return {
     id: act.id,
     sport: act.sport,
     year,
     date: act.date,
     distance: act.distance,
-    lat: Math.round(lat * 1e4) / 1e4,
-    lng: Math.round(lng * 1e4) / 1e4,
-    line,
+    lat: route.lat,
+    lng: route.lng,
+    line: route.line,
   };
 }
 

@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import type { SportKey } from "@/site.config";
 import { bandOf, CONDITIONS, conditionOf, TEMP_BANDS } from "@/lib/weather";
-import { getAllData } from "./get-data";
+import { getOverview, getRoutes } from "./get-data";
 import type { GeoActivity } from "./types";
 
 type BySport = Record<SportKey, number>;
@@ -61,7 +61,7 @@ export async function getWeatherSummary(): Promise<WeatherSummary> {
   cacheLife({ stale: 120, revalidate: 3600, expire: 86400 });
   cacheTag("strava-live");
 
-  const { overview, years } = await getAllData();
+  const overview = await getOverview();
   const out: WeatherSummary = {
     temp: TEMP_BANDS.map(zero),
     cond: CONDITIONS.map(zero),
@@ -69,7 +69,7 @@ export async function getWeatherSummary(): Promise<WeatherSummary> {
     avgTemp: null,
   };
   const sums = { t: 0, n: 0 };
-  const routes = years.flatMap((y) => y.geo);
+  const routes = await getRoutes();
 
   if (overview.source === "demo") {
     // dados de demonstração: clima sintético, estável por atividade
