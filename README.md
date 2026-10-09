@@ -126,21 +126,22 @@ Depois disso: o webhook salva/atualiza/apaga **uma** atividade no banco assim qu
 
 ## Lab (página separada `/lab`)
 
-Uma página à parte, sem mexer no painel principal (link "Lab" no topo e no rodapé), com quatro abas:
+Uma página à parte, sem mexer no painel principal (link "Lab" no topo e no rodapé), com cinco abas:
 
 - **My Machine**: FTP, LTHR, FC máxima, limiar de corrida, CSS de natação, LT1/LT2/VT1/VT2 (FC, potência, ritmo), zonas de FC, potência e ritmo, perfil de potência e histórico de testes. O que vem de um teste real aparece em verde; o resto é **estimado** (ou vem das suas zonas) e vem rotulado.
-- **Form & Load**: forma física (CTL), fadiga (ATL) e frescor (TSB) estimados com potência (bike), FC ou duração.
-- **Progression**: últimos 3 meses, 6 meses ou 1 ano contra o período anterior, com leituras em texto.
-- **Race builds**: plano automático de horas semanais para cada prova futura (3 semanas de carga : 1 de recuperação, pico e polimento conforme a distância), em pop-up; e a tabela de resultados.
+- **Form & Load**: forma física (CTL), fadiga (ATL) e frescor (TSB) estimados com potência (bike), ritmo vs. limiar (corrida e natação), FC ou duração; relação carga aguda:crônica, monotonia e strain (Foster), forma física por modalidade e as referências científicas usadas.
+- **Progression**: últimos 3 meses, 6 meses ou 1 ano contra o período anterior, com leituras em texto (volume, eficiência de corrida e de bike, potência, distribuição de intensidade polarizada/piramidal, consistência).
+- **Race builds**: plano automático para cada prova futura, em pop-up: ciclo de **12 semanas para 70.3** e **16 para Ironman completo** (mais curto se o volume já estiver subindo), 3 semanas de carga : 1 de recuperação, pico e polimento conforme a distância, e a previsão do frescor na manhã da prova; mais a tabela de resultados.
+- **Workout analysis**: escolha qualquer treino e veja intensidade, carga, comparação com treinos parecidos e a análise escrita pela IA.
 
 Seus dados reais entram pelo Supabase (Table Editor), sem mexer no código:
 
-1. Rode `supabase/schema-lab.sql` uma vez no SQL Editor (libera LT1/LT2/VT1/VT2 e outros tipos na tabela `thresholds`).
+1. Rode `supabase/schema-lab.sql` no SQL Editor (pode rodar de novo quando o arquivo mudar): libera LT1/LT2/VT1/VT2, testes de 3 km e 2 milhas, tempo de 10 km e peso na tabela `thresholds`.
 2. `thresholds`: um teste por linha (`kind`, `test_date`, `value`, `unit`; exemplos no começo do arquivo SQL).
 3. `races`: provas passadas com tempo final e parciais. `training_weeks`: horas planejadas de cada semana (segunda-feira), que substituem a meta automática.
 4. `power_curve` é copiada de `data/records.json` por `npm run power:to-db` (a Action diária também faz isso se `SUPABASE_URL` e `SUPABASE_SECRET_KEY` estiverem nos *secrets* do GitHub).
 
-A análise de treino com IA (Anthropic) ainda não existe: precisa de uma chave de API e dos dados segundo a segundo de cada treino. A tabela `workout_analysis` já está reservada.
+**Análise por IA:** coloque `ANTHROPIC_API_KEY` no `.env.local` e nas variáveis da Vercel (nunca no código). Cada treino **novo** é analisado uma única vez pelo webhook e o texto (inglês e português) fica na tabela `workout_analysis`; os visitantes só leem, então não geram custo. Para treinos antigos, com `npm run dev` aberto: `http://localhost:3000/api/lab/analyze?last=10` (essa rota não existe em produção).
 
 ## Idioma (English / Português)
 

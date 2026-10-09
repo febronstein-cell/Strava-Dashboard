@@ -30,6 +30,7 @@ export function ProgressionTab({ activities, todayKey, series }: { activities: A
     { label: t("Fitness (end of period)"), now: ctlAt(cur.to), before: ctlAt(prev.to), fmt: (v) => fmt.int(v) },
     { label: t("Running efficiency (m per heartbeat)"), now: cur.runEfficiency, before: prev.runEfficiency, fmt: (v) => fmt.num(v, 2) },
     { label: t("Bike normalized power, 40+ min rides"), now: cur.rideNp, before: prev.rideNp, fmt: (v) => `${fmt.int(v)} W` },
+    { label: t("Bike efficiency factor (power per bpm)"), now: cur.bikeEf, before: prev.bikeEf, fmt: (v) => fmt.num(v, 2) },
     { label: t("Easy heart-rate time (zones 1–2)"), now: easy(cur.zoneShare), before: easy(prev.zoneShare), fmt: (v) => `${fmt.int(v)}%` },
     { label: t("Weeks with 3+ sessions"), now: cur.consistency * 100, before: prev.consistency * 100, fmt: (v) => `${fmt.int(v)}%` },
     { label: t("Longest run"), now: cur.longestRunKm || null, before: prev.longestRunKm || null, fmt: (v) => `${fmt.num(v, 1)} km` },

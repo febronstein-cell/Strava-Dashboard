@@ -17,6 +17,7 @@
     "power:to-db": "node --env-file=.env.local scripts/power-to-db.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@supabase/supabase-js": "^2.117.3",
     "maplibre-gl": "^6.13.0",
     "next": "16.4.0",

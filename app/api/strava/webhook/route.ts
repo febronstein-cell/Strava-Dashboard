@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 import { after, type NextRequest } from "next/server";
 import { dbBackfilled } from "@/lib/strava/db";
+import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
 import { getOverview } from "@/lib/strava/get-data";
 import { deleteOne, syncOne } from "@/lib/strava/sync";
 
@@ -64,7 +65,16 @@ export async function POST(request: NextRequest) {
       console.error("Webhook: could not update the database:", e);
     }
 
-    // 2) refresh the page (bursts of notices become a single refresh)
+    // 2) written analysis of the new workout (only when an Anthropic key is set; once per workout)
+    if (event.aspect_type === "create" && hasAnthropic()) {
+      try {
+        await analyzeAndStore(event.object_id);
+      } catch (e) {
+        console.error("Webhook: could not analyze the workout:", e);
+      }
+    }
+
+    // 3) refresh the page (bursts of notices become a single refresh)
     const now = Date.now();
     if (now - lastRefresh < MIN_GAP_MS) return;
     lastRefresh = now;

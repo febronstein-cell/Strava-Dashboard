@@ -8,6 +8,7 @@ import { upcoming } from "@/lib/races";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { ActivityDialogProvider } from "./ActivityDialog";
+import { LabTeaser } from "./LabTeaser";
 import { RacePopup } from "./RacePopup";
 import { ScrollEffects } from "./ScrollEffects";
 import { SiteFooter } from "./SiteFooter";
@@ -51,6 +52,7 @@ function DashboardInner({ overview, activities }: { overview: StravaOverview; ac
       </main>
       <SiteFooter fetchedAt={overview.fetchedAt} athleteId={overview.athlete.id} />
       <RacePopup serverNow={serverNow} />
+      <LabTeaser />
     </ActivityDialogProvider>
   );
 }

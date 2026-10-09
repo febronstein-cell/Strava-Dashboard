@@ -82,6 +82,11 @@ export function buildProfile(tests: ThresholdRow[], acts: Activity[], power: Rec
     set("lt1_power", { value: Math.round(p.ftp.value * 0.75), source: "estimated", how: "75% of FTP" });
   }
 
+  // Critical speed from two maximal efforts (distance = CS × time + D′): the 3 km test and a long race effort.
+  // It sits near the boundary between heavy and severe intensity, so it is used as the threshold pace.
+  const cs = criticalPace(p.run_3k_pace?.value, p.run_10k_time?.value);
+  if (cs) set("run_threshold_pace", { value: cs, source: "estimated", how: "critical speed from your 3 km test and a long race effort" });
+
   const runPace = bestSustainedRunPace(acts);
   if (runPace) set("run_threshold_pace", { value: Math.round(runPace), source: "estimated", how: "your best 40–75 min outdoor run" });
   if (p.run_threshold_pace) {
@@ -93,6 +98,26 @@ export function buildProfile(tests: ThresholdRow[], acts: Activity[], power: Rec
   if (swim) set("css", { value: Math.round(swim), source: "estimated", how: "your best swim of 1.5 km or more" });
 
   return p;
+}
+
+/**
+ * Critical speed model (Jones & Vanhatalo 2017): distance = CS · time + D′, solved with a 3 km effort
+ * (pace in s/km) and a 10 km effort (time in s). Returns the pace of CS in s/km, or null if the efforts
+ * are not consistent (the 10 km must be slower than the 3 km pace).
+ */
+export function criticalPace(pace3k?: number, time10k?: number): number | null {
+  if (!pace3k || !time10k) return null;
+  const t3 = pace3k * 3;
+  if (time10k <= t3 * (10 / 3)) return null;
+  const cs = 7000 / (time10k - t3); // m/s
+  return Math.round(1000 / cs);
+}
+
+/** Power-to-weight (W/kg) of the FTP, when both are known. */
+export function wattsPerKg(p: Profile): number | null {
+  const ftp = p.ftp?.value;
+  const kg = p.weight_kg?.value;
+  return ftp && kg ? ftp / kg : null;
 }
 
 // ------------------------------------------------------------------ zones

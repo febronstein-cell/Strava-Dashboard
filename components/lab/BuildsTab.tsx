@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { buildPlan, weeklyHours, type BuildPlan, type Phase } from "@/lib/lab/builds";
+import { buildPlan, forecastRaceDay, tssPerHour, weeklyHours, type BuildPlan, type Phase, type RaceForecast } from "@/lib/lab/builds";
+import type { LoadDay } from "@/lib/lab/load";
 import type { LabData, RaceRow } from "@/lib/lab/types";
 import { upcoming, type RaceCountdown } from "@/lib/races";
 import type { Activity } from "@/lib/strava/types";
@@ -17,7 +18,7 @@ const PHASE_TEXT: Record<Phase, string> = {
   race: "Race week: short, sharp sessions and plenty of rest.",
 };
 
-export function BuildsTab({ activities, lab, todayKey }: { activities: Activity[]; lab: LabData; todayKey: string }) {
+export function BuildsTab({ activities, lab, todayKey, series }: { activities: Activity[]; lab: LabData; todayKey: string; series: LoadDay[] }) {
   const { t, fmt } = useI18n();
   const hours = useMemo(() => weeklyHours(activities), [activities]);
   const nowMs = useMemo(() => Date.parse(todayKey + "T12:00:00-03:00"), [todayKey]);
@@ -68,7 +69,12 @@ export function BuildsTab({ activities, lab, todayKey }: { activities: Activity[
       )}
 
       {open !== null && plans[open]?.plan && (
-        <BuildDialog race={plans[open].race} plan={plans[open].plan} onClose={() => setOpen(null)} />
+        <BuildDialog
+          race={plans[open].race}
+          plan={plans[open].plan}
+          forecast={forecastRaceDay(plans[open].plan, series, tssPerHour(series, hours, todayKey), todayKey, plans[open].race.date)}
+          onClose={() => setOpen(null)}
+        />
       )}
 
       <Results races={lab.races} dbReady={lab.dbReady} />
@@ -76,7 +82,7 @@ export function BuildsTab({ activities, lab, todayKey }: { activities: Activity[
   );
 }
 
-function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: BuildPlan; onClose: () => void }) {
+function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; plan: BuildPlan; forecast: RaceForecast | null; onClose: () => void }) {
   const { t, fmt } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -85,9 +91,8 @@ function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: Build
     if (d && !d.open) d.showModal();
   }, []);
 
-  const future = plan.weeks.filter((w) => w.state !== "past");
-  const totalPlanned = future.reduce((s, w) => s + (w.target ?? 0), 0);
-  const phases = (["base", "build", "peak", "taper", "race"] as Phase[]).filter((p) => future.some((w) => w.phase === p));
+  const cycle = plan.weeks.filter((w) => w.inCycle);
+  const phases = (["base", "build", "peak", "taper", "race"] as Phase[]).filter((p) => cycle.some((w) => w.phase === p));
 
   return (
     <dialog
@@ -113,9 +118,17 @@ function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: Build
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Tile label={t("Weeks left")} value={fmt.int(plan.weeksLeft)} />
-          <Tile label={t("Recent weekly hours")} value={`${fmt.num(plan.baseline, 1)} h`} sub={t("last 6 weeks")} />
-          <Tile label={t("Peak week")} value={`${fmt.num(plan.peak, 1)} h`} />
-          <Tile label={t("Planned until the race")} value={`${fmt.num(totalPlanned, 0)} h`} />
+          <Tile
+            label={t("Cycle")}
+            value={t("{n} weeks", { n: plan.cycleWeeks })}
+            sub={`${plan.cycleStarted ? t("started") : t("starts")} ${fmt.dateLabel(`${plan.cycleStart}T00:00:00`, { day: "2-digit", month: "short" })}`}
+          />
+          <Tile label={t("Peak week")} value={`${fmt.num(plan.peak, 1)} h`} sub={t("from {h} h/week before the cycle", { h: fmt.num(plan.baseline, 1) })} />
+          <Tile
+            label={t("Form on race morning")}
+            value={forecast ? `${forecast.tsb > 0 ? "+" : ""}${fmt.int(forecast.tsb)}` : "—"}
+            sub={forecast ? (forecast.tsb >= 5 && forecast.tsb <= 25 ? t("inside the +5 to +25 race window") : forecast.tsb < 5 ? t("below the +5 to +25 race window") : t("above the +5 to +25 race window")) : undefined}
+          />
         </div>
 
         <div className="mt-8">
@@ -134,7 +147,7 @@ function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: Build
             <p className="label">{t("Phases")}</p>
             <ul className="mt-3 space-y-3">
               {phases.map((p) => {
-                const ws = future.filter((w) => w.phase === p);
+                const ws = cycle.filter((w) => w.phase === p);
                 return (
                   <li key={p} className="flex gap-3">
                     <span className="mt-1.5 size-3 shrink-0 rounded-full" style={{ background: PHASE_COLOR[p] }} />
@@ -151,12 +164,12 @@ function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: Build
           <div>
             <p className="label">{t("Week by week")}</p>
             <ul className="mt-3">
-              {future.map((w) => (
+              {cycle.map((w) => (
                 <li key={w.start} className="flex items-baseline gap-3 border-b border-line/60 py-1.5 last:border-0">
                   <span className="label w-14">{fmt.dateLabel(`${w.start}T00:00:00`, { day: "2-digit", month: "short" })}</span>
                   <span className="label w-16" style={{ color: w.phase ? PHASE_COLOR[w.phase] : undefined }}>{w.phase ? t(w.phase) : ""}</span>
                   <span className="label flex-1">{w.kind === "deload" ? t("recovery week") : w.kind === "taper" ? t("taper") : w.kind === "race" ? t("race week") : t("load week")}</span>
-                  <span className="num text-lg">{fmt.num(w.target ?? 0, 1)} h</span>
+                  <span className="num text-lg">{w.target === null ? "—" : `${fmt.num(w.target, 1)} h`}</span>
                   <span className="num w-14 text-right text-lg text-muted">{w.state === "future" ? "" : `${fmt.num(w.actual, 1)} h`}</span>
                 </li>
               ))}
@@ -164,9 +177,15 @@ function BuildDialog({ race, plan, onClose }: { race: RaceCountdown; plan: Build
           </div>
         </div>
 
-        <p className="mt-6 text-sm text-muted">
-          {t("Automatic plan: it starts from your last 6 weeks ({avg} h/week before this week), adds up to 30% in a 3:1 load/recovery rhythm and tapers for the distance. Weeks you add to the training_weeks table replace the automatic target.", { avg: fmt.num(plan.baseline, 1) })}
-        </p>
+        <div className="mt-6 space-y-2 text-sm text-muted">
+          <p>
+            {t("Automatic plan: a {n}-week preparation cycle (12 weeks for a 70.3, 16 for a full Ironman) that grows from {avg} h/week in a 3:1 load/recovery rhythm up to a peak, then tapers. Weeks you add to the training_weeks table replace the automatic target.", { n: plan.cycleWeeks, avg: fmt.num(plan.baseline, 1) })}
+          </p>
+          {plan.volumeRising && <p>{t("Your volume has been rising recently, so the cycle is shortened and starts from your recent level.")}</p>}
+          <p>
+            {t("The taper cuts volume by about 40–60% over 1–2 weeks and keeps intensity (Bosquet et al. 2007; Mujika & Padilla 2003). The form forecast follows the planned hours day by day; the usual race window is +5 to +25.")}
+          </p>
+        </div>
       </div>
     </dialog>
   );

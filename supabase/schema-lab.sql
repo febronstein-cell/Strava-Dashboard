@@ -18,7 +18,9 @@ alter table public.thresholds
     'ftp', 'lthr', 'max_hr', 'resting_hr', 'vo2max',
     'lt1_hr', 'lt2_hr', 'vt1_hr', 'vt2_hr',
     'lt1_power', 'lt2_power', 'lt1_pace', 'lt2_pace',
-    'run_threshold_pace', 'css'
+    'run_threshold_pace', 'css',
+    -- added later: running test history (pace in s/km, 10 km time in seconds) and body weight (kg)
+    'run_3k_pace', 'run_2mi_pace', 'run_10k_time', 'weight_kg'
   ));
 
 -- 2) Written workout analyses (reserved for the AI analysis of each workout; empty for now).

@@ -12,14 +12,16 @@ import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
 import { LoadTab } from "./LoadTab";
 import { MachineTab } from "./MachineTab";
+import { WorkoutTab } from "./WorkoutTab";
 import { ProgressionTab } from "./ProgressionTab";
 
-type TabId = "machine" | "load" | "progression" | "builds";
+type TabId = "machine" | "load" | "progression" | "builds" | "workouts";
 const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
   { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
   { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race, and your past results." },
+  { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
 ];
 
 export function LabApp(props: { overview: StravaOverview; activities: Activity[]; lab: LabData }) {
@@ -97,9 +99,7 @@ function LabInner({ overview, activities, lab }: { overview: StravaOverview; act
                 {t(x.label)}
               </button>
             ))}
-            <span className="label shrink-0 rounded-full border border-dashed border-line px-4 py-2 opacity-60" title={t("Needs an Anthropic API key")}>
-              {t("Workout analysis")} · {t("soon")}
-            </span>
+
           </div>
         </div>
       </div>
@@ -114,7 +114,8 @@ function LabInner({ overview, activities, lab }: { overview: StravaOverview; act
         {tab === "machine" && <MachineTab profile={profile} lab={lab} />}
         {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
-        {tab === "builds" && <BuildsTab activities={activities} lab={lab} todayKey={todayKey} />}
+        {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} />}
+        {tab === "builds" && <BuildsTab activities={activities} lab={lab} todayKey={todayKey} series={series} />}
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">

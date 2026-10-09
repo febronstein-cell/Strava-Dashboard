@@ -85,7 +85,11 @@ export function SiteHeader({
             {ctx.isDemo ? t("Demo") : t("Sync {when}", { when: syncLabel(now - synced) })}
           </span>
 
-          <Link href="/lab" className="label hidden rounded-full border border-line px-3 py-2 transition-colors hover:text-fg sm:inline-block">
+          <Link href="/lab" className="label hidden items-center gap-2 sm:inline-flex rounded-full border border-brand px-3 py-2 text-brand transition-colors hover:bg-brand hover:text-bg">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-brand" />
+            </span>
             {t("Lab")}
           </Link>
 

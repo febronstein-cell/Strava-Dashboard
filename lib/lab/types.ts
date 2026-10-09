@@ -15,7 +15,11 @@ export type ThresholdKind =
   | "lt1_pace"
   | "lt2_pace"
   | "run_threshold_pace"
-  | "css";
+  | "css"
+  | "run_3k_pace"
+  | "run_2mi_pace"
+  | "run_10k_time"
+  | "weight_kg";
 
 export interface ThresholdRow {
   kind: ThresholdKind;
@@ -52,6 +56,15 @@ export interface PlannedWeekRow {
   plannedHours?: number;
 }
 
+/** Written analysis of one workout (made once, when the workout arrives). */
+export interface WorkoutAnalysisRow {
+  activityId: number;
+  model?: string;
+  createdAt: string;
+  en: string;
+  pt: string;
+}
+
 export interface LabData {
   /** false when Supabase is not configured: the page then shows only estimates */
   dbReady: boolean;
@@ -60,4 +73,6 @@ export interface LabData {
   plannedWeeks: PlannedWeekRow[];
   /** best power in watts by duration in seconds (from the power curve) */
   power: Record<string, number>;
+  /** written analyses by activity id */
+  analyses: Record<number, WorkoutAnalysisRow>;
 }

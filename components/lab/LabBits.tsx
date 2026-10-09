@@ -10,7 +10,7 @@ export function SourceBadge({ m }: { m: Metric }) {
   const label =
     m.source === "test"
       ? m.date
-        ? t("Tested {date}", { date: fmt.dateLabel(`${m.date}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" }) })
+        ? t("Tested {date}", { date: fmt.dateLabel(`${m.date}T00:00:00`, { month: "short", year: "numeric" }) })
         : t("Tested")
       : m.source === "estimated"
         ? t("Estimated")

@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { records } from "@/lib/records";
 import { getSupabase, hasSupabase } from "@/lib/supabase";
-import type { LabData, PlannedWeekRow, RaceRow, ThresholdKind, ThresholdRow } from "./types";
+import type { LabData, PlannedWeekRow, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
 
 const num = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
 const str = (v: unknown): string | undefined => (v === null || v === undefined || v === "" ? undefined : String(v));
@@ -20,18 +20,19 @@ export async function getLabData(): Promise<LabData> {
   cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
   cacheTag("strava-live");
 
-  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile() };
+  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile(), analyses: {} };
   if (!hasSupabase()) return empty;
 
   try {
     const db = getSupabase();
-    const [th, rc, wk, pc] = await Promise.all([
+    const [th, rc, wk, pc, wa] = await Promise.all([
       db.from("thresholds").select("kind,test_date,value,unit,notes").order("test_date", { ascending: false }),
       db.from("races").select("*").order("race_date", { ascending: false }),
       db.from("training_weeks").select("week_start,title,planned_hours").order("week_start", { ascending: true }),
       db.from("power_curve").select("duration_s,watts"),
+      db.from("workout_analysis").select("activity_id,model,summary,details,created_at").order("created_at", { ascending: false }).limit(300),
     ]);
-    for (const r of [th, rc, wk, pc]) if (r.error) throw new Error(r.error.message);
+    for (const r of [th, rc, wk, pc, wa]) if (r.error) throw new Error(r.error.message);
 
     const thresholds: ThresholdRow[] = (th.data ?? []).map((r) => ({
       kind: r.kind as ThresholdKind,
@@ -66,7 +67,19 @@ export async function getLabData(): Promise<LabData> {
     const power = fromFile();
     for (const r of pc.data ?? []) power[String(r.duration_s)] = Number(r.watts);
 
-    return { dbReady: true, thresholds, races, plannedWeeks, power };
+    const analyses: Record<number, WorkoutAnalysisRow> = {};
+    for (const r of wa.data ?? []) {
+      const d = (r.details ?? {}) as { en?: string; pt?: string };
+      analyses[Number(r.activity_id)] = {
+        activityId: Number(r.activity_id),
+        model: str(r.model),
+        createdAt: String(r.created_at),
+        en: d.en ?? String(r.summary),
+        pt: d.pt ?? d.en ?? String(r.summary),
+      };
+    }
+
+    return { dbReady: true, thresholds, races, plannedWeeks, power, analyses };
   } catch (e) {
     console.error("Lab: could not read the database:", e);
     return empty;

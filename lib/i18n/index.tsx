@@ -3,29 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { siteConfig } from "@/site.config";
 import { makeFormat, type Fmt } from "@/lib/format";
-import { pt } from "./pt";
+import { translate, type Lang } from "./translate";
 
-export type Lang = "en" | "pt";
 const LOCALES: Record<Lang, string> = { en: "en-US", pt: "pt-BR" };
 const STORAGE_KEY = "lang";
 const EVENT = "lang-change";
 
-/**
- * English is the source language: `t("Elapsed time")` returns the same text in English
- * and the dictionary entry in Portuguese (falling back to English if one is missing).
- * Plurals: "one|other" picks by `vars.n`. Variables: "{name}".
- */
-export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {
-  let s = lang === "pt" ? (pt[key] ?? key) : key;
-  if (vars) {
-    if (s.includes("|") && typeof vars.n === "number") {
-      const [one, other] = s.split("|");
-      s = vars.n === 1 ? one : other;
-    }
-    s = s.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ""));
-  }
-  return s;
-}
+export { translate };
+export type { Lang };
 
 type Ctx = {
   lang: Lang;

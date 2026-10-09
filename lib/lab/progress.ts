@@ -1,6 +1,7 @@
 import { siteConfig, type SportKey } from "@/site.config";
 import type { Activity } from "@/lib/strava/types";
 import { efficiency } from "@/lib/stats";
+import { powerLooksValid } from "./load";
 
 const DAY = 86_400_000;
 const dayKey = (t: number) => new Date(t).toISOString().slice(0, 10);
@@ -27,6 +28,8 @@ export interface WindowStats {
   rideNp: number | null;
   /** share of heart-rate time (MOVING) in each configured zone, 0..1 */
   zoneShare: number[] | null;
+  /** efficiency factor of rides of 40+ min with a power meter and heart rate: normalized power / average HR */
+  bikeEf: number | null;
   longestRunKm: number;
   longestRideKm: number;
 }
@@ -53,7 +56,7 @@ export function windowStats(all: Activity[], from: string, to: string): WindowSt
     .filter((a) => a.sport === "run" && !a.indoor && !a.race && a.movingTime >= 1200)
     .map(efficiency)
     .filter((v): v is number => v !== null);
-  const nps = acts.filter((a) => a.sport === "ride" && a.np && a.deviceWatts && a.movingTime >= 2400).map((a) => a.np!);
+  const nps = acts.filter((a) => a.sport === "ride" && powerLooksValid(a) && a.movingTime >= 2400).map((a) => a.np!);
 
   const zones = siteConfig.heartRate.zones;
   const zoneSec = zones.map(() => 0);
@@ -77,9 +80,25 @@ export function windowStats(all: Activity[], from: string, to: string): WindowSt
     runEfficiency: avg(effs),
     rideNp: avg(nps),
     zoneShare: hrSec > 0 ? zoneSec.map((s) => s / hrSec) : null,
+    bikeEf: avg(acts.filter((a) => a.sport === "ride" && powerLooksValid(a) && a.hr && a.movingTime >= 2400).map((a) => a.np! / a.hr!)),
     longestRunKm: longest("run"),
     longestRideKm: longest("ride"),
   };
+}
+
+/**
+ * Three-zone intensity distribution from the configured heart-rate zones: easy = Z1+Z2 (below LT1),
+ * moderate = Z3+Z4 (between the thresholds), hard = Z5. The polarization index is
+ * log10(easy × hard / moderate × 100) when easy > hard > moderate, else 0; above 2.0 the
+ * distribution counts as polarized (Treff et al. 2019; Seiler 2010).
+ */
+export function intensityDistribution(zoneShare: number[]): { easy: number; mid: number; hard: number; pi: number; kind: "polarized" | "pyramidal" | "grey" } {
+  const f1 = zoneShare[0] + (zoneShare[1] ?? 0);
+  const f2 = (zoneShare[2] ?? 0) + (zoneShare[3] ?? 0);
+  const f3 = zoneShare[4] ?? 0;
+  const pi = f1 > f3 && f3 > f2 ? Math.log10(((f1 * f3) / Math.max(f2, 0.01)) * 100) : 0;
+  const kind = pi > 2 ? "polarized" : f1 > f2 && f2 >= f3 ? "pyramidal" : "grey";
+  return { easy: Math.round(f1 * 100), mid: Math.round(f2 * 100), hard: Math.round(f3 * 100), pi, kind };
 }
 
 export interface Insight {
@@ -149,13 +168,33 @@ export function progression(all: Activity[], todayKey: string, months: number): 
   }
 
   if (current.zoneShare) {
-    const easy = Math.round((current.zoneShare[0] + current.zoneShare[1]) * 100);
-    const hard = Math.round(((current.zoneShare[3] ?? 0) + (current.zoneShare[4] ?? 0)) * 100);
+    const d = intensityDistribution(current.zoneShare);
+    const v = { easy: d.easy, mid: d.mid, hard: d.hard, pi: d.pi.toFixed(1) };
     add(
-      easy >= 70
-        ? { id: "zones", tone: "good", text: "{easy}% of your heart-rate time is easy (zones 1–2) and {hard}% is hard (zones 4–5): a well polarized split.", vars: { easy, hard } }
-        : { id: "zones", tone: "warn", text: "Only {easy}% of your heart-rate time is easy (zones 1–2) and {hard}% is hard (zones 4–5). Most of the volume should be easy, around 80%.", vars: { easy, hard } },
+      d.kind === "polarized"
+        ? { id: "zones", tone: "good", text: "Intensity split {easy}% easy, {mid}% moderate, {hard}% hard: a polarized distribution (polarization index {pi}).", vars: v }
+        : d.kind === "pyramidal"
+          ? { id: "zones", tone: "info", text: "Intensity split {easy}% easy, {mid}% moderate, {hard}% hard: a pyramidal distribution, which also works well for endurance athletes.", vars: v }
+          : { id: "zones", tone: "warn", text: "Intensity split {easy}% easy, {mid}% moderate, {hard}% hard: a lot of time in the grey zone. Make easy days easier and hard days harder.", vars: v },
     );
+    add({
+      id: "zones-caveat",
+      tone: "info",
+      text: "Heart rate here is the session average, so interval sessions look easier than they were: the hard share is probably underestimated.",
+      vars: {},
+    });
+  }
+
+  if (current.bikeEf && previous.bikeEf) {
+    const dEf = pct(current.bikeEf, previous.bikeEf);
+    if (Math.abs(dEf) >= 2) {
+      add({
+        id: "bike-ef",
+        tone: dEf > 0 ? "good" : "info",
+        text: dEf > 0 ? "Bike efficiency factor (power per heartbeat) is up {pct}%: more power for the same heart rate, a classic sign of aerobic progress." : "Bike efficiency factor (power per heartbeat) is down {pct}%: heat, fatigue or a recent rise in intensity can lower it.",
+        vars: { pct: Math.abs(dEf) },
+      });
+    }
   }
 
   add({
