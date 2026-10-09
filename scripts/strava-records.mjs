@@ -142,19 +142,18 @@ function saveAll(totalRides) {
       }
     }
   }
-  fs.writeFileSync(
-    OUT_PATH,
-    JSON.stringify(
-      {
-        generatedAt: new Date().toISOString(),
-        analyzed: { rides: Object.keys(cache.rides).length },
-        total: { rides: totalRides },
-        power,
-      },
-      null,
-      2,
-    ),
-  );
+  const body = {
+    analyzed: { rides: Object.keys(cache.rides).length },
+    total: { rides: totalRides },
+    power,
+  };
+  // Only rewrite the file when something really changed (so the daily automation does not
+  // create a commit, and a site deploy, when there is no new ride).
+  const prev = readJson(OUT_PATH, null);
+  if (prev && JSON.stringify({ analyzed: prev.analyzed, total: prev.total, power: prev.power }) === JSON.stringify(body)) {
+    return;
+  }
+  fs.writeFileSync(OUT_PATH, JSON.stringify({ generatedAt: new Date().toISOString(), ...body }, null, 2));
 }
 
 /** Best average of `d` consecutive seconds, for each duration, from a 1 Hz watts series. */

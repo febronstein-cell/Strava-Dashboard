@@ -1,0 +1,61 @@
+name: Update power curve
+
+# Every day, looks for new power-meter rides on Strava, updates data/records.json and pushes it.
+# The push makes Vercel publish the site again with the new curve. See the README.
+on:
+  schedule:
+    - cron: "15 8 * * *" # 08:15 UTC = 05:15 in Brasília
+  workflow_dispatch: # also lets you run it by hand: GitHub > Actions > Update power curve > Run workflow
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-power-curve
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # The first collection runs on your computer and is committed once. Until then, do nothing
+      # (otherwise this job would compete with it for the Strava request limit).
+      - name: Check that the starting data was already pushed
+        id: seed
+        run: |
+          if [ -f data/records-cache.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "data/records-cache.json is not in the repository yet; skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.seed.outputs.ready == 'true'
+        with:
+          node-version: 22
+
+      - name: Compute power for new rides
+        if: steps.seed.outputs.ready == 'true'
+        env:
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+        run: node scripts/strava-records.mjs --window 60 --daily 300
+
+      - name: Commit and push if something changed
+        if: steps.seed.outputs.ready == 'true'
+        run: |
+          if git diff --quiet -- data/; then
+            echo "No new rides. Nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "Atualiza a curva de potência (automático)"
+          git pull --rebase origin main
+          git push origin main

@@ -139,3 +139,15 @@ Para ter também a **curva de potência de 5 s a 3 h**, o Strava exige a permiss
 - **Esconder valores pequenos:** os minigráficos com categorias (distribuição de distâncias, temperatura, condições do tempo, zonas de FC, rosca de tempo, lugares do mapa) têm o botão *Hide small values*. No Volume, a legenda é clicável (liga/desliga cada esporte) e há *Hide small sports*.
 - **Três temas:** escuro, claro e **oceano** (azul-noite). O botão do topo alterna entre eles e a escolha fica salva. Os tokens do tema estão em `app/globals.css`.
 - **Ordem das seções** (em `site.config.ts`): resumo → provas → modalidades → volume → progressão → estatísticas → FC → destaques → mapa → recentes. Cada seção tem uma linha de descrição dizendo o que mostra e qual base de tempo usa.
+
+## Curva de potência automática (GitHub Actions)
+
+O arquivo `.github/workflows/update-power-curve.yml` roda **todo dia às 05:15 (Brasília)**: procura pedais novos com medidor de potência, atualiza `data/` e faz o commit. O push faz a Vercel publicar o site de novo. Se não houver pedal novo, não gera commit nem deploy.
+
+Configuração (uma vez):
+
+1. Termine a primeira coleta no seu computador (`npm.cmd run strava:records`) e faça o commit e o push de `data/`. Enquanto `data/records-cache.json` não estiver no repositório, a rotina não faz nada, para não disputar o limite do Strava com a coleta local.
+2. No GitHub, abra o repositório > **Settings > Secrets and variables > Actions > New repository secret** e crie 3 segredos, com os mesmos valores do `.env.local`: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` e `STRAVA_REFRESH_TOKEN` (o token com a permissão `activity:read_all`).
+3. Para testar na hora: **Actions > Update power curve > Run workflow**.
+
+Se um dia a rotina falhar com "falha ao renovar o token", o Strava invalidou o refresh token: rode `node scripts/strava-auth.mjs --all`, e atualize `STRAVA_REFRESH_TOKEN` no GitHub (e na Vercel).
