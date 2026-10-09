@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { siteConfig, type SectionId } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import { useI18n } from "@/lib/i18n";
@@ -83,6 +84,10 @@ export function SiteHeader({
             </span>
             {ctx.isDemo ? t("Demo") : t("Sync {when}", { when: syncLabel(now - synced) })}
           </span>
+
+          <Link href="/lab" className="label hidden rounded-full border border-line px-3 py-2 transition-colors hover:text-fg sm:inline-block">
+            {t("Lab")}
+          </Link>
 
           <div role="group" aria-label={t("Language")} className="label flex rounded-full border border-line p-0.5">
             {(["en", "pt"] as const).map((l) => (

@@ -167,6 +167,13 @@ export const siteConfig = {
     bin: 5,
   },
 
+  // ----------------------------------------------------------------- lab
+  /** Settings of the separate /lab page (My Machine, Form & Load, Progression, Race builds). */
+  lab: {
+    /** Resting heart rate, used only to estimate training load from HR. Replace it with a "resting_hr" test in the database. */
+    restHr: 50,
+  },
+
   // ----------------------------------------------------------- geography
   geo: {
     /**

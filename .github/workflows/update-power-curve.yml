@@ -46,6 +46,14 @@ jobs:
           STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
         run: node scripts/strava-records.mjs --window 60 --daily 300
 
+      # Optional: keeps the Supabase table "power_curve" in sync. Without the two secrets it just skips.
+      - name: Copy the curve to the database
+        if: steps.seed.outputs.ready == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/power-to-db.mjs
+
       - name: Commit and push if something changed
         if: steps.seed.outputs.ready == 'true'
         run: |

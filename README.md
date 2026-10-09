@@ -124,6 +124,24 @@ Com o banco ligado, o site **não baixa mais o histórico do Strava a cada build
 
 Depois disso: o webhook salva/atualiza/apaga **uma** atividade no banco assim que o Strava avisa, e a cada ~10 min o site busca só o que mudou nos últimos dias. Sem as variáveis do Supabase (ou antes do backfill) o site volta sozinho ao modo antigo, lendo direto do Strava. Atividades privadas não entram (use `STRAVA_INCLUDE_PRIVATE=true` para incluí-las). As tabelas `races`, `training_weeks` e `thresholds` já existem para as futuras abas de provas, plano de treino e limiares.
 
+## Lab (página separada `/lab`)
+
+Uma página à parte, sem mexer no painel principal (link "Lab" no topo e no rodapé), com quatro abas:
+
+- **My Machine**: FTP, LTHR, FC máxima, limiar de corrida, CSS de natação, LT1/LT2/VT1/VT2 (FC, potência, ritmo), zonas de FC, potência e ritmo, perfil de potência e histórico de testes. O que vem de um teste real aparece em verde; o resto é **estimado** (ou vem das suas zonas) e vem rotulado.
+- **Form & Load**: forma física (CTL), fadiga (ATL) e frescor (TSB) estimados com potência (bike), FC ou duração.
+- **Progression**: últimos 3 meses, 6 meses ou 1 ano contra o período anterior, com leituras em texto.
+- **Race builds**: plano automático de horas semanais para cada prova futura (3 semanas de carga : 1 de recuperação, pico e polimento conforme a distância), em pop-up; e a tabela de resultados.
+
+Seus dados reais entram pelo Supabase (Table Editor), sem mexer no código:
+
+1. Rode `supabase/schema-lab.sql` uma vez no SQL Editor (libera LT1/LT2/VT1/VT2 e outros tipos na tabela `thresholds`).
+2. `thresholds`: um teste por linha (`kind`, `test_date`, `value`, `unit`; exemplos no começo do arquivo SQL).
+3. `races`: provas passadas com tempo final e parciais. `training_weeks`: horas planejadas de cada semana (segunda-feira), que substituem a meta automática.
+4. `power_curve` é copiada de `data/records.json` por `npm run power:to-db` (a Action diária também faz isso se `SUPABASE_URL` e `SUPABASE_SECRET_KEY` estiverem nos *secrets* do GitHub).
+
+A análise de treino com IA (Anthropic) ainda não existe: precisa de uma chave de API e dos dados segundo a segundo de cada treino. A tabela `workout_analysis` já está reservada.
+
 ## Idioma (English / Português)
 
 O site abre em **inglês** e tem o botão **EN | PT** no topo (a escolha fica salva no navegador). Todos os textos estão escritos em inglês no código; as traduções para português ficam em `lib/i18n/pt.ts`, indexadas pelo texto em inglês (o que não tiver tradução aparece em inglês). Para trocar o idioma inicial, use `defaultLang` no `site.config.ts`.

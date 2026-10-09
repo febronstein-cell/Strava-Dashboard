@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
 
@@ -42,6 +43,7 @@ export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athlet
             timeZone: "America/Sao_Paulo",
           }).format(new Date(fetchedAt))}
         </span>
+        <Link href="/lab" className="transition-colors hover:text-fg">{t("Lab")} →</Link>
         <span>Powered by Strava</span>
       </div>
 

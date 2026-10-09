@@ -19,9 +19,8 @@ export interface GeoSummary {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Quantos lugares nomear (a política do Nominatim pede ~1 requisição/s). */
-const NAMED_TOP = 6;
-const NAMED_FAR = 10;
+/** How many places get a name (Nominatim asks for ~1 request/s; names are cached, so only new places cost time). */
+const MAX_NAMED = 60;
 
 export async function getGeoSummary(): Promise<GeoSummary> {
   "use cache";
@@ -44,19 +43,17 @@ export async function getGeoSummary(): Promise<GeoSummary> {
       if (near) Object.assign(p, { name: near.name, country: near.country, countryCode: near.countryCode });
     }
   } else {
-    const far = places
-      .filter((p) => p.distanceKm > 50)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, NAMED_FAR);
-    const toName = [...new Set([...places.slice(0, NAMED_TOP), ...far])];
-    for (const p of toName) {
-      try {
-        const g = await reverseGeocode(Math.round(p.lat * 10) / 10, Math.round(p.lng * 10) / 10);
-        Object.assign(p, g);
-      } catch {
-        /* sem nome: a interface mostra as coordenadas */
+    for (const p of places.slice(0, MAX_NAMED)) {
+      const started = Date.now();
+      for (let attempt = 0; attempt < 2 && !p.name; attempt++) {
+        try {
+          Object.assign(p, await reverseGeocode(Math.round(p.lat * 100) / 100, Math.round(p.lng * 100) / 100));
+        } catch {
+          await sleep(1500); // unnamed places show their coordinates
+        }
       }
-      await sleep(1100);
+      // a cached name returns instantly; only real requests need the pause
+      if (Date.now() - started > 300) await sleep(1100);
     }
   }
 

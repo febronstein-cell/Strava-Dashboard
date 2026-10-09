@@ -17,6 +17,9 @@ type Place = GeoSummary["places"][number];
 /** With "hide small places" on, only places with at least this many activities are listed. */
 const MIN_ACTIVITIES = 3;
 
+/** Places farther than this from home count as trips (most recent first). */
+const TRIP_KM = 150;
+
 const placeName = (p: Place) =>
   p.name ? `${p.name}${p.countryCode ? `, ${p.countryCode}` : ""}` : `${p.lat.toFixed(2)}°, ${p.lng.toFixed(2)}°`;
 
@@ -50,9 +53,9 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
   const travel = useMemo(
     () =>
       (data?.places ?? [])
-        .filter((p) => p.distanceKm > 50 && (!smallPlaces || p.count >= MIN_ACTIVITIES))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 8),
+        .filter((p) => p.distanceKm > TRIP_KM && (!smallPlaces || p.count >= MIN_ACTIVITIES))
+        .sort((a, b) => (a.lastDate < b.lastDate ? 1 : -1))
+        .slice(0, 20),
     [data, smallPlaces],
   );
   const top = (data?.places ?? []).filter((p) => !smallPlaces || p.count >= MIN_ACTIVITIES).slice(0, 6);
@@ -122,7 +125,7 @@ export function Geography({ ctx }: { ctx: DashboardContext }) {
               {travel.length > 0 && (
                 <div className="card p-5">
                   <p className="label">{t("Travel highlights")}</p>
-                  <ul className="mt-3 space-y-1">
+                  <ul className="mt-3 max-h-[26rem] space-y-1 overflow-y-auto pr-1">
                     {travel.map((p) => (
                       <li key={`${p.lat}${p.lng}`}>
                         <button

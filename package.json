@@ -13,7 +13,8 @@
     "strava:webhook": "node --env-file=.env.local scripts/strava-webhook.mjs",
     "strava:records": "node --env-file=.env.local scripts/strava-records.mjs",
     "strava:backfill": "node --env-file=.env.local scripts/strava-backfill.mjs",
-    "supabase:check": "node --env-file=.env.local scripts/supabase-check.mjs"
+    "supabase:check": "node --env-file=.env.local scripts/supabase-check.mjs",
+    "power:to-db": "node --env-file=.env.local scripts/power-to-db.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
