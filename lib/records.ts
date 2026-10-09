@@ -1,7 +1,7 @@
 import raw from "@/data/records.json";
 
-/** Standard power-curve durations, in seconds (5 s up to 3 h). */
-export const POWER_DURATIONS = [5, 10, 30, 60, 300, 600, 1200, 1800, 3600, 7200, 10800] as const;
+/** Power-curve durations shown on the site, in seconds: 5 s, 10 s, 30 s, 1 min, 5 min, 10 min, 20 min, 1 h, 2 h, 3 h. */
+export const POWER_DURATIONS = [5, 10, 30, 60, 300, 600, 1200, 3600, 7200, 10800] as const;
 
 export interface PowerBest {
   watts: number;

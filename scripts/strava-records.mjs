@@ -27,7 +27,7 @@ import path from "node:path";
 const API = "https://www.strava.com/api/v3";
 const CACHE_PATH = path.resolve("data/records-cache.json");
 const OUT_PATH = path.resolve("data/records.json");
-const POWER_DURATIONS = [5, 10, 30, 60, 300, 600, 1200, 1800, 3600, 7200, 10800];
+const POWER_DURATIONS = [5, 10, 30, 60, 300, 600, 1200, 3600, 7200, 10800];
 const RIDE_TYPES = new Set(["Ride", "VirtualRide", "GravelRide", "MountainBikeRide"]);
 const WINDOW_MS = 15 * 60 * 1000;
 

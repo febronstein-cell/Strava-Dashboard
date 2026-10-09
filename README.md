@@ -126,9 +126,11 @@ O site abre em **inglês** e tem o botão **EN | PT** no topo (a escolha fica sa
 
 ## Potências notáveis (bike)
 
-O cartão **Notable power outputs** funciona hoje com os dados que o Strava já entrega por pedal: a **melhor potência média por duração do pedal** (10 min, 20 min, 30 min, 1 h, 2 h, 3 h; é a média do pedal inteiro, então é um piso do seu melhor real) e as **maiores potências normalizadas**. Só entram pedais com medidor de potência (inclui rolo e Zwift), com filtro Todos / Ar livre / Indoor.
+O cartão **Notable power outputs** mostra o **melhor valor já registrado** de potência média para 5 s, 10 s, 30 s, 1 min, 5 min, 10 min, 20 min, 1 h, 2 h e 3 h, com o pedal e a data de cada um (indoor, rolo e Zwift entram junto, marcados como "Indoor"). Só contam pedais com medidor de potência.
 
-Para ter também a **curva de potência de 5 s a 3 h**, o Strava exige a permissão `activity:read_all` (sem ela não devolve a série de potência):
+Enquanto a curva completa não estiver calculada, o cartão mostra, de 5 min para cima, a melhor média de pedais inteiros (marcada como "média do pedal"); de 5 s a 1 min ele fica em branco.
+
+Para calcular a **curva de potência de 5 s a 3 h**, o Strava exige a permissão `activity:read_all` (sem ela não devolve a série de potência):
 
 1. Autorize uma vez, no seu computador: `node scripts/strava-auth.mjs --all`. As atividades privadas continuam escondidas do site.
 2. Copie o novo `STRAVA_REFRESH_TOKEN` (já gravado no `.env.local`) para a Vercel e faça Redeploy.
