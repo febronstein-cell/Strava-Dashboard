@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-09T00:30:24.283Z",
+  "generatedAt": "2026-10-09T12:14:40.412Z",
   "analyzed": {
-    "rides": 170
+    "rides": 253
   },
   "total": {
     "rides": 253
@@ -51,13 +51,6 @@
     },
     "1200": {
       "watts": 331,
-      "id": 18950389688,
-      "name": "Zwift - New Workout",
-      "date": "2026-06-16T19:01:42",
-      "indoor": true
-    },
-    "1800": {
-      "watts": 329,
       "id": 18950389688,
       "name": "Zwift - New Workout",
       "date": "2026-06-16T19:01:42",
