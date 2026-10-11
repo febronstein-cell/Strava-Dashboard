@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
-import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
-import { commentOnForm } from "@/lib/lab/form-ai";
+import { analyzeAndStore, hasAnthropic, workoutPayload } from "@/lib/lab/ai";
+import { commentOnForm, formFacts } from "@/lib/lab/form-ai";
 import { labelAndStore, labelContext, previewLabel } from "@/lib/lab/labeling";
 import { detectAndStoreRaces } from "@/lib/lab/races-sync";
 
@@ -25,12 +25,22 @@ export async function GET(request: NextRequest) {
   const last = Math.min(100, Math.max(1, Number(q.get("last") ?? 5)));
   const id = Number(q.get("id"));
 
+  // numbers only (no AI call): used to write the analyses by hand
+  if (task === "facts") {
+    if (q.get("form") === "1") return Response.json(await formFacts());
+    const ctx0 = await labelContext();
+    const ids = id ? [id] : [...ctx0.acts].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, last).map((a) => a.id);
+    const out = [];
+    for (const i of ids) out.push(await workoutPayload(i));
+    return Response.json({ workouts: out });
+  }
+
   if (task === "races") return Response.json(await detectAndStoreRaces(undefined, { reset: q.get("reset") === "1" }));
 
   if ((task === "analyze" || task === "form") && !hasAnthropic()) {
     return Response.json({ error: "ANTHROPIC_API_KEY is not set in .env.local" }, { status: 400 });
   }
-  if (task === "form") return Response.json({ saved: await commentOnForm() });
+  if (task === "form") return Response.json({ saved: await commentOnForm({ force: true }) });
 
   const ctx = await labelContext();
   if (task === "label") {
@@ -61,7 +71,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ named: done });
   }
 
-  if (id) return Response.json({ id, saved: await analyzeAndStore(id) });
+  if (id) return Response.json({ id, saved: await analyzeAndStore(id, { force: true }) });
   const recent = [...ctx.acts].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, last);
   const done: { id: number; saved: boolean; error?: string }[] = [];
   for (const a of recent) {

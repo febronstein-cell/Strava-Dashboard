@@ -24,14 +24,13 @@ const SCHEMA = {
 
 const brtDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
-/** Writes (or rewrites) today's comment on fitness, fatigue and form and saves it in form_comments. */
-export async function commentOnForm(): Promise<boolean> {
-  if (!hasAnthropic()) return false;
+/** Today's fitness / fatigue / form numbers handed to the writer (the AI, or a person). */
+export async function formFacts() {
   const day = brtDay();
   const { acts, profile } = await labelContext();
   const series = loadSeries(acts, profile, day);
   const now = series[series.length - 1];
-  if (!now) return false;
+  if (!now) return null;
 
   const ratio = acwr(series);
   const mono = monotonyStrain(series);
@@ -51,6 +50,23 @@ export async function commentOnForm(): Promise<boolean> {
     nextRaces: upcoming(Date.now()).slice(0, 2).map((r) => ({ name: r.name, date: r.date, daysToGo: r.days })),
   };
 
+  return { day, facts };
+}
+
+/** Writes (or rewrites) today's comment on fitness, fatigue and form and saves it in form_comments. */
+export async function commentOnForm(opts: { force?: boolean } = {}): Promise<boolean> {
+  if (!hasAnthropic()) return false;
+  const data = await formFacts();
+  if (!data) return false;
+  const { day, facts } = data;
+
+  // several workouts in a row (a brick, a double day) must not each cost a new comment
+  if (!opts.force) {
+    const { data: last } = await getSupabase().from("form_comments").select("created_at").order("created_at", { ascending: false }).limit(1);
+    const at = last?.[0]?.created_at ? Date.parse(String(last[0].created_at)) : 0;
+    if (Date.now() - at < 4 * 3600_000) return false;
+  }
+
   const client = new Anthropic();
   const res = await client.beta.messages.create({
     model: ANALYSIS_MODEL,
@@ -61,6 +77,7 @@ export async function commentOnForm(): Promise<boolean> {
     output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> } },
     messages: [{ role: "user", content: `Today's training-load data (JSON):\n${JSON.stringify(facts)}` }],
   });
+  console.log(`AI form comment: ${res.usage.input_tokens} tokens in, ${res.usage.output_tokens} out (${res.model})`);
   if (res.stop_reason === "refusal") return false;
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") return false;

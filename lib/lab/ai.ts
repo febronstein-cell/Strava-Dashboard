@@ -9,7 +9,10 @@ import { buildProfile } from "./profile";
 import { workoutFacts, workoutFindings } from "./workout";
 
 /** The analysis model. Opus-class: the text is short, so the cost per workout is a few cents at most. */
-export const ANALYSIS_MODEL = "claude-opus-5-5";
+export const ANALYSIS_MODEL = process.env.LAB_AI_MODEL || "claude-opus-5-5";
+
+/** Sessions shorter than this (warm-ups, strides, tiny strength blocks) are not worth a written analysis. */
+const MIN_MINUTES = 10;
 
 export const hasAnthropic = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
@@ -33,20 +36,17 @@ const SCHEMA = {
 /** Year of "now" in Brasília time. */
 const brtYear = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
 
-/** Writes (or rewrites) the analysis of one workout and saves it in the workout_analysis table. */
-export async function analyzeAndStore(id: number): Promise<boolean> {
-  if (!hasAnthropic()) return false;
-
+/** The numbers handed to the writer (the AI, or a person) for ONE workout. */
+export async function workoutPayload(id: number) {
   const year = brtYear();
   const acts: Activity[] = [...(await dbYear(year)), ...(await dbYear(year - 1))];
   const activity = acts.find((a) => a.id === id);
-  if (!activity) return false;
+  if (!activity) return null;
 
   const lab = await getLabData();
   const profile = buildProfile(lab.thresholds, acts, lab.power);
   const facts = workoutFacts(activity, acts, profile);
   const reading = workoutFindings(facts).map((f) => translate("en", f.text, f.vars));
-
   const athlete = {
     ftpW: profile.ftp?.value ?? null,
     weightKg: profile.weight_kg?.value ?? null,
@@ -55,6 +55,17 @@ export async function analyzeAndStore(id: number): Promise<boolean> {
     runThresholdPaceSecPerKm: profile.run_threshold_pace?.value ?? null,
     run3kPaceSecPerKm: profile.run_3k_pace?.value ?? null,
   };
+  return { facts, athlete, reading };
+}
+
+/** Writes (or rewrites) the analysis of one workout and saves it in the workout_analysis table. */
+export async function analyzeAndStore(id: number, opts: { force?: boolean } = {}): Promise<boolean> {
+  if (!hasAnthropic()) return false;
+
+  const payload = await workoutPayload(id);
+  if (!payload) return false;
+  const { facts, athlete, reading } = payload;
+  if (!opts.force && facts.movingMin < MIN_MINUTES) return false;
 
   const client = new Anthropic();
   const res = await client.beta.messages.create({
@@ -72,6 +83,7 @@ export async function analyzeAndStore(id: number): Promise<boolean> {
     ],
   });
 
+  console.log(`AI analysis ${id}: ${res.usage.input_tokens} tokens in, ${res.usage.output_tokens} out (${res.model})`);
   if (res.stop_reason === "refusal") return false;
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") return false;
