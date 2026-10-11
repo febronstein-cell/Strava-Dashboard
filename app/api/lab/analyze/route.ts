@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { analyzeAndStore, hasAnthropic, workoutPayload } from "@/lib/lab/ai";
 import { commentOnForm, formFacts } from "@/lib/lab/form-ai";
-import { labelAndStore, labelContext, previewLabel } from "@/lib/lab/labeling";
+import { applyBrick, getLabels, labelAndStore, labelContext, previewLabel } from "@/lib/lab/labeling";
+import { getSupabase } from "@/lib/supabase";
 import { detectAndStoreRaces } from "@/lib/lab/races-sync";
 
 export const maxDuration = 300;
@@ -10,7 +11,8 @@ export const maxDuration = 300;
  * Local helper (development only) to fill in the past. It is disabled in production so nobody can
  * spend your API credit or your Strava request quota.
  *
- *   ?task=analyze&last=10     AI analysis of the 10 most recent workouts without one (default task)
+ *   ?task=analyze&last=10&days=30&min=20   AI analysis of up to 10 swim/bike/run workouts of 20+ min from the
+ *                             last 30 days that have no analysis yet (default task); add &count=1 to only count them
  *   ?task=analyze&id=123      AI analysis of one workout
  *   ?task=label&last=30       name the 30 most recent workouts that have no name yet (Strava: ~1 request each)
  *   ?task=label&last=10&dry=1 same, but only shows the names (nothing is saved)
@@ -43,6 +45,22 @@ export async function GET(request: NextRequest) {
   if (task === "form") return Response.json({ saved: await commentOnForm({ force: true }) });
 
   const ctx = await labelContext();
+
+  // no Strava requests: only adds "T2 brick run" / "Triathlon bike" to names saved before that rule existed
+  if (task === "bricks") {
+    const have = await getLabels();
+    const changed: { id: number; from: string; to: string }[] = [];
+    for (const [idText, label] of Object.entries(have)) {
+      const a = ctx.acts.find((x) => x.id === Number(idText));
+      if (!a || /^(T2|Triathlon)|bike to run brick/.test(label)) continue;
+      const next = applyBrick(label, a, ctx.acts);
+      if (next === label) continue;
+      await getSupabase().from("activity_labels").update({ label: next }).eq("activity_id", a.id);
+      changed.push({ id: a.id, from: label, to: next });
+    }
+    return Response.json({ changed });
+  }
+
   if (task === "label") {
     const { getLabels } = await import("@/lib/lab/labeling");
     const have = await getLabels();
@@ -72,7 +90,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (id) return Response.json({ id, saved: await analyzeAndStore(id, { force: true }) });
-  const recent = [...ctx.acts].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, last);
+
+  // a batch of PAST workouts: only swim/bike/run of at least `min` minutes, from the last `days` days, not analyzed yet
+  // read the table directly: the cached lab data would not show what this very batch just wrote
+  const { data: doneRows } = await getSupabase().from("workout_analysis").select("activity_id");
+  const have: Record<number, true> = Object.fromEntries((doneRows ?? []).map((r) => [Number(r.activity_id), true]));
+  const days = Math.max(1, Number(q.get("days") ?? 30));
+  const minMin = Math.max(1, Number(q.get("min") ?? 20));
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const recent = [...ctx.acts]
+    .filter((a) => ["ride", "run", "swim"].includes(a.sport) && a.movingTime >= minMin * 60 && a.date.slice(0, 10) >= since && !have[a.id])
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, Math.max(last, Number(q.get("max") ?? 0)));
+  if (q.get("count") === "1") return Response.json({ wouldAnalyze: recent.length });
   const done: { id: number; saved: boolean; error?: string }[] = [];
   for (const a of recent) {
     try {

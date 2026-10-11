@@ -632,4 +632,12 @@ export const pt: Record<string, string> = {
   "No comment yet. It is written automatically after each new workout once an Anthropic API key is set on the server.": "Ainda sem comentário. Ele é escrito automaticamente após cada treino novo quando uma chave da API da Anthropic é configurada no servidor.",
   "Today's reading": "Leitura de hoje",
   "not marked as a race: check it": "não estava marcada como prova: confira",
+
+  // lab (4)
+  "This {leg} is part of a swim, bike and run chain with transitions of {max} minutes or less (T1 {t1} min, T2 {t2} min): it looks like a complete triathlon or a full race simulation, so judge it as one effort, not three separate workouts.": "Este trecho ({leg}) faz parte de uma sequência de natação, bike e corrida com transições de {max} minutos ou menos (T1 {t1} min, T2 {t2} min): parece um triathlon completo ou uma simulação de prova, então avalie como um único esforço, não como três treinos separados.",
+  "This run started {t2} minutes after a bike ride (a T2 brick run): the first kilometres off the bike feel heavy, so pace and heart rate here are not comparable with fresh runs.": "Esta corrida começou {t2} minutos depois de um pedal (corrida de T2, ou brick): os primeiros quilômetros saindo da bike pesam, então ritmo e frequência cardíaca aqui não se comparam com corridas descansadas.",
+  "A run followed this ride within {t2} minutes (a T2 brick): the ride is best judged by how well it set up the run, not on its own.": "Uma corrida veio {t2} minutos depois deste pedal (brick de T2): o pedal deve ser julgado por quanto preparou a corrida, não isoladamente.",
+  "bike leg": "etapa de bike",
+  "run leg": "etapa de corrida",
+  "swim leg": "etapa de natação",
 };

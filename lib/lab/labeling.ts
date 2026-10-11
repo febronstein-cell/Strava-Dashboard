@@ -6,6 +6,7 @@ import { getSupabase, hasSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { getLabData } from "./get-lab";
 import { classify, type LabelInput, type LapIn } from "./label";
+import { brickOf } from "./workout";
 import { buildProfile, type Profile } from "./profile";
 
 const brtYear = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
@@ -61,10 +62,23 @@ export async function labelContext(): Promise<{ acts: Activity[]; profile: Profi
   return { acts, profile: buildProfile(lab.thresholds, acts, lab.power) };
 }
 
+/** Generic names that say nothing besides "easy-ish run": the brick name replaces them. */
+const GENERIC = /^(Run|Easy run|Recovery run|Steady run|Tempo run|Short easy jog)$/;
+
+/** Adds the brick / triathlon context to a name: "T2 brick run", "Triathlon bike"... */
+export function applyBrick(label: string, a: Activity, all: Activity[]): string {
+  const b = brickOf(a, all);
+  if (!b) return label;
+  if (b.kind === "triathlon") return `Triathlon ${b.role === "ride" ? "bike" : b.role}`;
+  if (b.role === "run") return GENERIC.test(label) ? "T2 brick run" : `T2 · ${label}`;
+  return `${label} (bike to run brick)`;
+}
+
 /** What the name WOULD be (nothing is saved or written): for checking the rules on real workouts. */
 export async function previewLabel(id: number, ctx: { acts: Activity[]; profile: Profile }): Promise<{ label: string; basis: string } | null> {
   const a = ctx.acts.find((x) => x.id === id);
-  return a ? classify(await fetchInput(a), ctx.profile) : null;
+  const r = a ? classify(await fetchInput(a), ctx.profile) : null;
+  return r && a ? { ...r, label: applyBrick(r.label, a, ctx.acts) } : r;
 }
 
 /** Writes the name back to Strava when STRAVA_LABEL_WRITE is "description" (default when set) or "title". */
@@ -93,6 +107,7 @@ export async function labelAndStore(id: number, ctx?: { acts: Activity[]; profil
   if (!a) return null;
   const result = classify(await fetchInput(a), profile);
   if (!result) return null;
+  result.label = applyBrick(result.label, a, acts);
 
   let written = false;
   try {

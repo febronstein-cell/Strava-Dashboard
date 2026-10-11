@@ -108,7 +108,7 @@ export function detectTriathlons(
           const gap1 = (ms(b.date) - sEnd) / 1000;
           const gap2 = (ms(r.date) - bEnd) / 1000;
           // in order, with transitions of at most 40 minutes (a tiny overlap is tolerated: watches differ)
-          if (gap1 < -300 || gap1 > 1200 || gap2 < -300 || gap2 > 900) continue;
+          if (gap1 < -300 || gap1 > 1200 || gap2 < -300 || gap2 > 1200) continue;
 
           const format = matchFormat(s.distance, b.distance / 1000, r.distance / 1000);
           if (!format) continue;

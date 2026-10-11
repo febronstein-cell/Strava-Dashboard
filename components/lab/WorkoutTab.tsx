@@ -149,5 +149,6 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
 function say(f: Finding, t: (k: string, v?: Record<string, string | number>) => string): string {
   const vars: Record<string, string | number> = { ...f.vars };
   if (typeof vars.level === "string") vars.level = t(vars.level);
+  if (typeof vars.leg === "string") vars.leg = t(vars.leg);
   return t(f.text, vars);
 }

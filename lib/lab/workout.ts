@@ -4,6 +4,52 @@ import { efficiency, paceValue } from "@/lib/stats";
 import { activityLoad, powerLooksValid, type LoadMethod } from "./load";
 import type { Profile } from "./profile";
 
+/** Longest pause between two legs for them to count as one brick / triathlon (transition). */
+export const TRANSITION_MIN = 20;
+
+/** Sessions glued to the next one: a bike followed by a run (T2 brick), or a whole swim-bike-run chain. */
+export interface BrickInfo {
+  kind: "T2 brick" | "triathlon";
+  /** which leg this workout is */
+  role: "swim" | "ride" | "run";
+  /** minutes between the end of the bike and the start of the run (T2) */
+  t2Min: number;
+  /** minutes between the end of the swim and the start of the bike (triathlon only) */
+  t1Min: number | null;
+}
+
+/**
+ * Looks at the same day for a bike ending at most TRANSITION_MIN minutes before a run starts (a T2 brick);
+ * if a swim also ended at most TRANSITION_MIN minutes before that bike, the three legs form a triathlon.
+ */
+export function brickOf(a: Activity, all: Activity[]): BrickInfo | null {
+  if (a.sport !== "run" && a.sport !== "ride" && a.sport !== "swim") return null;
+  const day = a.date.slice(0, 10);
+  const same = all.filter((x) => x.date.slice(0, 10) === day);
+  const start = (x: Activity) => Date.parse(x.date + "Z");
+  const end = (x: Activity) => start(x) + x.elapsedTime * 1000;
+  const gapMin = (before: Activity, after: Activity) => (start(after) - end(before)) / 60000;
+  const ok = (g: number) => g >= -5 && g <= TRANSITION_MIN;
+
+  const rides = same.filter((x) => x.sport === "ride" && x.movingTime >= 600);
+  const runs = same.filter((x) => x.sport === "run" && x.movingTime >= 300);
+  const swims = same.filter((x) => x.sport === "swim" && x.movingTime >= 300);
+
+  for (const ride of rides) {
+    for (const run of runs) {
+      const t2 = gapMin(ride, run);
+      if (!ok(t2) || start(run) < start(ride)) continue;
+      const swim = swims.find((s) => ok(gapMin(s, ride)) && start(ride) >= start(s));
+      const t1 = swim ? gapMin(swim, ride) : null;
+      const part =
+        (a.sport === "run" && a.id === run.id) || (a.sport === "ride" && a.id === ride.id) || (a.sport === "swim" && swim?.id === a.id);
+      if (!part) continue;
+      return { kind: swim ? "triathlon" : "T2 brick", role: a.sport, t2Min: Math.max(0, Math.round(t2)), t1Min: t1 === null ? null : Math.max(0, Math.round(t1)) };
+    }
+  }
+  return null;
+}
+
 /** Everything measurable about one workout, plus how it compares with similar recent ones. Isomorphic. */
 export interface WorkoutFacts {
   id: number;
@@ -42,6 +88,8 @@ export interface WorkoutFacts {
   /** share of your last-120-day sessions of this sport with a lower load, 0..1 */
   loadPercentile: number | null;
   intensity: "recovery" | "easy" | "moderate" | "hard" | "very hard";
+  /** bike -> run (T2) or swim -> bike -> run chain with transitions of at most 20 minutes, when this workout is part of one */
+  brick: BrickInfo | null;
   /** comparison with sessions of the same sport and type, similar distance, in the 120 days before */
   similar: null | {
     n: number;
@@ -127,6 +175,7 @@ export function workoutFacts(a: Activity, all: Activity[], p: Profile): WorkoutF
     loadMethod: method,
     loadPercentile,
     intensity,
+    brick: brickOf(a, all),
     similar,
   };
 }
@@ -165,6 +214,17 @@ export function workoutFindings(f: WorkoutFacts): Finding[] {
         : "Estimated training load: {load} points, heavier than {pct}% of your recent sessions of this sport.",
     vars: { load: Math.round(f.load), pct: Math.round((f.loadPercentile ?? 0) * 100) },
   });
+
+  if (f.brick) {
+    const b = f.brick;
+    if (b.kind === "triathlon") {
+      add({ id: "brick", tone: "info", text: "This {leg} is part of a swim, bike and run chain with transitions of {max} minutes or less (T1 {t1} min, T2 {t2} min): it looks like a complete triathlon or a full race simulation, so judge it as one effort, not three separate workouts.", vars: { leg: b.role === "ride" ? "bike leg" : b.role === "run" ? "run leg" : "swim leg", max: TRANSITION_MIN, t1: b.t1Min ?? 0, t2: b.t2Min } });
+    } else if (b.role === "run") {
+      add({ id: "brick", tone: "info", text: "This run started {t2} minutes after a bike ride (a T2 brick run): the first kilometres off the bike feel heavy, so pace and heart rate here are not comparable with fresh runs.", vars: { t2: b.t2Min } });
+    } else {
+      add({ id: "brick", tone: "info", text: "A run followed this ride within {t2} minutes (a T2 brick): the ride is best judged by how well it set up the run, not on its own.", vars: { t2: b.t2Min } });
+    }
+  }
 
   if (f.similar) {
     const s = f.similar;

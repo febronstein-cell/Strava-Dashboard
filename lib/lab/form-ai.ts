@@ -1,10 +1,12 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import { upcoming } from "@/lib/races";
 import { getSupabase } from "@/lib/supabase";
-import { ANALYSIS_MODEL, hasAnthropic } from "./ai";
+import { hasAnthropic, writeBilingual } from "./ai";
 import { labelContext } from "./labeling";
 import { acwr, formState, loadSeries, monotonyStrain, rampRate, sportFitness } from "./load";
+
+/** Daily fitness / fatigue comment: Sonnet 5.5 at low effort, chosen by the owner. LAB_FORM_MODEL overrides it. */
+const FORM_MODEL = process.env.LAB_FORM_MODEL || "claude-sonnet-5-5";
 
 const SYSTEM = `You are an endurance-sport scientist and coach commenting on the DAILY training-load picture of a junior triathlete (swim, bike, run) who races Ironman 70.3 and triathlons.
 
@@ -14,13 +16,6 @@ Rules:
 - Be concrete, direct and encouraging; no hype, no emojis, no medical advice. 80 to 140 words, plain text.
 - Training load is estimated from session averages: say so briefly if it matters to the advice.
 - Write it twice: "en" in English and "pt" in Brazilian Portuguese.`;
-
-const SCHEMA = {
-  type: "object",
-  properties: { en: { type: "string" }, pt: { type: "string" } },
-  required: ["en", "pt"],
-  additionalProperties: false,
-} as const;
 
 const brtDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
@@ -67,26 +62,18 @@ export async function commentOnForm(opts: { force?: boolean } = {}): Promise<boo
     if (Date.now() - at < 4 * 3600_000) return false;
   }
 
-  const client = new Anthropic();
-  const res = await client.beta.messages.create({
-    model: ANALYSIS_MODEL,
-    max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+  const out = await writeBilingual({
+    model: FORM_MODEL,
+    effort: "low",
     system: SYSTEM,
-    output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> } },
-    messages: [{ role: "user", content: `Today's training-load data (JSON):\n${JSON.stringify(facts)}` }],
+    user: `Today's training-load data (JSON):\n${JSON.stringify(facts)}`,
+    label: "form comment",
   });
-  console.log(`AI form comment: ${res.usage.input_tokens} tokens in, ${res.usage.output_tokens} out (${res.model})`);
-  if (res.stop_reason === "refusal") return false;
-  const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") return false;
-  const out = JSON.parse(block.text) as { en?: string; pt?: string };
-  if (!out.en) return false;
+  if (!out) return false;
 
   const { error } = await getSupabase()
     .from("form_comments")
-    .upsert({ day, model: res.model ?? ANALYSIS_MODEL, en: out.en, pt: out.pt ?? out.en, created_at: new Date().toISOString() }, { onConflict: "day" });
+    .upsert({ day, model: out.model, en: out.en, pt: out.pt, created_at: new Date().toISOString() }, { onConflict: "day" });
   if (error) throw new Error(`Could not save the form comment: ${error.message}`);
   return true;
 }
