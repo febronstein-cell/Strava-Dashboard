@@ -37,13 +37,13 @@ export function ThemeToggle() {
       onClick={next}
       aria-label={t("Change theme (now: {theme})", { theme: label })}
       title={t("Change theme (now: {theme})", { theme: label })}
-      className="label inline-flex h-9 items-center gap-2 rounded-full border border-line px-3 transition-colors hover:text-fg sm:px-4"
+      className="label inline-flex h-9 items-center gap-2 rounded-full border border-line px-2.5 transition-colors hover:text-fg sm:px-4"
     >
       <span className="flex -space-x-1">
         {THEMES.map((th) => (
           <span
             key={th}
-            className={`inline-block size-3.5 rounded-full border ${th === theme ? "border-fg" : "border-line opacity-60"}`}
+            className={`inline-block size-3 rounded-full border sm:size-3.5 ${th === theme ? "border-fg" : "border-line opacity-60"}`}
             style={{ background: SWATCH[th] }}
           />
         ))}

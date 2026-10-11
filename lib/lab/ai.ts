@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { translate } from "@/lib/i18n/translate";
 import { getLabData } from "./get-lab";
+import { publishToStrava } from "./labeling";
 import { buildProfile } from "./profile";
 import { workoutFacts, workoutFindings } from "./workout";
 
@@ -31,29 +32,43 @@ Rules:
 - Be specific and practical: what the session probably trained, what stands out compared with similar sessions, one thing to watch, and a concrete suggestion for the next 24-48 hours.
 - Ground statements in accepted sports science (intensity distribution, training load, recovery); do not cite papers you are unsure about, and do not give medical advice.
 - Tone: direct, encouraging, no hype, no emojis. 120 to 200 words. Plain text paragraphs, no markdown headings.
-- Write the same analysis twice: "en" in English and "pt" in Brazilian Portuguese.`;
+- Write the same analysis twice: "en" in English and "pt" in Brazilian Portuguese.
+- "title": a cool, punchy name (never reuse any name listed in "recentTitles"; vary the wording, even for similar sessions) for the workout in English, 2 to 5 words, in sporty language, like "Threshold Grind", "Sweet Spot Surge", "Easy Does It", "Pool Cruise", "Brick City", "Rolling Thunder", "Tempo Tango", "10x400 Fire". It must be TRUE to the session: never call an easy session "Beast Mode" or a hard one "Chill". No emojis, no hashtags, no quotation marks.
+- "blurb": one or two plain English sentences (at most 35 words) that summarise how the workout went, for the Strava description. Factual, no hashtags, no emojis.`;
 
-export const SCHEMA = {
+/** JSON shapes the model must return (structured output). */
+export const ANALYSIS_SCHEMA = {
+  type: "object",
+  properties: { en: { type: "string" }, pt: { type: "string" }, title: { type: "string" }, blurb: { type: "string" } },
+  required: ["en", "pt", "title", "blurb"],
+  additionalProperties: false,
+} as const;
+
+export const BILINGUAL_SCHEMA = {
   type: "object",
   properties: { en: { type: "string" }, pt: { type: "string" } },
   required: ["en", "pt"],
   additionalProperties: false,
 } as const;
 
-/** Year of "now" in Brasília time. */
-const brtYear = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
-
 /**
- * Asks a model for a text written twice (English and Brazilian Portuguese) and returns it, or null if
- * the model refused. Server-side refusal fallbacks are used where the model supports them (not Haiku).
+ * Asks a model for a JSON object (structured output) and returns it with the model that answered, or
+ * null if the model refused. Server-side refusal fallbacks are used where the model supports them (not Haiku).
  */
-export async function writeBilingual(o: { model: string; effort: Effort; system: string; user: string; label: string }): Promise<{ en: string; pt: string; model: string } | null> {
+export async function writeJson<T extends Record<string, string>>(o: {
+  model: string;
+  effort: Effort;
+  system: string;
+  user: string;
+  label: string;
+  schema: Record<string, unknown>;
+}): Promise<(T & { model: string }) | null> {
   const client = new Anthropic();
   const base = {
     model: o.model,
     max_tokens: 16000,
     system: o.system,
-    output_config: { effort: o.effort, format: { type: "json_schema" as const, schema: SCHEMA as unknown as Record<string, unknown> } },
+    output_config: { effort: o.effort, format: { type: "json_schema" as const, schema: o.schema } },
     messages: [{ role: "user" as const, content: o.user }],
   };
   const withFallback = !/haiku/i.test(o.model);
@@ -63,10 +78,12 @@ export async function writeBilingual(o: { model: string; effort: Effort; system:
   if (res.stop_reason === "refusal") return null;
   const block = res.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") return null;
-  const out = JSON.parse(block.text) as { en?: string; pt?: string };
-  if (!out.en) return null;
-  return { en: out.en, pt: out.pt ?? out.en, model: res.model ?? o.model };
+  const out = JSON.parse(block.text) as T;
+  return { ...out, model: res.model ?? o.model };
 }
+
+/** Year of "now" in Brasília time. */
+const brtYear = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
 
 /** The numbers handed to the writer (the AI, or a person) for ONE workout. */
 export async function workoutPayload(id: number) {
@@ -90,8 +107,12 @@ export async function workoutPayload(id: number) {
   return { facts, athlete, reading };
 }
 
-/** Writes (or rewrites) the analysis of one workout and saves it in the workout_analysis table. */
-export async function analyzeAndStore(id: number, opts: { force?: boolean } = {}): Promise<boolean> {
+/**
+ * Writes (or rewrites) the analysis, the cool title and the short description of one workout and saves them
+ * in workout_analysis. Unless `publish` is false, the title and description are also sent to Strava
+ * (only when STRAVA_LABEL_WRITE is set; see publishToStrava).
+ */
+export async function analyzeAndStore(id: number, opts: { force?: boolean; publish?: boolean } = {}): Promise<boolean> {
   if (!hasAnthropic()) return false;
 
   const payload = await workoutPayload(id);
@@ -99,21 +120,36 @@ export async function analyzeAndStore(id: number, opts: { force?: boolean } = {}
   const { facts, athlete, reading } = payload;
   if (!opts.force && facts.movingMin < MIN_MINUTES) return false;
 
-  const out = await writeBilingual({
+  // the last titles already given, so the new one is different
+  const { data: recent } = await getSupabase().from("workout_analysis").select("details").order("created_at", { ascending: false }).limit(25);
+  const recentTitles = [...new Set((recent ?? []).map((r) => (r.details as { title?: string } | null)?.title).filter((t): t is string => !!t))].slice(0, 15);
+
+  const out = await writeJson<{ en: string; pt: string; title: string; blurb: string }>({
     model: ANALYSIS_MODEL,
     effort: ANALYSIS_EFFORT,
     system: SYSTEM,
-    user: `Workout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading })}`,
+    user: `Workout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading, recentTitles })}`,
     label: `analysis ${id}`,
+    schema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
   });
-  if (!out) return false;
+  if (!out?.en) return false;
 
+  const title = out.title?.replace(/["“”]/g, "").trim().slice(0, 60);
+  const blurb = out.blurb?.trim().slice(0, 300);
   const { error } = await getSupabase()
     .from("workout_analysis")
     .upsert(
-      { activity_id: id, model: out.model, summary: out.en, details: { en: out.en, pt: out.pt }, created_at: new Date().toISOString() },
+      { activity_id: id, model: out.model, summary: out.en, details: { en: out.en, pt: out.pt ?? out.en, title, blurb }, created_at: new Date().toISOString() },
       { onConflict: "activity_id" },
     );
   if (error) throw new Error(`Could not save the analysis: ${error.message}`);
+
+  if (opts.publish !== false) {
+    try {
+      await publishToStrava({ id, name: facts.name }, { title, blurb });
+    } catch (e) {
+      console.error("Could not write to Strava:", e);
+    }
+  }
   return true;
 }

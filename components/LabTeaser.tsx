@@ -66,7 +66,7 @@ export function LabTeaser() {
     <aside
       role="complementary"
       aria-label={t("The Lab")}
-      className={`fixed bottom-6 left-4 right-4 z-50 mx-auto max-w-sm rounded-3xl border border-brand/60 bg-elev p-5 shadow-2xl transition-all duration-300 sm:left-auto sm:right-6 sm:mx-0 ${
+      className={`fixed bottom-24 left-4 right-4 z-50 mx-auto max-w-sm sm:bottom-6 rounded-3xl border border-brand/60 bg-elev p-5 shadow-2xl transition-all duration-300 sm:left-auto sm:right-6 sm:mx-0 ${
         shown ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
       }`}
     >

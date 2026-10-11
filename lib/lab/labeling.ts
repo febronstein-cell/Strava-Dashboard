@@ -6,6 +6,7 @@ import { getSupabase, hasSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { getLabData } from "./get-lab";
 import { classify, type LabelInput, type LapIn } from "./label";
+import { isDefaultTitle } from "./titles";
 import { brickOf } from "./workout";
 import { buildProfile, type Profile } from "./profile";
 
@@ -81,19 +82,42 @@ export async function previewLabel(id: number, ctx: { acts: Activity[]; profile:
   return r && a ? { ...r, label: applyBrick(r.label, a, ctx.acts) } : r;
 }
 
-/** Writes the name back to Strava when STRAVA_LABEL_WRITE is "description" (default when set) or "title". */
-async function writeToStrava(a: Activity, label: string): Promise<boolean> {
+/**
+ * Sends the workout's name and description to Strava, according to STRAVA_LABEL_WRITE (nothing happens when unset):
+ *   smart        (recommended) replaces the title ONLY when it is one Strava made up ("Morning Run", "Corrida da tarde");
+ *                a title you wrote is kept. Adds the short description and the "Workout type" line to the description.
+ *   description  only adds the "Workout type" line to the description.
+ *   title        adds the workout type to the end of the title.
+ * It never overwrites text you wrote and never adds the same line twice. Needs the activity:write scope.
+ */
+export async function publishToStrava(a: { id: number; name: string }, parts: { label?: string; title?: string; blurb?: string }): Promise<boolean> {
   const mode = process.env.STRAVA_LABEL_WRITE;
   if (!mode) return false;
-  if (mode === "title") {
-    if (a.name.includes(label)) return true;
-    await stravaPut(`/activities/${a.id}`, { name: `${a.name} · ${label}` });
-    return true;
+
+  let label = parts.label;
+  if (!label) {
+    const { data } = await getSupabase().from("activity_labels").select("label").eq("activity_id", a.id).maybeSingle();
+    label = data?.label ? String(data.label) : undefined;
   }
-  const detail = await stravaGet<{ description?: string | null }>(`/activities/${a.id}`);
+
+  const detail = await stravaGet<{ name?: string; description?: string | null }>(`/activities/${a.id}`);
+  const name = detail.name ?? a.name;
   const old = (detail.description ?? "").trim();
-  if (/Workout type:/i.test(old)) return true;
-  await stravaPut(`/activities/${a.id}`, { description: `${old ? `${old}\n\n` : ""}Workout type: ${label}` });
+  const body: Record<string, string> = {};
+
+  if (mode === "title") {
+    if (label && !name.includes(label)) body.name = `${name} · ${label}`;
+  } else if (mode === "smart" && parts.title && isDefaultTitle(name)) {
+    body.name = parts.title;
+  }
+  if (mode !== "title" && !/Workout type:/i.test(old)) {
+    const added = [mode === "smart" ? parts.blurb : undefined, label ? `Workout type: ${label}` : undefined].filter(Boolean).join("\n\n");
+    if (added) body.description = old ? `${old}\n\n${added}` : added;
+  }
+  if (Object.keys(body).length === 0) return false;
+
+  await stravaPut(`/activities/${a.id}`, body);
+  await getSupabase().from("activity_labels").update({ written_to_strava: true }).eq("activity_id", a.id);
   return true;
 }
 
@@ -110,10 +134,14 @@ export async function labelAndStore(id: number, ctx?: { acts: Activity[]; profil
   result.label = applyBrick(result.label, a, acts);
 
   let written = false;
-  try {
-    written = await writeToStrava(a, result.label);
-  } catch (e) {
-    console.error("Could not write the workout type to Strava:", e);
+  const mode = process.env.STRAVA_LABEL_WRITE;
+  // in "smart" mode with an AI key the cool title and description come with the analysis, which publishes them
+  if (mode && (mode !== "smart" || !process.env.ANTHROPIC_API_KEY)) {
+    try {
+      written = await publishToStrava(a, { label: result.label, title: mode === "smart" ? result.label : undefined });
+    } catch (e) {
+      console.error("Could not write the workout type to Strava:", e);
+    }
   }
   const { error } = await getSupabase()
     .from("activity_labels")
@@ -122,23 +150,39 @@ export async function labelAndStore(id: number, ctx?: { acts: Activity[]; profil
   return result.label;
 }
 
-/** Workout type names by activity id (empty if the table does not exist yet). */
-export async function getLabels(): Promise<Record<number, string>> {
+/** Workout type names and cool titles by activity id (empty if the tables do not exist yet). */
+export async function getLabelData(): Promise<{ labels: Record<number, string>; titles: Record<number, string> }> {
   "use cache";
   cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
   cacheTag("strava-live");
 
-  if (!hasSupabase()) return {};
+  const labels: Record<number, string> = {};
+  const titles: Record<number, string> = {};
+  if (!hasSupabase()) return { labels, titles };
   try {
-    const out: Record<number, string> = {};
+    const db = getSupabase();
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await getSupabase().from("activity_labels").select("activity_id,label").range(from, from + 999);
-      if (error) return out;
-      for (const r of data ?? []) out[Number(r.activity_id)] = String(r.label);
+      const { data, error } = await db.from("activity_labels").select("activity_id,label").range(from, from + 999);
+      if (error) break;
+      for (const r of data ?? []) labels[Number(r.activity_id)] = String(r.label);
       if ((data ?? []).length < 1000) break;
     }
-    return out;
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db.from("workout_analysis").select("activity_id,details").range(from, from + 999);
+      if (error) break;
+      for (const r of data ?? []) {
+        const t = (r.details as { title?: string } | null)?.title;
+        if (t) titles[Number(r.activity_id)] = t;
+      }
+      if ((data ?? []).length < 1000) break;
+    }
   } catch {
-    return {};
+    /* keep whatever was read */
   }
+  return { labels, titles };
+}
+
+/** Workout type names by activity id. */
+export async function getLabels(): Promise<Record<number, string>> {
+  return (await getLabelData()).labels;
 }

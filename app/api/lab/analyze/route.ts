@@ -14,6 +14,7 @@ export const maxDuration = 300;
  *   ?task=analyze&last=10&days=30&min=20   AI analysis of up to 10 swim/bike/run workouts of 20+ min from the
  *                             last 30 days that have no analysis yet (default task); add &count=1 to only count them
  *   ?task=analyze&id=123      AI analysis of one workout
+ *   add &redo=1 to redo older analyses that have no cool title yet, and &nowrite=1 to NOT touch Strava
  *   ?task=label&last=30       name the 30 most recent workouts that have no name yet (Strava: ~1 request each)
  *   ?task=label&last=10&dry=1 same, but only shows the names (nothing is saved)
  *   ?task=races               look for triathlons in the whole history
@@ -93,8 +94,12 @@ export async function GET(request: NextRequest) {
 
   // a batch of PAST workouts: only swim/bike/run of at least `min` minutes, from the last `days` days, not analyzed yet
   // read the table directly: the cached lab data would not show what this very batch just wrote
-  const { data: doneRows } = await getSupabase().from("workout_analysis").select("activity_id");
-  const have: Record<number, true> = Object.fromEntries((doneRows ?? []).map((r) => [Number(r.activity_id), true]));
+  // with &redo=1 the ones that already have a cool title are the finished ones; the older analyses (no title yet) are done again
+  const { data: doneRows } = await getSupabase().from("workout_analysis").select("activity_id,details");
+  const redo = q.get("redo") === "1";
+  const have: Record<number, true> = Object.fromEntries(
+    (doneRows ?? []).filter((r) => !redo || (r.details as { title?: string } | null)?.title).map((r) => [Number(r.activity_id), true]),
+  );
   const days = Math.max(1, Number(q.get("days") ?? 30));
   const minMin = Math.max(1, Number(q.get("min") ?? 20));
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
@@ -106,7 +111,7 @@ export async function GET(request: NextRequest) {
   const done: { id: number; saved: boolean; error?: string }[] = [];
   for (const a of recent) {
     try {
-      done.push({ id: a.id, saved: await analyzeAndStore(a.id) });
+      done.push({ id: a.id, saved: await analyzeAndStore(a.id, { publish: q.get("nowrite") !== "1" }) });
     } catch (e) {
       const error = e instanceof Error ? e.message.slice(0, 300) : String(e);
       done.push({ id: a.id, saved: false, error });

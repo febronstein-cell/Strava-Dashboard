@@ -60,8 +60,8 @@ export function SiteHeader({
 
   return (
     <div className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
-        <a href="#topo" className="num shrink-0 whitespace-nowrap text-2xl uppercase tracking-wide text-brand">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-8">
+        <a href="#topo" className="num min-w-0 shrink whitespace-nowrap text-xl uppercase tracking-wide text-brand sm:shrink-0 sm:text-2xl">
           {brand}
         </a>
 
@@ -85,8 +85,8 @@ export function SiteHeader({
             {ctx.isDemo ? t("Demo") : t("Sync {when}", { when: syncLabel(now - synced) })}
           </span>
 
-          <Link href="/lab" className="label hidden items-center gap-2 sm:inline-flex rounded-full border border-brand px-3 py-2 text-brand transition-colors hover:bg-brand hover:text-bg">
-            <span className="relative flex size-2">
+          <Link href="/lab" className="label inline-flex items-center gap-1.5 rounded-full border border-brand px-2.5 py-1.5 text-brand sm:gap-2 sm:px-3 sm:py-2 transition-colors hover:bg-brand hover:text-bg">
+            <span className="relative hidden size-2 sm:flex">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-brand" />
             </span>
@@ -99,7 +99,7 @@ export function SiteHeader({
                 key={l}
                 onClick={() => setLang(l)}
                 aria-pressed={lang === l}
-                className={`rounded-full px-2.5 py-1.5 transition-colors ${lang === l ? "bg-fg text-bg" : "hover:text-fg"}`}
+                className={`rounded-full px-2 py-1.5 transition-colors sm:px-2.5 ${lang === l ? "bg-fg text-bg" : "hover:text-fg"}`}
               >
                 {l.toUpperCase()}
               </button>

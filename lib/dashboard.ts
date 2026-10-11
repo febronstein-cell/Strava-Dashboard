@@ -23,9 +23,11 @@ export interface DashboardContext {
   sports: Record<SportKey, SportStats>;
   /** workout type names by activity id ("Sweet Spot 3x15'", "Easy run"...), always in English */
   labels: Record<number, string>;
+  /** cool titles written by the AI, by activity id (shown in place of a title Strava made up) */
+  titles: Record<number, string>;
 }
 
-export function buildContext(overview: StravaOverview, all: Activity[], period: Period, labels: Record<number, string> = {}): DashboardContext {
+export function buildContext(overview: StravaOverview, all: Activity[], period: Period, labels: Record<number, string> = {}, titles: Record<number, string> = {}): DashboardContext {
   const today = new Date(overview.fetchedAt);
   const range = resolveRange(period, overview.startYear, today);
   const acts = inRange(all, range);
@@ -46,5 +48,6 @@ export function buildContext(overview: StravaOverview, all: Activity[], period: 
     allTotals: totals(all),
     sports: Object.fromEntries(ALL_SPORTS.map((s) => [s, sportStats(acts, s)])) as Record<SportKey, SportStats>,
     labels,
+    titles,
   };
 }

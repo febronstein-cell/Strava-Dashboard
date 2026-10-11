@@ -8,6 +8,8 @@ import { upcoming } from "@/lib/races";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { ActivityDialogProvider } from "./ActivityDialog";
+import { LabBanner } from "./LabBanner";
+import { LabFab } from "./LabFab";
 import { LabTeaser } from "./LabTeaser";
 import { RacePopup } from "./RacePopup";
 import { ScrollEffects } from "./ScrollEffects";
@@ -20,7 +22,7 @@ import { sectionRegistry } from "./sections/registry";
  * Page shell (client): keeps the chosen period, computes the numbers from the history
  * and draws the sections in the order set in `site.config.ts`.
  */
-export function Dashboard(props: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string> }) {
+export function Dashboard(props: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string> }) {
   return (
     <LanguageProvider>
       <DashboardInner {...props} />
@@ -28,9 +30,9 @@ export function Dashboard(props: { overview: StravaOverview; activities: Activit
   );
 }
 
-function DashboardInner({ overview, activities, labels }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string> }) {
+function DashboardInner({ overview, activities, labels, titles }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string> }) {
   const [period, setPeriod] = useState<Period>(overview.currentYear);
-  const ctx = useMemo(() => buildContext(overview, activities, period, labels), [overview, activities, period, labels]);
+  const ctx = useMemo(() => buildContext(overview, activities, period, labels, titles), [overview, activities, period, labels, titles]);
 
   const serverNow = ctx.today.getTime();
   const hasRaces = upcoming(serverNow).length > 0;
@@ -46,6 +48,7 @@ function DashboardInner({ overview, activities, labels }: { overview: StravaOver
       <div id="topo" />
       <SiteHeader ctx={ctx} period={period} onPeriod={setPeriod} sections={enabled} />
       <main className="flex-1">
+        <LabBanner />
         {enabled.map((id) => (
           <Fragment key={id}>{sectionRegistry[id](ctx)}</Fragment>
         ))}
@@ -53,6 +56,7 @@ function DashboardInner({ overview, activities, labels }: { overview: StravaOver
       <SiteFooter fetchedAt={overview.fetchedAt} athleteId={overview.athlete.id} />
       <RacePopup serverNow={serverNow} />
       <LabTeaser />
+      <LabFab />
     </ActivityDialogProvider>
   );
 }

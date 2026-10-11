@@ -1,7 +1,7 @@
 import "server-only";
 import { upcoming } from "@/lib/races";
 import { getSupabase } from "@/lib/supabase";
-import { hasAnthropic, writeBilingual } from "./ai";
+import { BILINGUAL_SCHEMA, hasAnthropic, writeJson } from "./ai";
 import { labelContext } from "./labeling";
 import { acwr, formState, loadSeries, monotonyStrain, rampRate, sportFitness } from "./load";
 
@@ -62,12 +62,13 @@ export async function commentOnForm(opts: { force?: boolean } = {}): Promise<boo
     if (Date.now() - at < 4 * 3600_000) return false;
   }
 
-  const out = await writeBilingual({
+  const out = await writeJson<{ en: string; pt: string }>({
     model: FORM_MODEL,
     effort: "low",
     system: SYSTEM,
     user: `Today's training-load data (JSON):\n${JSON.stringify(facts)}`,
     label: "form comment",
+    schema: BILINGUAL_SCHEMA as unknown as Record<string, unknown>,
   });
   if (!out) return false;
 

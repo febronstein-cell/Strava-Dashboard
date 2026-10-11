@@ -5,6 +5,7 @@ import { ALL_SPORTS, siteConfig } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import type { Activity } from "@/lib/strava/types";
 import { useI18n } from "@/lib/i18n";
+import { isDefaultTitle } from "@/lib/lab/titles";
 import { useActivityDialog } from "@/components/ActivityDialog";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { Reveal } from "@/components/Reveal";
@@ -132,7 +133,7 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
           ) : (
             <ul className="divide-y divide-line">
               {visible.map((a) => (
-                <Row key={a.id} a={a} label={ctx.labels[a.id]} onOpen={() => open(a)} />
+                <Row key={a.id} a={a} label={ctx.labels[a.id]} title={ctx.titles[a.id]} onOpen={() => open(a)} />
               ))}
             </ul>
           )}
@@ -161,7 +162,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 }
 
 /** One activity: everything here is based on MOVING time. */
-function Row({ a, label, onOpen }: { a: Activity; label?: string; onOpen: () => void }) {
+function Row({ a, label, title, onOpen }: { a: Activity; label?: string; title?: string; onOpen: () => void }) {
   const { t, fmt } = useI18n();
   const p = fmt.pace(a.sport, a.distance / a.movingTime);
   const noDistance = a.sport === "strength" || a.distance === 0;
@@ -175,7 +176,7 @@ function Row({ a, label, onOpen }: { a: Activity; label?: string; onOpen: () => 
           <SportIcon sport={a.sport} className="size-6" />
         </span>
         <div className="min-w-0">
-          <p className="truncate font-medium">{a.name}</p>
+          <p className="truncate font-medium">{title && isDefaultTitle(a.name) ? title : a.name}</p>
           {label && <p className="truncate text-sm text-brand">{label}</p>}
           <p className="label text-[0.62rem] sm:hidden">
             {t(siteConfig.sports[a.sport].label)} · {fmt.dateLabel(a.date)} · {fmt.duration(a.movingTime)}
