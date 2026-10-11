@@ -63,7 +63,15 @@ export async function GET(request: NextRequest) {
 
   if (id) return Response.json({ id, saved: await analyzeAndStore(id) });
   const recent = [...ctx.acts].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, last);
-  const done: { id: number; saved: boolean }[] = [];
-  for (const a of recent) done.push({ id: a.id, saved: await analyzeAndStore(a.id).catch(() => false) });
+  const done: { id: number; saved: boolean; error?: string }[] = [];
+  for (const a of recent) {
+    try {
+      done.push({ id: a.id, saved: await analyzeAndStore(a.id) });
+    } catch (e) {
+      const error = e instanceof Error ? e.message.slice(0, 300) : String(e);
+      done.push({ id: a.id, saved: false, error });
+      if (/credit balance|401|authentication/i.test(error)) break; // no point in trying the rest
+    }
+  }
   return Response.json({ analyzed: done });
 }
