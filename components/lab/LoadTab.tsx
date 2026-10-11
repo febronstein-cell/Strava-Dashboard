@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { acwr, activityLoad, formState, monotonyStrain, rampRate, sportFitness, type AcwrState, type FormState, type LoadDay, type LoadMethod } from "@/lib/lab/load";
 import type { Profile } from "@/lib/lab/profile";
+import type { FormComment } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
 import { Hint, Panel, Pills, Stat } from "./LabBits";
 import { LoadChart } from "./LoadChart";
@@ -37,8 +38,8 @@ const REFERENCES = [
   "Bosquet L et al. (2007). Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc 39:1358.",
 ];
 
-export function LoadTab({ activities, series, profile }: { activities: Activity[]; series: LoadDay[]; profile: Profile }) {
-  const { t, fmt } = useI18n();
+export function LoadTab({ activities, series, profile, comments }: { activities: Activity[]; series: LoadDay[]; profile: Profile; comments: FormComment[] }) {
+  const { t, fmt, lang } = useI18n();
   const [span, setSpan] = useState<Span>(180);
 
   const days = useMemo(() => (span === 0 ? series : series.slice(-span)), [series, span]);
@@ -89,6 +90,20 @@ export function LoadTab({ activities, series, profile }: { activities: Activity[
           {t(state.text)}
         </p>
       )}
+
+      <Panel title={t("Today's reading")} subtitle={t("A short comment on your fitness, fatigue and form, written by Claude when a workout arrives.")}>
+        {comments[0] ? (
+          <>
+            <p className="whitespace-pre-line leading-relaxed">{lang === "pt" ? comments[0].pt : comments[0].en}</p>
+            <p className="label mt-4">
+              {fmt.dateLabel(`${comments[0].day}T00:00:00`, { day: "2-digit", month: "long", year: "numeric" })}
+              {comments[0].model ? ` · ${comments[0].model}` : ""}
+            </p>
+          </>
+        ) : (
+          <Hint>{t("No comment yet. It is written automatically after each new workout once an Anthropic API key is set on the server.")}</Hint>
+        )}
+      </Panel>
 
       <Panel
         title={t("Fitness, fatigue and form")}

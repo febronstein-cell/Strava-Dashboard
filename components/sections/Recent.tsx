@@ -132,7 +132,7 @@ export function Recent({ ctx }: { ctx: DashboardContext }) {
           ) : (
             <ul className="divide-y divide-line">
               {visible.map((a) => (
-                <Row key={a.id} a={a} onOpen={() => open(a)} />
+                <Row key={a.id} a={a} label={ctx.labels[a.id]} onOpen={() => open(a)} />
               ))}
             </ul>
           )}
@@ -161,7 +161,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 }
 
 /** One activity: everything here is based on MOVING time. */
-function Row({ a, onOpen }: { a: Activity; onOpen: () => void }) {
+function Row({ a, label, onOpen }: { a: Activity; label?: string; onOpen: () => void }) {
   const { t, fmt } = useI18n();
   const p = fmt.pace(a.sport, a.distance / a.movingTime);
   const noDistance = a.sport === "strength" || a.distance === 0;
@@ -176,6 +176,7 @@ function Row({ a, onOpen }: { a: Activity; onOpen: () => void }) {
         </span>
         <div className="min-w-0">
           <p className="truncate font-medium">{a.name}</p>
+          {label && <p className="truncate text-sm text-brand">{label}</p>}
           <p className="label text-[0.62rem] sm:hidden">
             {t(siteConfig.sports[a.sport].label)} · {fmt.dateLabel(a.date)} · {fmt.duration(a.movingTime)}
           </p>

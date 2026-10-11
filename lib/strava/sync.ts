@@ -4,7 +4,7 @@ import { deleteById, getState, setState, toRow, upsertRows } from "./db";
 import type { RawActivity } from "./types";
 
 const DAY = 86_400_000;
-const includePrivate = () => process.env.STRAVA_INCLUDE_PRIVATE === "true";
+const includePrivate = () => process.env.STRAVA_INCLUDE_PRIVATE !== "false";
 
 /**
  * Keeps the database up to date WITHOUT re-downloading the history:

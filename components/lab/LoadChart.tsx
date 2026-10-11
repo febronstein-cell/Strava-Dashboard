@@ -45,10 +45,10 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
     <div onMouseLeave={() => setActive(null)}>
       <div className="mb-3 flex min-h-[3rem] flex-wrap items-baseline gap-x-6 gap-y-1">
         <span className="label">{fmt.dateLabel(`${cur.date}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" })}</span>
-        <span className="num text-2xl" style={{ color: "var(--brand)" }}>
+        <span className="num text-xl sm:text-2xl" style={{ color: "var(--brand)" }}>
           {fmt.int(cur.ctl)} <span className="label">{t("Fitness")}</span>
         </span>
-        <span className="num text-2xl" style={{ color: "var(--goal)" }}>
+        <span className="num text-xl sm:text-2xl" style={{ color: "var(--goal)" }}>
           {fmt.int(cur.atl)} <span className="label">{t("Fatigue")}</span>
         </span>
         <span className="num text-2xl">
@@ -59,7 +59,8 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
           {fmt.int(cur.tss)} <span className="label">{t("Load that day")}</span>
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={t("Fitness, fatigue and form")}>
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full min-w-[34rem]" role="img" aria-label={t("Fitness, fatigue and form")}>
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
             <line x1={M.l} x2={W - M.r} y1={yTop(maxLoad * f)} y2={yTop(maxLoad * f)} stroke="var(--line)" strokeDasharray="2 4" />
@@ -98,16 +99,17 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
           width={W - M.l - M.r}
           height={BOT.t + BOT.h - TOP.t}
           fill="transparent"
-          onMouseMove={(e) => {
+          onPointerMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             setActive(Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1)))));
           }}
-          onClick={(e) => {
+          onPointerDown={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             setActive(Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1)))));
           }}
         />
       </svg>
+      </div>
       <div className="label mt-3 flex flex-wrap gap-x-5 gap-y-1">
         <span style={{ color: "var(--brand)" }}>● {t("Fitness (42-day load)")}</span>
         <span style={{ color: "var(--goal)" }}>● {t("Fatigue (7-day load)")}</span>

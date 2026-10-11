@@ -20,7 +20,7 @@ import { sectionRegistry } from "./sections/registry";
  * Page shell (client): keeps the chosen period, computes the numbers from the history
  * and draws the sections in the order set in `site.config.ts`.
  */
-export function Dashboard(props: { overview: StravaOverview; activities: Activity[] }) {
+export function Dashboard(props: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string> }) {
   return (
     <LanguageProvider>
       <DashboardInner {...props} />
@@ -28,9 +28,9 @@ export function Dashboard(props: { overview: StravaOverview; activities: Activit
   );
 }
 
-function DashboardInner({ overview, activities }: { overview: StravaOverview; activities: Activity[] }) {
+function DashboardInner({ overview, activities, labels }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string> }) {
   const [period, setPeriod] = useState<Period>(overview.currentYear);
-  const ctx = useMemo(() => buildContext(overview, activities, period), [overview, activities, period]);
+  const ctx = useMemo(() => buildContext(overview, activities, period, labels), [overview, activities, period, labels]);
 
   const serverNow = ctx.today.getTime();
   const hasRaces = upcoming(serverNow).length > 0;

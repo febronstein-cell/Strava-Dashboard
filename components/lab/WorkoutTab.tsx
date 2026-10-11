@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { SportKey } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
 import type { Profile } from "@/lib/lab/profile";
@@ -19,10 +19,16 @@ const LEVEL_COLOR: Record<WorkoutFacts["intensity"], string> = {
   "very hard": "var(--goal)",
 };
 
-export function WorkoutTab({ activities, profile, lab }: { activities: Activity[]; profile: Profile; lab: LabData }) {
+export function WorkoutTab({ activities, profile, lab, labels }: { activities: Activity[]; profile: Profile; lab: LabData; labels: Record<number, string> }) {
   const { t, fmt, lang } = useI18n();
   const [sport, setSport] = useState<SportKey | "all">("all");
   const [pick, setPick] = useState<number | null>(null);
+  const detail = useRef<HTMLDivElement>(null);
+  const choose = (id: number) => {
+    setPick(id);
+    // on a phone the detail sits below the list: bring it into view
+    if (typeof window !== "undefined" && window.innerWidth < 1024) setTimeout(() => detail.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
 
   const list = useMemo(() => activities.filter((a) => sport === "all" || a.sport === sport).slice(0, 80), [activities, sport]);
   const selected = list.find((a) => a.id === pick) ?? list[0] ?? null;
@@ -35,21 +41,22 @@ export function WorkoutTab({ activities, profile, lab }: { activities: Activity[
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-        <div className="card self-start p-4 sm:p-5">
+        <div className="card min-w-0 self-start p-3.5 sm:p-5">
           <Pills value={sport} onChange={(v) => { setSport(v); setPick(null); }} options={sports} />
-          <ul className="mt-4 max-h-[26rem] space-y-1 overflow-y-auto pr-1 lg:max-h-[44rem]">
+          <ul className="mt-4 max-h-72 space-y-1 overflow-y-auto pr-1 lg:max-h-[44rem]">
             {list.map((a) => {
               const active = selected?.id === a.id;
               return (
                 <li key={a.id}>
                   <button
-                    onClick={() => setPick(a.id)}
+                    onClick={() => choose(a.id)}
                     aria-pressed={active}
                     className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${active ? "bg-soft" : "hover:bg-soft"}`}
                   >
                     <span className="size-2.5 shrink-0 rounded-full" style={{ background: `var(--${a.sport})` }} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{a.name}</span>
+                      {labels[a.id] && <span className="block truncate text-xs text-brand">{labels[a.id]}</span>}
                       <span className="label block">
                         {fmt.dateLabel(a.date, { day: "2-digit", month: "short", year: "2-digit" })} · {fmt.duration(a.movingTime)}
                         {a.distance > 0 ? ` · ${fmt.km(a.distance, 1)} km` : ""}
@@ -65,11 +72,16 @@ export function WorkoutTab({ activities, profile, lab }: { activities: Activity[
         </div>
 
         {selected && facts ? (
-          <div className="space-y-6">
+          <div ref={detail} className="min-w-0 scroll-mt-36 space-y-6">
             <Panel
               title={selected.name}
               subtitle={`${t(SPORT_LABEL[selected.sport])} · ${fmt.dateLabel(selected.date, { day: "2-digit", month: "long", year: "numeric" })} · ${fmt.timeOfDay(selected.date)}${selected.indoor ? ` · ${t("indoor")}` : ""}${selected.race ? ` · ${t("race")}` : ""}`}
-              aside={<span className="num text-2xl uppercase" style={{ color: LEVEL_COLOR[facts.intensity] }}>{t(facts.intensity)}</span>}
+              aside={
+                <span className="text-right">
+                  {labels[selected.id] && <span className="num block text-2xl text-brand">{labels[selected.id]}</span>}
+                  <span className="num block text-xl uppercase" style={{ color: LEVEL_COLOR[facts.intensity] }}>{t(facts.intensity)}</span>
+                </span>
+              }
             >
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
                 <Metric label={t("Distance")} value={selected.distance > 0 ? `${fmt.km(selected.distance, 2)} km` : "—"} />

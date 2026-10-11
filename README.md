@@ -122,7 +122,7 @@ Com o banco ligado, o site **não baixa mais o histórico do Strava a cada build
 3. Teste a conexão: `npm run supabase:check`.
 4. Importe todo o histórico uma única vez: `npm run strava:backfill` (~11 chamadas ao Strava; pode rodar de novo quando quiser, não duplica).
 
-Depois disso: o webhook salva/atualiza/apaga **uma** atividade no banco assim que o Strava avisa, e a cada ~10 min o site busca só o que mudou nos últimos dias. Sem as variáveis do Supabase (ou antes do backfill) o site volta sozinho ao modo antigo, lendo direto do Strava. Atividades privadas não entram (use `STRAVA_INCLUDE_PRIVATE=true` para incluí-las). As tabelas `races`, `training_weeks` e `thresholds` já existem para as futuras abas de provas, plano de treino e limiares.
+Depois disso: o webhook salva/atualiza/apaga **uma** atividade no banco assim que o Strava avisa, e a cada ~10 min o site busca só o que mudou nos últimos dias. Sem as variáveis do Supabase (ou antes do backfill) o site volta sozinho ao modo antigo, lendo direto do Strava. Atividades marcadas como "Somente eu" também entram (para excluí-las, use `STRAVA_INCLUDE_PRIVATE=false`). As tabelas `races`, `training_weeks` e `thresholds` já existem para as futuras abas de provas, plano de treino e limiares.
 
 ## Lab (página separada `/lab`)
 
@@ -142,6 +142,16 @@ Seus dados reais entram pelo Supabase (Table Editor), sem mexer no código:
 4. `power_curve` é copiada de `data/records.json` por `npm run power:to-db` (a Action diária também faz isso se `SUPABASE_URL` e `SUPABASE_SECRET_KEY` estiverem nos *secrets* do GitHub).
 
 **Análise por IA:** coloque `ANTHROPIC_API_KEY` no `.env.local` e nas variáveis da Vercel (nunca no código). Cada treino **novo** é analisado uma única vez pelo webhook e o texto (inglês e português) fica na tabela `workout_analysis`; os visitantes só leem, então não geram custo. Para treinos antigos, com `npm run dev` aberto: `http://localhost:3000/api/lab/analyze?last=10` (essa rota não existe em produção).
+
+**Comentário diário de forma e fadiga:** a aba Form & Load mostra um comentário curto escrito pelo Claude sobre forma física, fadiga e frescor do dia. Ele é regravado automaticamente depois de cada treino novo (mesma chave `ANTHROPIC_API_KEY`); sem a chave, a aba mostra só os números.
+
+**Nome do tipo de treino ("Sweet Spot 3x15'", "10x400m VO2", "Z2 endurance ride", "Long run"...):** aparece abaixo de cada atividade em *Recent activities* (sempre em inglês). Cada treino novo é nomeado uma vez pelo webhook, usando a potência segundo a segundo (bike), a velocidade (corrida) ou as parciais (natação) mais seus limiares. Para treinos antigos, com `npm run dev` aberto: `http://localhost:3000/api/lab/analyze?task=label&last=30` (cerca de 1 requisição ao Strava por treino; `&dry=1` só mostra os nomes). Opcional: para o nome também aparecer **no Strava**, rode `npm run strava:auth -- --write` (pede a permissão de editar atividades), atualize o `STRAVA_REFRESH_TOKEN` (.env.local, Vercel e GitHub) e coloque `STRAVA_LABEL_WRITE=description` (acrescenta a linha "Workout type: ..." na descrição) ou `title` (acrescenta ao título).
+
+**Provas encontradas automaticamente:** quando entra um treino novo, o site procura nadar + pedalar + correr no mesmo dia, em ordem, com transições curtas e distâncias de um formato oficial (Sprint, Olympic, 70.3, Ironman); só conta como prova se estiver marcada como prova no Strava, tiver nome de prova ou for longe dos lugares onde você treina sempre. A prova entra na tabela `races` com os tempos de cada etapa (as linhas automáticas começam com `auto:` nas notas; apague as que não forem provas). Para varrer o histórico: `http://localhost:3000/api/lab/analyze?task=races` (`&reset=1` apaga só as automáticas antes).
+
+**Atividades "Somente eu":** entram no site por padrão (precisam do escopo `activity:read_all`). Para deixá-las de fora: `STRAVA_INCLUDE_PRIVATE=false`.
+
+**No celular:** o Lab tem cabeçalho compacto, abas com rolagem lateral, gráficos com rolagem horizontal e toque, limiares em cartões e rolagem automática até o detalhe de um treino.
 
 ## Idioma (English / Português)
 

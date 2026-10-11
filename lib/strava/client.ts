@@ -67,6 +67,20 @@ export async function stravaGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Changes an activity on Strava (needs the activity:write scope). Only used when STRAVA_LABEL_WRITE is set. */
+export async function stravaPut<T>(path: string, body: Record<string, string>): Promise<T> {
+  const token = await getAccessToken();
+  const res = await fetch(`${API}${path}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body),
+    cache: "no-store",
+  });
+  if (res.status === 429) throw new Error("Strava: limite de requisições atingido (429). Tente novamente mais tarde.");
+  if (!res.ok) throw new Error(`Strava: erro ${res.status} em PUT ${path}`);
+  return (await res.json()) as T;
+}
+
 const SPORT_MAP: Record<string, SportKey> = {
   Run: "run",
   TrailRun: "run",
@@ -146,7 +160,7 @@ export async function fetchAthlete(): Promise<{ id: number; name: string; avatar
 export async function fetchYear(year: number): Promise<{ activities: Activity[]; geo: GeoActivity[] }> {
   const after = Math.floor(Date.UTC(year, 0, 1) / 1000) - 86400; // folga p/ fuso
   const before = Math.floor(Date.UTC(year + 1, 0, 1) / 1000) + 86400;
-  const includePrivate = process.env.STRAVA_INCLUDE_PRIVATE === "true";
+  const includePrivate = process.env.STRAVA_INCLUDE_PRIVATE !== "false";
 
   const activities: Activity[] = [];
   const geo: GeoActivity[] = [];

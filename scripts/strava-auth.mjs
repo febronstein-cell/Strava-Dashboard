@@ -23,7 +23,8 @@ const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 // activity:read = atividades públicas + "só seguidores". Não expõe as privadas.
 // Com --all (node scripts/strava-auth.mjs --all) pede activity:read_all, necessário para a curva de
 // potência e FC por segundo (npm run strava:records). Atividades privadas continuam escondidas do site.
-const SCOPE = process.argv.includes("--all") ? "read,activity:read_all" : "read,activity:read";
+// --write adds activity:write (only needed if you want the workout type written back to Strava).
+const SCOPE = process.argv.includes("--write") ? "read,activity:read_all,activity:write" : process.argv.includes("--all") ? "read,activity:read_all" : "read,activity:read";
 const ENV_PATH = path.resolve(process.cwd(), ".env.local");
 
 function readEnvFile() {
@@ -91,6 +92,11 @@ const server = http.createServer(async (req, res) => {
   if (!grantedScope.includes("activity:read")) {
     console.error("\nVocê desmarcou a permissão de ler atividades. Rode de novo e mantenha-a marcada.");
     return finish(400, "<h2>Permissão de atividades não concedida.</h2><p>Rode o script de novo.</p>", 1);
+  }
+
+  if (process.argv.includes("--write") && !grantedScope.includes("activity:write")) {
+    console.error("\nVocê desmarcou a permissão de editar atividades. Rode de novo e mantenha-a marcada.");
+    return finish(400, "<h2>Permissão de edição não concedida.</h2><p>Rode o script de novo.</p>", 1);
   }
 
   try {

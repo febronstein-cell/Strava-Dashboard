@@ -39,12 +39,12 @@ export function Stat({
   accent?: string;
 }) {
   return (
-    <div className="card p-4 sm:p-5">
+    <div className="card min-w-0 p-3.5 sm:p-5">
       <div className="flex items-start justify-between gap-2">
         <p className="label">{label}</p>
         {badge}
       </div>
-      <p className="num mt-3 text-4xl" style={accent ? { color: accent } : undefined}>
+      <p className="num mt-2 text-3xl sm:mt-3 sm:text-4xl" style={accent ? { color: accent } : undefined}>
         {value}
         {unit && <span className="ml-1.5 text-lg text-muted">{unit}</span>}
       </p>
@@ -65,10 +65,10 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="card p-5 sm:p-7">
-      <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+    <div className="card min-w-0 p-4 sm:p-7">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 sm:mb-5">
         <div>
-          <h3 className="num text-2xl uppercase sm:text-3xl">{title}</h3>
+          <h3 className="num break-words text-xl uppercase sm:text-3xl">{title}</h3>
           {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-muted">{subtitle}</p>}
         </div>
         {aside}

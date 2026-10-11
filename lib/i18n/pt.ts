@@ -625,4 +625,11 @@ export const pt: Record<string, string> = {
   "{s} s/km faster since the first test": "{s} s/km mais rápido desde o primeiro teste",
   "Bosquet L et al. (2007). Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc 39:1358.": "Bosquet L et al. (2007). Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc 39:1358.",
   "The power numbers do not add up (normalized power is far above average power): probably a power-meter dropout, so power figures are ignored and heart rate is used instead.": "Os números de potência não fecham (a potência normalizada está muito acima da média): provavelmente uma falha do medidor, então a potência é ignorada e a frequência cardíaca é usada no lugar.",
+
+  // lab (3)
+  "A short comment on your fitness, fatigue and form, written by Claude when a workout arrives.": "Um comentário curto sobre sua forma física, fadiga e frescor, escrito pelo Claude quando um treino chega.",
+  "Found automatically on Strava": "Encontrada automaticamente no Strava",
+  "No comment yet. It is written automatically after each new workout once an Anthropic API key is set on the server.": "Ainda sem comentário. Ele é escrito automaticamente após cada treino novo quando uma chave da API da Anthropic é configurada no servidor.",
+  "Today's reading": "Leitura de hoje",
+  "not marked as a race: check it": "não estava marcada como prova: confira",
 };

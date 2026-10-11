@@ -54,7 +54,8 @@ export function WeeksChart({ weeks, compact = false }: { weeks: BuildWeek[]; com
           )}
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={t("Weekly hours: plan and actual")}>
+      <div className="-mx-1 overflow-x-auto px-1">
+      <svg viewBox={`0 0 ${W} ${H}`} className={`block w-full ${compact ? "min-w-[26rem]" : "min-w-[34rem]"}`} role="img" aria-label={t("Weekly hours: plan and actual")}>
         {ticks.map((v) => (
           <g key={v}>
             <line x1={M.l} x2={W - M.r} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray="2 4" />
@@ -88,6 +89,7 @@ export function WeeksChart({ weeks, compact = false }: { weeks: BuildWeek[]; com
           );
         })}
       </svg>
+      </div>
     </div>
   );
 }

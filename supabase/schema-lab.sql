@@ -32,3 +32,23 @@ create table if not exists public.workout_analysis (
   created_at  timestamptz not null default now()
 );
 alter table public.workout_analysis enable row level security;
+
+-- 3) Workout type names ("Sweet Spot 3x15'", "10x400m VO2", "Easy run"...), written once per workout.
+create table if not exists public.activity_labels (
+  activity_id bigint primary key,
+  label       text        not null,
+  basis       text,                               -- how it was decided (short, for debugging)
+  written_to_strava boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+alter table public.activity_labels enable row level security;
+
+-- 4) Daily written comment on fitness / fatigue / form (one per day).
+create table if not exists public.form_comments (
+  day         date primary key,
+  model       text,
+  en          text        not null,
+  pt          text        not null,
+  created_at  timestamptz not null default now()
+);
+alter table public.form_comments enable row level security;

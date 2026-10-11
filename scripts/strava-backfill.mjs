@@ -27,7 +27,7 @@ for (const k of ["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET", "STRAVA_REFRESH_TOK
 const db = createClient(new URL(e.SUPABASE_URL).origin, e.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const includePrivate = e.STRAVA_INCLUDE_PRIVATE === "true";
+const includePrivate = e.STRAVA_INCLUDE_PRIVATE !== "false";
 
 // ------------------------------------------------------------------ Strava
 let token;

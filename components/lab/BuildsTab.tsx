@@ -39,12 +39,12 @@ export function BuildsTab({ activities, lab, todayKey, series }: { activities: A
             <button
               key={race.name + race.date}
               onClick={() => setOpen(i)}
-              className="card block p-5 text-left transition-colors hover:border-fg sm:p-7"
+              className="card block min-w-0 p-4 text-left transition-colors hover:border-fg sm:p-7"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="label" style={{ color: "var(--goal)" }}>{t("Race build")}</p>
-                  <h3 className="num mt-1 text-3xl uppercase sm:text-4xl">{race.name}</h3>
+                  <h3 className="num mt-1 break-words text-2xl uppercase sm:text-4xl">{race.name}</h3>
                   <p className="mt-1 text-sm text-muted">
                     {fmt.dateLabel(`${race.date}T00:00:00`, { day: "2-digit", month: "long", year: "numeric" })}
                     {race.location ? ` · ${t(race.location)}` : ""}
@@ -103,7 +103,7 @@ function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; p
       }}
       className="m-auto max-h-[92vh] w-[min(52rem,calc(100vw-1.5rem))] overflow-y-auto rounded-3xl border border-line bg-elev p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
-      <div className="p-5 sm:p-8">
+      <div className="p-4 sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="label" style={{ color: "var(--goal)" }}>{t("Race build")}</p>
@@ -234,6 +234,12 @@ function Results({ races, dbReady }: { races: RaceRow[]; dbReady: boolean }) {
                   <td className="py-3 pr-3 text-sm">
                     {r.name}
                     {r.distanceLabel && <span className="label ml-2">{r.distanceLabel}</span>}
+                    {r.notes?.startsWith("auto:") && (
+                      <span className="label mt-0.5 block text-[0.6rem] text-brand">
+                        {t("Found automatically on Strava")}
+                        {r.notes.includes("check it") ? ` · ${t("not marked as a race: check it")}` : ""}
+                      </span>
+                    )}
                   </td>
                   <td className="label py-3 pr-3">{fmt.dateLabel(`${r.date}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td className="num py-3 pr-3 text-xl" style={{ color: "var(--brand)" }}>{hms(r.finishSeconds)}</td>

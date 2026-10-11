@@ -24,7 +24,7 @@ const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
 ];
 
-export function LabApp(props: { overview: StravaOverview; activities: Activity[]; lab: LabData }) {
+export function LabApp(props: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
   return (
     <LanguageProvider>
       <LabInner {...props} />
@@ -32,7 +32,7 @@ export function LabApp(props: { overview: StravaOverview; activities: Activity[]
   );
 }
 
-function LabInner({ overview, activities, lab }: { overview: StravaOverview; activities: Activity[]; lab: LabData }) {
+function LabInner({ overview, activities, lab, labels }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
   const { t, lang, setLang } = useI18n();
   const [tab, setTab] = useState<TabId>("machine");
 
@@ -65,10 +65,12 @@ function LabInner({ overview, activities, lab }: { overview: StravaOverview; act
   return (
     <>
       <div className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-4">
-            <Link href="/" className="label shrink-0 whitespace-nowrap transition-colors hover:text-fg">← {t("Dashboard")}</Link>
-            <span className="num truncate text-2xl uppercase tracking-wide text-brand">{siteConfig.shortName || siteConfig.nickname} · Lab</span>
+            <Link href="/" aria-label={t("Dashboard")} className="label shrink-0 whitespace-nowrap rounded-full border border-line px-3 py-2 transition-colors hover:text-fg sm:border-0 sm:px-0 sm:py-0">
+              ←<span className="hidden sm:inline"> {t("Dashboard")}</span>
+            </Link>
+            <span className="num truncate text-xl uppercase tracking-wide text-brand sm:text-2xl">{siteConfig.shortName || siteConfig.nickname} · Lab</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <div role="group" aria-label={t("Language")} className="label flex rounded-full border border-line p-0.5">
@@ -86,15 +88,15 @@ function LabInner({ overview, activities, lab }: { overview: StravaOverview; act
             <ThemeToggle />
           </div>
         </div>
-        <div className="mx-auto w-full max-w-6xl px-5 pb-3 sm:px-8">
-          <div role="tablist" className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-3 sm:px-8">
+          <div role="tablist" className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
             {TABS.map((x) => (
               <button
                 key={x.id}
                 role="tab"
                 aria-selected={tab === x.id}
                 onClick={() => pick(x.id)}
-                className={`label shrink-0 rounded-full border px-4 py-2 transition-colors ${tab === x.id ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
+                className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === x.id ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
               >
                 {t(x.label)}
               </button>
@@ -104,17 +106,17 @@ function LabInner({ overview, activities, lab }: { overview: StravaOverview; act
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
-        <header className="mb-8 sm:mb-10">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-8 sm:py-14">
+        <header className="mb-6 sm:mb-10">
           <p className="label text-brand">{t("Lab")}</p>
-          <h1 className="num mt-1 text-5xl uppercase sm:text-7xl">{t(current.label)}</h1>
+          <h1 className="num mt-1 text-4xl uppercase sm:text-7xl">{t(current.label)}</h1>
           <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
         </header>
 
         {tab === "machine" && <MachineTab profile={profile} lab={lab} />}
-        {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} />}
+        {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
-        {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} />}
+        {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}
         {tab === "builds" && <BuildsTab activities={activities} lab={lab} todayKey={todayKey} series={series} />}
       </main>
 

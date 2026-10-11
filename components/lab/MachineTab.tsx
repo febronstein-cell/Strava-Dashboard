@@ -82,7 +82,33 @@ export function MachineTab({ profile, lab }: { profile: Profile; lab: LabData })
         title={t("Thresholds")}
         subtitle={t("Lactate (LT) and ventilatory (VT) thresholds. Real tests are shown in green; the rest are estimates until you add a test.")}
       >
-        <div className="overflow-x-auto">
+        <ul className="space-y-3 sm:hidden">
+          {rows.map((r) => (
+            <li key={r.label} className="rounded-xl border border-line p-3.5">
+              <p className="text-sm">{t(r.label)}</p>
+              <dl className="mt-2 grid grid-cols-3 gap-2">
+                {([
+                  [t("Heart rate"), r.hr],
+                  [t("Bike power"), r.power],
+                  [t("Run pace"), r.pace],
+                ] as [string, ThresholdKind | undefined][]).map(([label, k]) => {
+                  const m = k ? profile[k] : undefined;
+                  return (
+                    <div key={label} className="min-w-0">
+                      <dt className="label text-[0.58rem]">{label}</dt>
+                      <dd className="num mt-1 text-2xl" style={m?.source === "test" ? { color: "var(--brand)" } : undefined}>
+                        {k && m ? show(k, m) : "—"}
+                        {k && m && <span className="label ml-1 text-[0.58rem]">{unit(k)}</span>}
+                      </dd>
+                      {m && <SourceBadge m={m} />}
+                    </div>
+                  );
+                })}
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[34rem] text-left">
             <thead>
               <tr className="label border-b border-line">
@@ -278,13 +304,13 @@ function RunTests({ rows }: { rows: ThresholdRow[] }) {
             </tbody>
           </table>
         </div>
-        <LineChart
+        <div className="overflow-x-auto"><div className="min-w-[24rem]"><LineChart
           points={k3.map(([date, v]) => ({ label: month(date, "2-digit"), value: v.k3! }))}
           format={(v) => fmt.clock(v)}
           yTicks={[lo, (lo + hi) / 2, hi]}
           domain={[lo, hi]}
           color="var(--run)"
-        />
+        /></div></div>
       </div>
     </Panel>
   );

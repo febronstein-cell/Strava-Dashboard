@@ -65,6 +65,15 @@ export interface WorkoutAnalysisRow {
   pt: string;
 }
 
+/** Written comment on the day's fitness / fatigue / form. */
+export interface FormComment {
+  day: string;
+  model?: string;
+  createdAt: string;
+  en: string;
+  pt: string;
+}
+
 export interface LabData {
   /** false when Supabase is not configured: the page then shows only estimates */
   dbReady: boolean;
@@ -75,4 +84,6 @@ export interface LabData {
   power: Record<string, number>;
   /** written analyses by activity id */
   analyses: Record<number, WorkoutAnalysisRow>;
+  /** daily comments on fitness / fatigue / form, newest first */
+  formComments: FormComment[];
 }
