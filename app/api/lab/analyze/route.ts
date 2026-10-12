@@ -51,10 +51,10 @@ export async function GET(request: NextRequest) {
   if (task === "publish") {
     if (!process.env.STRAVA_LABEL_WRITE) return Response.json({ error: "STRAVA_LABEL_WRITE is not set" }, { status: 400 });
     const days = Math.max(1, Number(q.get("days") ?? 7));
-    const minMin = Math.max(1, Number(q.get("min") ?? 20));
+    const minMin = Math.max(15, Number(q.get("min") ?? 15));
     const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
     const todo = ctx.acts
-      .filter((a) => ["ride", "run", "swim", "strength"].includes(a.sport) && a.movingTime >= minMin * 60 && a.date.slice(0, 10) >= since)
+      .filter((a) => ["ride", "run", "strength"].includes(a.sport) && a.movingTime > minMin * 60 && a.date.slice(0, 10) >= since)
       .sort((a, b) => (a.date < b.date ? -1 : 1));
     const db = getSupabase();
     const result: { id: number; date: string; was: string; action: string }[] = [];

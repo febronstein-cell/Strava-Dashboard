@@ -83,16 +83,38 @@ export async function previewLabel(id: number, ctx: { acts: Activity[]; profile:
 }
 
 /**
- * Sends the workout's name and description to Strava, according to STRAVA_LABEL_WRITE (nothing happens when unset):
- *   smart        (recommended) replaces the title ONLY when it is one Strava made up ("Morning Run", "Corrida da tarde");
- *                a title you wrote is kept. Adds the short description and the "Workout type" line to the description.
- *   description  only adds the "Workout type" line to the description.
- *   title        adds the workout type to the end of the title.
- * It never overwrites text you wrote and never adds the same line twice. Needs the activity:write scope.
+ * RULES for changing anything on Strava (set by the owner; they are the only code path that writes there):
+ *  1. Never touch an activity whose title is not one Strava made up ("Morning Run", "Corrida da tarde"):
+ *     a title the owner wrote is final, and then neither the title nor the description is changed.
+ *  2. Only bike, run and gym (weight training) workouts: swims, "Workout" sessions (transition, cardio...)
+ *     and everything else are left alone.
+ *  3. Only workouts of more than 15 minutes of moving time.
+ *  4. The new title names the TYPE of the session and its set ("VO2max Effort 5x4'", "Tempo Run"...); the
+ *     description is a short summary plus the "Workout type" line. Nothing is ever added twice.
+ * It runs only when STRAVA_LABEL_WRITE is set (any value; the old modes "title" and "description" are gone).
+ * Needs the activity:write scope.
  */
+const NAMEABLE = new Set(["Ride", "VirtualRide", "GravelRide", "MountainBikeRide", "EBikeRide", "EMountainBikeRide", "Run", "TrailRun", "VirtualRun", "WeightTraining"]);
+const MIN_NAME_SECONDS = 15 * 60;
+
+/** True when the workout may be named at all (sport and length), judged from our own data plus, for gym, the Strava type. */
+export async function canName(a: { id: number; sport: string; movingMin: number }): Promise<boolean> {
+  if (a.movingMin * 60 <= MIN_NAME_SECONDS) return false;
+  if (a.sport === "ride" || a.sport === "run") return true;
+  if (a.sport !== "strength") return false;
+  // "strength" in our data also holds generic "Workout" sessions: only real weight training is named
+  const detail = await stravaGet<{ sport_type?: string }>(`/activities/${a.id}`);
+  return detail.sport_type === "WeightTraining";
+}
+
 export async function publishToStrava(a: { id: number; name: string }, parts: { label?: string; title?: string; blurb?: string }): Promise<boolean> {
-  const mode = process.env.STRAVA_LABEL_WRITE;
-  if (!mode) return false;
+  if (!process.env.STRAVA_LABEL_WRITE || !parts.title) return false;
+
+  const detail = await stravaGet<{ name?: string; description?: string | null; sport_type?: string; moving_time?: number }>(`/activities/${a.id}`);
+  const name = detail.name ?? a.name;
+  if (!NAMEABLE.has(detail.sport_type ?? "")) return false; // rule 2
+  if ((detail.moving_time ?? 0) <= MIN_NAME_SECONDS) return false; // rule 3
+  if (!isDefaultTitle(name)) return false; // rule 1: a title the owner wrote is never touched
 
   let label = parts.label;
   if (!label) {
@@ -100,21 +122,12 @@ export async function publishToStrava(a: { id: number; name: string }, parts: { 
     label = data?.label ? String(data.label) : undefined;
   }
 
-  const detail = await stravaGet<{ name?: string; description?: string | null }>(`/activities/${a.id}`);
-  const name = detail.name ?? a.name;
   const old = (detail.description ?? "").trim();
-  const body: Record<string, string> = {};
-
-  if (mode === "title") {
-    if (label && !name.includes(label)) body.name = `${name} · ${label}`;
-  } else if (mode === "smart" && parts.title && isDefaultTitle(name)) {
-    body.name = parts.title;
-  }
-  if (mode !== "title" && !/Workout type:/i.test(old)) {
-    const added = [mode === "smart" ? parts.blurb : undefined, label ? `Workout type: ${label}` : undefined].filter(Boolean).join("\n\n");
+  const body: Record<string, string> = { name: parts.title };
+  if (!/Workout type:/i.test(old)) {
+    const added = [parts.blurb, label ? `Workout type: ${label}` : undefined].filter(Boolean).join("\n\n");
     if (added) body.description = old ? `${old}\n\n${added}` : added;
   }
-  if (Object.keys(body).length === 0) return false;
 
   await stravaPut(`/activities/${a.id}`, body);
   await getSupabase().from("activity_labels").update({ written_to_strava: true }).eq("activity_id", a.id);
@@ -134,11 +147,10 @@ export async function labelAndStore(id: number, ctx?: { acts: Activity[]; profil
   result.label = applyBrick(result.label, a, acts);
 
   let written = false;
-  const mode = process.env.STRAVA_LABEL_WRITE;
-  // in "smart" mode with an AI key the cool title and description come with the analysis, which publishes them
-  if (mode && (mode !== "smart" || !process.env.ANTHROPIC_API_KEY)) {
+  // with an AI key the title and description come with the analysis, which publishes them
+  if (process.env.STRAVA_LABEL_WRITE && !process.env.ANTHROPIC_API_KEY) {
     try {
-      written = await publishToStrava(a, { label: result.label, title: mode === "smart" ? result.label : undefined });
+      written = await publishToStrava(a, { label: result.label, title: result.label });
     } catch (e) {
       console.error("Could not write the workout type to Strava:", e);
     }

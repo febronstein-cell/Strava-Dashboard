@@ -5,7 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { translate } from "@/lib/i18n/translate";
 import { getLabData } from "./get-lab";
-import { publishToStrava } from "./labeling";
+import { canName, publishToStrava } from "./labeling";
 import { buildProfile } from "./profile";
 import { workoutFacts, workoutFindings } from "./workout";
 
@@ -33,7 +33,7 @@ Rules:
 - Ground statements in accepted sports science (intensity distribution, training load, recovery); do not cite papers you are unsure about, and do not give medical advice.
 - Tone: direct, encouraging, no hype, no emojis. 120 to 200 words. Plain text paragraphs, no markdown headings.
 - Write the same analysis twice: "en" in English and "pt" in Brazilian Portuguese.
-- "title": a cool, punchy name (never reuse any name listed in "recentTitles"; vary the wording, even for similar sessions) for the workout in English, 2 to 5 words, in sporty language, like "Threshold Grind", "Sweet Spot Surge", "Easy Does It", "Pool Cruise", "Brick City", "Rolling Thunder", "Tempo Tango", "10x400 Fire". It must be TRUE to the session: never call an easy session "Beast Mode" or a hard one "Chill". No emojis, no hashtags, no quotation marks.
+- "title": the name of the workout on Strava, built from the TYPE of the session and, when it has intervals, its set. Start from the field "workoutType" (it was worked out from the second-by-second data) and turn it into a clear, sporty English name, for example "VO2max Effort 5x4'", "Sweet Spot 3x15'", "Threshold Run 4x8'", "Tempo Run", "Long Run", "Easy Run", "Z2 Endurance Ride", "Recovery Spin", "T2 Brick Run", "Strength Session". Keep any set exactly as given (5x4', 11x400m...). 2 to 6 words, no emojis, no hashtags, no quotation marks. Never make a session sound harder or easier than the data says. Different sessions of the same kind may share a name.
 - "blurb": one or two plain English sentences (at most 35 words) that summarise how the workout went, for the Strava description. Factual, no hashtags, no emojis.`;
 
 /** JSON shapes the model must return (structured output). */
@@ -120,22 +120,24 @@ export async function analyzeAndStore(id: number, opts: { force?: boolean; publi
   const { facts, athlete, reading } = payload;
   if (!opts.force && facts.movingMin < MIN_MINUTES) return false;
 
-  // the last titles already given, so the new one is different
-  const { data: recent } = await getSupabase().from("workout_analysis").select("details").order("created_at", { ascending: false }).limit(25);
-  const recentTitles = [...new Set((recent ?? []).map((r) => (r.details as { title?: string } | null)?.title).filter((t): t is string => !!t))].slice(0, 15);
+  // the type worked out from the power / speed data (with its set), the base of the title
+  const { data: lab } = await getSupabase().from("activity_labels").select("label").eq("activity_id", id).maybeSingle();
+  const workoutType = lab?.label ? String(lab.label) : null;
 
   const out = await writeJson<{ en: string; pt: string; title: string; blurb: string }>({
     model: ANALYSIS_MODEL,
     effort: ANALYSIS_EFFORT,
     system: SYSTEM,
-    user: `Workout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading, recentTitles })}`,
+    user: `Workout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading, workoutType })}`,
     label: `analysis ${id}`,
     schema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
   });
   if (!out?.en) return false;
 
-  const title = out.title?.replace(/["“”]/g, "").trim().slice(0, 60);
-  const blurb = out.blurb?.trim().slice(0, 300);
+  // rules 2 and 3: bike, run and gym of more than 15 minutes only; everything else keeps its Strava title untouched
+  const nameable = await canName({ id, sport: facts.sport, movingMin: facts.movingMin }).catch(() => false);
+  const title = nameable ? out.title?.replace(/["“”]/g, "").trim().slice(0, 60) : undefined;
+  const blurb = nameable ? out.blurb?.trim().slice(0, 300) : undefined;
   const { error } = await getSupabase()
     .from("workout_analysis")
     .upsert(
@@ -144,9 +146,9 @@ export async function analyzeAndStore(id: number, opts: { force?: boolean; publi
     );
   if (error) throw new Error(`Could not save the analysis: ${error.message}`);
 
-  if (opts.publish !== false) {
+  if (opts.publish !== false && title) {
     try {
-      await publishToStrava({ id, name: facts.name }, { title, blurb });
+      await publishToStrava({ id, name: facts.name }, { title, blurb, label: workoutType ?? undefined });
     } catch (e) {
       console.error("Could not write to Strava:", e);
     }
