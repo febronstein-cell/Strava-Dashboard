@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { analyzeAndStore, hasAnthropic, workoutPayload } from "@/lib/lab/ai";
 import { commentOnForm, formFacts } from "@/lib/lab/form-ai";
-import { applyBrick, getLabels, labelAndStore, labelContext, previewLabel } from "@/lib/lab/labeling";
+import { applyBrick, getLabels, labelAndStore, labelContext, previewLabel, publishToStrava } from "@/lib/lab/labeling";
 import { getSupabase } from "@/lib/supabase";
 import { detectAndStoreRaces } from "@/lib/lab/races-sync";
 
@@ -46,6 +46,39 @@ export async function GET(request: NextRequest) {
   if (task === "form") return Response.json({ saved: await commentOnForm({ force: true }) });
 
   const ctx = await labelContext();
+
+  // Writes the cool title / description / type to Strava for past workouts (only those of at least `min` minutes in the last `days` days)
+  if (task === "publish") {
+    if (!process.env.STRAVA_LABEL_WRITE) return Response.json({ error: "STRAVA_LABEL_WRITE is not set" }, { status: 400 });
+    const days = Math.max(1, Number(q.get("days") ?? 7));
+    const minMin = Math.max(1, Number(q.get("min") ?? 20));
+    const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    const todo = ctx.acts
+      .filter((a) => ["ride", "run", "swim", "strength"].includes(a.sport) && a.movingTime >= minMin * 60 && a.date.slice(0, 10) >= since)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+    const db = getSupabase();
+    const result: { id: number; date: string; was: string; action: string }[] = [];
+    for (const a of todo) {
+      try {
+        const { data: lab } = await db.from("activity_labels").select("label").eq("activity_id", a.id).maybeSingle();
+        if (!lab) await labelAndStore(a.id, ctx);
+        const { data: an } = await db.from("workout_analysis").select("details").eq("activity_id", a.id).maybeSingle();
+        const d = (an?.details ?? {}) as { title?: string; blurb?: string };
+        if (!d.title) {
+          const ok = hasAnthropic() ? await analyzeAndStore(a.id, { force: true }) : false; // analysing publishes by itself
+          result.push({ id: a.id, date: a.date.slice(0, 16), was: a.name, action: ok ? "analysed and published" : "no analysis (no AI key)" });
+        } else {
+          const wrote = await publishToStrava({ id: a.id, name: a.name }, { title: d.title, blurb: d.blurb });
+          result.push({ id: a.id, date: a.date.slice(0, 16), was: a.name, action: wrote ? `published (${d.title})` : "already up to date" });
+        }
+      } catch (e) {
+        const error = e instanceof Error ? e.message.slice(0, 160) : String(e);
+        result.push({ id: a.id, date: a.date.slice(0, 16), was: a.name, action: `ERROR ${error}` });
+        if (/429/.test(error)) break;
+      }
+    }
+    return Response.json({ days, minMin, count: todo.length, result });
+  }
 
   // no Strava requests: only adds "T2 brick run" / "Triathlon bike" to names saved before that rule existed
   if (task === "bricks") {
