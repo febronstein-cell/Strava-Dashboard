@@ -8,7 +8,6 @@ import { upcoming } from "@/lib/races";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { ActivityDialogProvider } from "./ActivityDialog";
-import { LabBanner } from "./LabBanner";
 import { LabFab } from "./LabFab";
 import { LabTeaser } from "./LabTeaser";
 import { RacePopup } from "./RacePopup";
@@ -48,7 +47,6 @@ function DashboardInner({ overview, activities, labels, titles }: { overview: St
       <div id="topo" />
       <SiteHeader ctx={ctx} period={period} onPeriod={setPeriod} sections={enabled} />
       <main className="flex-1">
-        <LabBanner />
         {enabled.map((id) => (
           <Fragment key={id}>{sectionRegistry[id](ctx)}</Fragment>
         ))}
