@@ -40,6 +40,10 @@ export interface BuildPlan {
   cycleStarted: boolean;
   /** true when the last 4 weeks are clearly above the 8 before (the cycle is then shortened) */
   volumeRising: boolean;
+  /** true when the cycle start was fixed by hand (cycleStart in site.config.ts) instead of computed */
+  cycleFixed: boolean;
+  /** true when "baseline" is the average of the cycle weeks already done (the cycle is running) */
+  baselineIsCycleAverage: boolean;
 }
 
 /** Long races need a longer taper. */
@@ -99,6 +103,8 @@ export function buildPlan(
   hoursByWeek: Map<string, number>,
   todayKey: string,
   planned: PlannedWeekRow[],
+  /** Monday (or any day of the week) when the volume increase of this cycle began; overrides the automatic cycle length */
+  cycleStartOverride?: string,
 ): BuildPlan | null {
   const current = mondayOf(todayKey);
   const raceWeek = mondayOf(raceDate);
@@ -112,8 +118,14 @@ export function buildPlan(
   const prev8 = meanBefore(hoursByWeek, current, 8, 4);
   const volumeRising = prev8 > 0 && last4 >= prev8 * RISING && last4 >= 5;
 
-  const cycleWeeks = volumeRising ? CYCLE[distance].rising : CYCLE[distance].normal;
-  const cycleStart = addDays(raceWeek, -7 * (cycleWeeks - 1));
+  const fixed = cycleStartOverride ? mondayOf(cycleStartOverride) : null;
+  const cycleFixed = fixed !== null && fixed <= raceWeek;
+  const cycleWeeks = cycleFixed
+    ? Math.round((Date.parse(raceWeek) - Date.parse(fixed as string)) / (7 * DAY)) + 1
+    : volumeRising
+      ? CYCLE[distance].rising
+      : CYCLE[distance].normal;
+  const cycleStart = cycleFixed ? (fixed as string) : addDays(raceWeek, -7 * (cycleWeeks - 1));
   const cycleStarted = cycleStart <= current;
 
   // level the cycle starts from: the 6 weeks before it (or before today, if it has not started)
@@ -123,6 +135,20 @@ export function buildPlan(
   let peak = Math.max(baseline, Math.min(baseline * 1.3, baseline + 5));
   // a cycle that is already running is anchored to what was really trained lately
   if (cycleStarted) peak = Math.max(peak, last4);
+
+  // ... and, with at least 3 finished weeks, to the cycle itself: average of those weeks and the best 3-week stretch
+  let baselineIsCycleAverage = false;
+  if (cycleStarted) {
+    const done: number[] = [];
+    for (let s = cycleStart; s < current; s = addDays(s, 7)) done.push(hoursByWeek.get(s) ?? 0);
+    if (done.length >= 3) {
+      baseline = Math.max(3, done.reduce((x, y) => x + y, 0) / done.length);
+      let best3 = 0;
+      for (let i = 0; i + 3 <= done.length; i++) best3 = Math.max(best3, (done[i] + done[i + 1] + done[i + 2]) / 3);
+      peak = Math.max(baseline, best3, last4);
+      baselineIsCycleAverage = true;
+    }
+  }
 
   const taperWeeks = Math.min(TAPER[distance].length, cycleWeeks - 1);
   const taperFactors = TAPER[distance].slice(TAPER[distance].length - taperWeeks);
@@ -184,7 +210,7 @@ export function buildPlan(
     }
   }
 
-  return { weeks, weeksLeft: weeksToRace - 1, baseline, peak, taperWeeks, distance, cycleWeeks, cycleStart, cycleStarted, volumeRising };
+  return { weeks, weeksLeft: weeksToRace - 1, baseline, peak, taperWeeks, distance, cycleWeeks, cycleStart, cycleStarted, volumeRising, cycleFixed, baselineIsCycleAverage };
 }
 
 /** Points of load per elapsed hour over the last 8 finished weeks (used to turn planned hours into load). */

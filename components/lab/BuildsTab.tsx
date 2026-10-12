@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { buildPlan, forecastRaceDay, tssPerHour, weeklyHours, type BuildPlan, type Phase, type RaceForecast } from "@/lib/lab/builds";
 import type { LoadDay } from "@/lib/lab/load";
-import type { LabData, RaceRow } from "@/lib/lab/types";
+import type { LabData } from "@/lib/lab/types";
 import { upcoming, type RaceCountdown } from "@/lib/races";
 import type { Activity } from "@/lib/strava/types";
-import { Hint, Panel } from "./LabBits";
+import { Hint } from "./LabBits";
 import { PHASE_COLOR, WeeksChart } from "./WeeksChart";
 
 const PHASE_TEXT: Record<Phase, string> = {
@@ -24,13 +24,13 @@ export function BuildsTab({ activities, lab, todayKey, series }: { activities: A
   const nowMs = useMemo(() => Date.parse(todayKey + "T12:00:00-03:00"), [todayKey]);
   const races = useMemo(() => upcoming(nowMs), [nowMs]);
   const plans = useMemo(
-    () => races.map((r) => ({ race: r, plan: buildPlan(r.name, r.date, hours, todayKey, lab.plannedWeeks) })),
+    () => races.map((r) => ({ race: r, plan: buildPlan(r.name, r.date, hours, todayKey, lab.plannedWeeks, r.cycleStart) })),
     [races, hours, todayKey, lab.plannedWeeks],
   );
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <div className="space-y-6">
+    <div className="lab-enter space-y-6">
       {plans.length === 0 ? (
         <Hint>{t("No upcoming races. Add them in site.config.ts (upcomingRaces).")}</Hint>
       ) : (
@@ -77,7 +77,6 @@ export function BuildsTab({ activities, lab, todayKey, series }: { activities: A
         />
       )}
 
-      <Results races={lab.races} dbReady={lab.dbReady} />
     </div>
   );
 }
@@ -123,7 +122,7 @@ function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; p
             value={t("{n} weeks", { n: plan.cycleWeeks })}
             sub={`${plan.cycleStarted ? t("started") : t("starts")} ${fmt.dateLabel(`${plan.cycleStart}T00:00:00`, { day: "2-digit", month: "short" })}`}
           />
-          <Tile label={t("Peak week")} value={`${fmt.num(plan.peak, 1)} h`} sub={t("from {h} h/week before the cycle", { h: fmt.num(plan.baseline, 1) })} />
+          <Tile label={t("Peak week")} value={`${fmt.num(plan.peak, 1)} h`} sub={plan.baselineIsCycleAverage ? t("cycle average so far: {h} h/week", { h: fmt.num(plan.baseline, 1) }) : t("from {h} h/week before the cycle", { h: fmt.num(plan.baseline, 1) })} />
           <Tile
             label={t("Form on race morning")}
             value={forecast ? `${forecast.tsb > 0 ? "+" : ""}${fmt.int(forecast.tsb)}` : "—"}
@@ -198,66 +197,5 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
       <p className="num mt-1.5 text-3xl">{value}</p>
       {sub && <p className="label mt-0.5">{sub}</p>}
     </div>
-  );
-}
-
-function Results({ races, dbReady }: { races: RaceRow[]; dbReady: boolean }) {
-  const { t, fmt } = useI18n();
-  const hms = (s?: number) => {
-    if (!s) return "—";
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = Math.round(s % 60);
-    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  };
-  return (
-    <Panel title={t("Race results")} subtitle={t("Finish times and splits from your database (races table).")}>
-      {races.length === 0 ? (
-        <Hint>
-          {dbReady
-            ? t("No results yet. Add your races in Supabase → Table Editor → races and they appear here.")
-            : t("The database is not connected.")}
-        </Hint>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-left">
-            <thead>
-              <tr className="label border-b border-line">
-                {["Race", "Date", "Finish", "Swim", "T1", "Bike", "T2", "Run", "Place"].map((h) => (
-                  <th key={h} className="py-2 pr-3 font-normal">{t(h)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {races.map((r) => (
-                <tr key={r.id} className="border-b border-line/60 last:border-0">
-                  <td className="py-3 pr-3 text-sm">
-                    {r.name}
-                    {r.distanceLabel && <span className="label ml-2">{r.distanceLabel}</span>}
-                    {r.notes?.startsWith("auto:") && (
-                      <span className="label mt-0.5 block text-[0.6rem] text-brand">
-                        {t("Found automatically on Strava")}
-                        {r.notes.includes("check it") ? ` · ${t("not marked as a race: check it")}` : ""}
-                      </span>
-                    )}
-                  </td>
-                  <td className="label py-3 pr-3">{fmt.dateLabel(`${r.date}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" })}</td>
-                  <td className="num py-3 pr-3 text-xl" style={{ color: "var(--brand)" }}>{hms(r.finishSeconds)}</td>
-                  <td className="num py-3 pr-3 text-lg">{hms(r.swimSeconds)}</td>
-                  <td className="num py-3 pr-3 text-lg text-muted">{hms(r.t1Seconds)}</td>
-                  <td className="num py-3 pr-3 text-lg">{hms(r.bikeSeconds)}</td>
-                  <td className="num py-3 pr-3 text-lg text-muted">{hms(r.t2Seconds)}</td>
-                  <td className="num py-3 pr-3 text-lg">{hms(r.runSeconds)}</td>
-                  <td className="num py-3 text-lg">
-                    {r.overallRank ? `#${fmt.int(r.overallRank)}` : "—"}
-                    {r.categoryRank ? <span className="label ml-2">{r.category ?? t("cat.")} #{fmt.int(r.categoryRank)}</span> : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Panel>
   );
 }

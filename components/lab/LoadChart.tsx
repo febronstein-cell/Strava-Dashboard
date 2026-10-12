@@ -69,8 +69,8 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
             </text>
           </g>
         ))}
-        <path d={line((d) => d.ctl)} fill="none" stroke="var(--brand)" strokeWidth="2.4" strokeLinejoin="round" />
-        <path d={line((d) => d.atl)} fill="none" stroke="var(--goal)" strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" />
+        <path d={line((d) => d.ctl)} fill="none" stroke="var(--brand)" strokeWidth="2.4" strokeLinejoin="round" pathLength={1} className="draw-in" />
+        <path d={line((d) => d.atl)} fill="none" stroke="var(--goal)" strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" pathLength={1} className="draw-in" />
 
         <line x1={M.l} x2={W - M.r} y1={yMid} y2={yMid} stroke="var(--line)" />
         <text x={M.l - 6} y={yMid} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>0</text>
@@ -81,6 +81,7 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
             y={Math.min(yMid, yTsb(d.tsb))}
             width={barW}
             height={Math.abs(yTsb(d.tsb) - yMid)}
+            className="lab-grow"
             fill={d.tsb > 15 ? "#2bd4ff" : d.tsb > -10 ? "var(--muted)" : d.tsb > -30 ? "var(--ride)" : "var(--goal)"}
             opacity={0.8}
           />

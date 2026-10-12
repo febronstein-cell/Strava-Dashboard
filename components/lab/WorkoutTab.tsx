@@ -39,7 +39,7 @@ export function WorkoutTab({ activities, profile, lab, labels }: { activities: A
   const sports = (["all", "swim", "ride", "run", "strength"] as const).map((k) => ({ value: k, label: k === "all" ? t("All") : t(SPORT_LABEL[k]) }));
 
   return (
-    <div className="space-y-6">
+    <div className="lab-enter space-y-6">
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
         <div className="card min-w-0 self-start p-3.5 sm:p-5">
           <Pills value={sport} onChange={(v) => { setSport(v); setPick(null); }} options={sports} />

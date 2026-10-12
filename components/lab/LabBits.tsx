@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
+import { CountUp } from "../CountUp";
 import type { Metric } from "@/lib/lab/profile";
 
 /** Shows where a number comes from, so an estimate is never mistaken for a test. */
@@ -30,22 +31,33 @@ export function Stat({
   sub,
   badge,
   accent,
+  count,
 }: {
   label: string;
+  /** shown when `count` is not given */
   value: ReactNode;
+  /** a number that climbs from 0 when the card appears (replaces `value`) */
+  count?: { value: number; decimals?: number; prefix?: string };
   unit?: string;
   sub?: ReactNode;
   badge?: ReactNode;
   accent?: string;
 }) {
   return (
-    <div className="card min-w-0 p-3.5 sm:p-5">
+    <div className="card lab-card lab-glow min-w-0 p-3.5 sm:p-5">
       <div className="flex items-start justify-between gap-2">
         <p className="label">{label}</p>
         {badge}
       </div>
       <p className="num mt-2 text-3xl sm:mt-3 sm:text-4xl" style={accent ? { color: accent } : undefined}>
-        {value}
+        {count ? (
+          <>
+            {count.prefix}
+            <CountUp value={count.value} decimals={count.decimals ?? 0} duration={1300} />
+          </>
+        ) : (
+          value
+        )}
         {unit && <span className="ml-1.5 text-lg text-muted">{unit}</span>}
       </p>
       {sub && <p className="mt-1.5 text-sm text-muted">{sub}</p>}
@@ -65,7 +77,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="card min-w-0 p-4 sm:p-7">
+    <div className="card lab-glow min-w-0 p-4 sm:p-7">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 sm:mb-5">
         <div>
           <h3 className="num break-words text-xl uppercase sm:text-3xl">{title}</h3>

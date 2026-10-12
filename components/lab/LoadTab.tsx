@@ -71,10 +71,10 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
   const acwrInfo = ratio ? ACWR_TEXT[ratio.state] : null;
 
   return (
-    <div className="space-y-6">
+    <div className="lab-enter space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={t("Fitness")} value={fmt.int(now.ctl)} sub={t("42-day average load")} accent="var(--brand)" />
-        <Stat label={t("Fatigue")} value={fmt.int(now.atl)} sub={t("7-day average load")} accent="var(--goal)" />
+        <Stat label={t("Fitness")} value={fmt.int(now.ctl)} count={{ value: now.ctl }} sub={t("42-day average load")} accent="var(--brand)" />
+        <Stat label={t("Fatigue")} value={fmt.int(now.atl)} count={{ value: now.atl }} sub={t("7-day average load")} accent="var(--goal)" />
         <Stat label={t("Form")} value={`${now.tsb > 0 ? "+" : ""}${fmt.int(now.tsb)}`} sub={state ? t(state.label) : undefined} accent={state?.color} />
         <Stat
           label={t("Fitness trend")}
@@ -169,7 +169,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
             <li key={r.k} className="flex items-center gap-3">
               <span className="label w-14">{t(r.label)}</span>
               <span className="h-3 flex-1 overflow-hidden rounded-full bg-soft">
-                <span className="block h-full rounded-full" style={{ width: `${(r.v / sportMax) * 100}%`, background: r.color }} />
+                <span className="lab-bar block h-full rounded-full" style={{ width: `${(r.v / sportMax) * 100}%`, background: r.color }} />
               </span>
               <span className="num w-12 text-right text-xl">{fmt.int(r.v)}</span>
             </li>

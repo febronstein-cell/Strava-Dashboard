@@ -96,7 +96,7 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
                 role="tab"
                 aria-selected={tab === x.id}
                 onClick={() => pick(x.id)}
-                className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === x.id ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
+                className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === x.id ? "lab-tab-on border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
               >
                 {t(x.label)}
               </button>
@@ -106,10 +106,19 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-8 sm:py-14">
+      <main
+        className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-8 sm:py-14"
+        onPointerMove={(e) => {
+          const el = (e.target as HTMLElement).closest<HTMLElement>(".lab-glow");
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+          el.style.setProperty("--my", `${e.clientY - r.top}px`);
+        }}
+      >
         <header className="mb-6 sm:mb-10">
           <p className="label text-brand">{t("Lab")}</p>
-          <h1 className="num mt-1 text-4xl uppercase sm:text-7xl">{t(current.label)}</h1>
+          <h1 className="num lab-title mt-1 text-4xl uppercase sm:text-7xl">{t(current.label)}</h1>
           <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
         </header>
 

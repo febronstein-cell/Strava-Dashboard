@@ -33,6 +33,8 @@ export interface UpcomingRace {
   location?: string;
   /** Race date (YYYY-MM-DD). */
   date: string;
+  /** Optional: first day of the week when the build for this race began (a big volume increase). Overrides the automatic cycle length in the Lab. */
+  cycleStart?: string;
   note?: string;
 }
 
@@ -117,6 +119,7 @@ export const siteConfig = {
       name: "Ironman 70.3 Florianópolis",
       location: "Florianópolis, SC",
       date: "2026-10-18",
+      cycleStart: "2026-08-03",
       note: "1.9 km swim · 90 km bike · 21.1 km run",
     },
     {

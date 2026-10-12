@@ -422,3 +422,63 @@ body {
     stroke-dasharray: none;
   }
 }
+
+
+/* ==========================================================================
+   Lab: animations. Everything here is switched off by "reduce motion".
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  /* each tab: its blocks rise one after the other */
+  @keyframes lab-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
+  .lab-enter > * { animation: lab-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .lab-enter > *:nth-child(2) { animation-delay: 0.07s; }
+  .lab-enter > *:nth-child(3) { animation-delay: 0.14s; }
+  .lab-enter > *:nth-child(4) { animation-delay: 0.21s; }
+  .lab-enter > *:nth-child(5) { animation-delay: 0.28s; }
+  .lab-enter > *:nth-child(6) { animation-delay: 0.35s; }
+  .lab-enter > *:nth-child(n + 7) { animation-delay: 0.42s; }
+
+  /* horizontal bars that fill, and vertical bars that grow */
+  @keyframes lab-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .lab-bar { transform-origin: left center; animation: lab-bar 1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both; }
+  @keyframes lab-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .lab-grow { transform-box: fill-box; transform-origin: bottom; animation: lab-grow 0.85s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+  /* page title: a light that slowly runs through the letters */
+  @keyframes lab-shimmer { to { background-position: 200% center; } }
+  .lab-title {
+    background: linear-gradient(90deg, var(--fg) 0%, var(--fg) 35%, var(--brand) 50%, var(--fg) 65%, var(--fg) 100%);
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: lab-shimmer 7s linear infinite;
+  }
+
+  /* cards: lift on hover and a soft light that follows the pointer */
+  .lab-card { transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
+  .lab-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--brand) 55%, var(--line));
+    box-shadow: 0 16px 40px -20px color-mix(in srgb, var(--brand) 55%, transparent);
+  }
+  .lab-glow { position: relative; }
+  .lab-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--brand) 13%, transparent), transparent 70%);
+  }
+  .lab-glow:hover::before { opacity: 1; }
+
+  /* the active tab pops in */
+  @keyframes lab-pop { from { transform: scale(0.92); } to { transform: scale(1); } }
+  .lab-tab-on { animation: lab-pop 0.28s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+}

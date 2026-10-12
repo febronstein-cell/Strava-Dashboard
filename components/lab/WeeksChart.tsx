@@ -69,10 +69,10 @@ export function WeeksChart({ weeks, compact = false }: { weeks: BuildWeek[]; com
           return (
             <g key={w.start} opacity={active !== null && active !== i ? 0.55 : 1}>
               {w.target !== null && (
-                <rect x={x(i) - bw / 2} y={y(w.target)} width={bw} height={Math.max(0, H - M.b - y(w.target))} rx="3" fill="none" stroke={color} strokeWidth={w.custom ? 2.2 : 1.4} strokeDasharray={w.custom ? undefined : "4 3"} />
+                <rect x={x(i) - bw / 2} y={y(w.target)} width={bw} height={Math.max(0, H - M.b - y(w.target))} rx="3" className="lab-grow" fill="none" stroke={color} strokeWidth={w.custom ? 2.2 : 1.4} strokeDasharray={w.custom ? undefined : "4 3"} />
               )}
               {w.state !== "future" && (
-                <rect x={x(i) - bw / 2 + 3} y={y(w.actual)} width={bw - 6} height={Math.max(0, H - M.b - y(w.actual))} rx="2" fill={color} opacity={w.state === "current" ? 0.55 : 0.9} />
+                <rect x={x(i) - bw / 2 + 3} y={y(w.actual)} width={bw - 6} height={Math.max(0, H - M.b - y(w.actual))} rx="2" className="lab-grow" style={{ animationDelay: `${Math.min(i, 20) * 40}ms` }} fill={color} opacity={w.state === "current" ? 0.55 : 0.9} />
               )}
               {w.state === "current" && (
                 <text x={x(i)} y={M.t - 2} textAnchor="middle" fontSize="8" fill="var(--fg)" style={{ fontFamily: "var(--f-mono)" }}>

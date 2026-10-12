@@ -4,7 +4,6 @@ import { dbBackfilled } from "@/lib/strava/db";
 import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
 import { commentOnForm } from "@/lib/lab/form-ai";
 import { labelAndStore } from "@/lib/lab/labeling";
-import { detectAndStoreRaces } from "@/lib/lab/races-sync";
 import { getOverview } from "@/lib/strava/get-data";
 import { deleteOne, syncOne } from "@/lib/strava/sync";
 
@@ -80,8 +79,6 @@ export async function POST(request: NextRequest) {
       };
       // workout type name (and, if STRAVA_LABEL_WRITE is set, written back to Strava)
       await step("naming the workout", () => labelAndStore(id));
-      // is today a triathlon? (swim + bike + run in the same place, standard distances)
-      await step("race detection", () => detectAndStoreRaces(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())));
       if (hasAnthropic()) {
         await step("workout analysis", () => analyzeAndStore(id));
         await step("form comment", () => commentOnForm());

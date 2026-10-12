@@ -641,4 +641,8 @@ export const pt: Record<string, string> = {
   "run leg": "etapa de corrida",
   "swim leg": "etapa de natação",
   "Thresholds, fitness and fatigue, race builds and a reading of every workout.": "Limiares, forma física e fadiga, preparação das provas e a leitura de cada treino.",
+
+  // lab (5)
+  "cycle average so far: {h} h/week": "média do ciclo até agora: {h} h/semana",
+  "Thresholds, load and race builds": "Limiares, carga e preparação das provas",
 };

@@ -60,7 +60,7 @@ export function MachineTab({ profile, lab }: { profile: Profile; lab: LabData })
   const hasTests = lab.thresholds.some((r) => !HIDDEN_KINDS.includes(r.kind));
 
   return (
-    <div className="space-y-6">
+    <div className="lab-enter space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {headline.map((k) => {
           const m = profile[k];
@@ -69,6 +69,7 @@ export function MachineTab({ profile, lab }: { profile: Profile; lab: LabData })
               key={k}
               label={t(KIND_LABEL[k])}
               value={show(k, m)}
+              count={m && !PACE_KINDS.includes(k) ? { value: m.value } : undefined}
               unit={m ? unit(k) : undefined}
               badge={m ? <SourceBadge m={m} /> : undefined}
               sub={k === "ftp" && wkg ? `${fmt.num(wkg, 2)} W/kg` : m?.how ? t(m.how) : m?.source === "test" && k === "run_3k_pace" ? t("Latest test") : m ? undefined : t("Not available yet")}

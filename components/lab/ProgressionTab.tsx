@@ -40,7 +40,7 @@ export function ProgressionTab({ activities, todayKey, series }: { activities: A
   const label = (iso: string) => fmt.dateLabel(`${iso}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" });
 
   return (
-    <div className="space-y-6">
+    <div className="lab-enter space-y-6">
       <Panel
         title={t("What changed")}
         subtitle={t("Compares the chosen period with the same length just before it.")}
