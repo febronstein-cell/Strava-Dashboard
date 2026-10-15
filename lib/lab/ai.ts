@@ -5,7 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { translate } from "@/lib/i18n/translate";
 import { getLabData } from "./get-lab";
-import { canName, publishToStrava } from "./labeling";
+import { canName, publishToStrava, recordPublish } from "./labeling";
 import { buildProfile } from "./profile";
 import { workoutFacts, workoutFindings } from "./workout";
 
@@ -151,6 +151,7 @@ export async function analyzeAndStore(id: number, opts: { force?: boolean; publi
       await publishToStrava({ id, name: facts.name }, { title, blurb, label: workoutType ?? undefined });
     } catch (e) {
       console.error("Could not write to Strava:", e);
+      await recordPublish(id, `error: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`);
     }
   }
   return true;

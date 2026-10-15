@@ -107,14 +107,32 @@ export async function canName(a: { id: number; sport: string; movingMin: number 
   return detail.sport_type === "WeightTraining";
 }
 
+/** Remembers what the last attempt to write to Strava did (and why), in sync_state: readable without the host's logs. */
+export async function recordPublish(id: number, outcome: string): Promise<void> {
+  try {
+    await getSupabase()
+      .from("sync_state")
+      .upsert({ key: "publish_status", value: JSON.stringify({ at: new Date().toISOString(), activity: id, outcome }), updated_at: new Date().toISOString() }, { onConflict: "key" });
+  } catch {
+    /* a log must never break the work */
+  }
+}
+
 export async function publishToStrava(a: { id: number; name: string }, parts: { label?: string; title?: string; blurb?: string }): Promise<boolean> {
-  if (!process.env.STRAVA_LABEL_WRITE || !parts.title) return false;
+  if (!process.env.STRAVA_LABEL_WRITE) {
+    await recordPublish(a.id, "off: STRAVA_LABEL_WRITE is not set on this server");
+    return false;
+  }
+  if (!parts.title) {
+    await recordPublish(a.id, "skipped: no title");
+    return false;
+  }
 
   const detail = await stravaGet<{ name?: string; description?: string | null; sport_type?: string; moving_time?: number }>(`/activities/${a.id}`);
   const name = detail.name ?? a.name;
-  if (!NAMEABLE.has(detail.sport_type ?? "")) return false; // rule 2
-  if ((detail.moving_time ?? 0) <= MIN_NAME_SECONDS) return false; // rule 3
-  if (!isDefaultTitle(name)) return false; // rule 1: a title the owner wrote is never touched
+  if (!NAMEABLE.has(detail.sport_type ?? "")) return (await recordPublish(a.id, `skipped: type ${detail.sport_type} is not named`), false); // rule 2
+  if ((detail.moving_time ?? 0) <= MIN_NAME_SECONDS) return (await recordPublish(a.id, "skipped: 15 minutes or less"), false); // rule 3
+  if (!isDefaultTitle(name)) return (await recordPublish(a.id, `skipped: custom title "${name}"`), false); // rule 1: a title the owner wrote is never touched
 
   let label = parts.label;
   if (!label) {
@@ -129,8 +147,14 @@ export async function publishToStrava(a: { id: number; name: string }, parts: { 
     if (added) body.description = old ? `${old}\n\n${added}` : added;
   }
 
-  await stravaPut(`/activities/${a.id}`, body);
+  try {
+    await stravaPut(`/activities/${a.id}`, body);
+  } catch (e) {
+    await recordPublish(a.id, `error: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`);
+    throw e;
+  }
   await getSupabase().from("activity_labels").update({ written_to_strava: true }).eq("activity_id", a.id);
+  await recordPublish(a.id, `ok: renamed to "${parts.title}"`);
   return true;
 }
 
