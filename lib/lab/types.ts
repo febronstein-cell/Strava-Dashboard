@@ -49,21 +49,30 @@ export interface RaceRow {
   notes?: string;
 }
 
-/** One day of a planned week, as filled in the planner. */
+export type PlanSport = "run" | "ride" | "swim" | "strength" | "other";
+
+/** One sport of one day, as filled in the planner. */
+export interface PlanSlot {
+  sport: PlanSport;
+  description: string;
+  /** time in minutes */
+  minutes: number | null;
+  /** distance in km (run, bike and swim only) */
+  km: number | null;
+}
+
+/** One day of a planned week: five slots (run, bike, swim, strength, extra) or a rest day. */
 export interface PlanDay {
   /** 0 = Monday ... 6 = Sunday */
   day: number;
-  description: string;
-  /** total time in minutes */
-  minutes: number | null;
-  /** total distance in km */
-  km: number | null;
+  rest?: boolean;
+  slots: PlanSlot[];
 }
 
 export interface PlannedWeekRow {
   /** Monday, YYYY-MM-DD */
   weekStart: string;
-  /** the kind of week once described: "Build week", "Taper week"... */
+  /** the label the analysis gave the week: "Base week", "Build week", "Speed week", "Lighter week"... */
   title?: string;
   plannedHours?: number;
   /** the 7 days written in the planner (empty when only the hours were typed in the database) */

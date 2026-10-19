@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { records } from "@/lib/records";
 import { getSupabase, hasSupabase } from "@/lib/supabase";
+import { sanitizeDays } from "./plan";
 import type { FormComment, LabData, PlanDay, PlannedWeekRow, RaceAnalysisStored, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
 
 const num = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
@@ -62,10 +63,7 @@ export async function getLabData(): Promise<LabData> {
       notes: str(r.notes),
     }));
     const plannedWeeks: PlannedWeekRow[] = (wk.data ?? []).map((r) => {
-      const sessions = Array.isArray(r.planned_sessions) ? (r.planned_sessions as Partial<PlanDay>[]) : [];
-      const days: PlanDay[] = sessions
-        .filter((d) => typeof d?.day === "number")
-        .map((d) => ({ day: Number(d.day), description: String(d.description ?? ""), minutes: d.minutes == null ? null : Number(d.minutes), km: d.km == null ? null : Number(d.km) }));
+      const days: PlanDay[] | null = sanitizeDays(r.planned_sessions);
       let description: PlannedWeekRow["description"];
       try {
         const n = r.notes ? (JSON.parse(String(r.notes)) as { en?: string; pt?: string; hash?: string }) : null;
@@ -73,7 +71,7 @@ export async function getLabData(): Promise<LabData> {
       } catch {
         /* notes typed by hand in the table: not a description */
       }
-      return { weekStart: String(r.week_start).slice(0, 10), title: str(r.title), plannedHours: num(r.planned_hours), days: days.length ? days : undefined, description };
+      return { weekStart: String(r.week_start).slice(0, 10), title: str(r.title), plannedHours: num(r.planned_hours), days: days ?? undefined, description };
     });
 
     const power = fromFile();

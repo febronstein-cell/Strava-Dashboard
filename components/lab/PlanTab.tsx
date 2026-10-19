@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
 import { weeklyHours } from "@/lib/lab/builds";
-import { DAY_NAMES, emptyDays, fmtMinutes, isComplete, parseMinutes, planHash, totals } from "@/lib/lab/plan";
+import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, parseMinutes, planHash, totals } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonPhase, type SeasonRace, type SeasonWeek } from "@/lib/lab/season";
-import type { LabData, PlanDay } from "@/lib/lab/types";
+import type { LabData, PlanDay, PlanSlot, PlanSport } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
 import { Hint, Panel } from "./LabBits";
 
@@ -19,6 +19,20 @@ const PHASE_COLOR: Record<SeasonPhase, string> = {
   race: "var(--goal)",
   recovery: "var(--muted)",
 };
+const SPORT_COLOR: Record<PlanSport, string> = {
+  run: "var(--run)",
+  ride: "var(--ride)",
+  swim: "var(--swim)",
+  strength: "var(--goal)",
+  other: "var(--muted)",
+};
+/** The phase a label like "Build week" or "Lighter week" stands for, to compare it with what the season model expects. */
+function labelPhase(title: string | undefined): SeasonPhase | "lighter" | null {
+  const w = (title ?? "").toLowerCase().split(" ")[0];
+  if (w === "speed") return "build";
+  if (w === "lighter") return "lighter";
+  return (["base", "build", "peak", "taper", "race", "recovery"] as const).find((p) => p === w) ?? null;
+}
 const KEY_STORAGE = "plan-key";
 const subscribeKey = (cb: () => void) => {
   window.addEventListener("plan-key", cb);
@@ -80,10 +94,54 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
   const key = useSyncExternalStore(subscribeKey, readKey, () => "");
   const saveKey = (v: string) => {
     try {
-      localStorage.setItem(KEY_STORAGE, v);
+      if (v) localStorage.setItem(KEY_STORAGE, v);
+      else localStorage.removeItem(KEY_STORAGE);
     } catch {}
     window.dispatchEvent(new Event("plan-key"));
   };
+  // Editing unlocks only when the server confirms the key: a typed or remembered value alone never does.
+  const [verified, setVerified] = useState("");
+  const [draft, setDraft] = useState("");
+  const [keyState, setKeyState] = useState<"idle" | "checking" | "wrong" | "error">("idle");
+  const check = async (candidate: string): Promise<boolean | null> => {
+    try {
+      const res = await fetch("/api/plan/verify", { method: "POST", headers: { "x-plan-key": candidate } });
+      return res.ok ? true : res.status === 401 ? false : null;
+    } catch {
+      return null;
+    }
+  };
+  const unlock = async () => {
+    if (!draft) return;
+    setKeyState("checking");
+    const ok = await check(draft);
+    if (ok) {
+      saveKey(draft);
+      setVerified(draft);
+      setDraft("");
+      setKeyState("idle");
+    } else {
+      setKeyState(ok === false ? "wrong" : "error");
+    }
+  };
+  const lock = () => {
+    saveKey("");
+    setVerified("");
+  };
+  // a key remembered by this browser is checked again before it unlocks anything
+  useEffect(() => {
+    if (!key || key === verified) return;
+    let alive = true;
+    void check(key).then((ok) => {
+      if (!alive) return;
+      if (ok) setVerified(key);
+      else if (ok === false) saveKey("");
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const set = (week: string, s: Status) => setStatus((p) => ({ ...p, [week]: s }));
@@ -111,8 +169,12 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
     }
   };
 
-  const edit = (week: string, day: number, patch: Partial<PlanDay>) => {
-    const days = (plan[week] ?? emptyDays()).map((d) => (d.day === day ? { ...d, ...patch } : d));
+  const edit = (week: string, day: number, sport: PlanSport | null, patch: Partial<PlanSlot> | { rest: boolean }) => {
+    const days = (plan[week] ?? emptyDays()).map((d) => {
+      if (d.day !== day) return d;
+      if (sport === null) return { ...d, ...(patch as { rest: boolean }) };
+      return { ...d, slots: d.slots.map((x) => (x.sport === sport ? { ...x, ...patch } : x)) };
+    });
     setPlan((p) => ({ ...p, [week]: days }));
     if (!key) return;
     clearTimeout(timers.current[week]);
@@ -120,29 +182,49 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
     timers.current[week] = setTimeout(() => void persist(week, days), 1300);
   };
 
-  const canEdit = key.length > 0;
+  const canEdit = key.length > 0 && key === verified;
   const shown = showAll ? season : season.slice(0, 12);
 
   return (
     <div className="lab-enter space-y-6">
       <Panel
         title={t("Training planner")}
-        subtitle={t("The whole year, laid out from your race goals. Fill each week day by day; when the 7 days are filled, the week gets a written description that knows where it sits in the cycle.")}
+        subtitle={t("The whole year, laid out from your race goals. Fill each day by sport; when every day is filled, the week is analysed against what you really trained and labelled: base, build, speed, lighter...")}
         aside={
-          <label className="label flex items-center gap-2">
-            {t("Edit key")}
-            <input
-              type="password"
-              value={key}
-              onChange={(e) => saveKey(e.target.value)}
-              placeholder={t("needed to save")}
-              autoComplete="off"
-              className="w-36 rounded-full border border-line bg-elev px-3 py-1.5 normal-case text-fg"
-            />
-          </label>
+          canEdit ? (
+            <button onClick={lock} className="label rounded-full border border-line px-4 py-1.5 transition-colors hover:text-fg">
+              {t("Unlocked · lock")}
+            </button>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void unlock();
+              }}
+              className="label flex flex-wrap items-center gap-2"
+            >
+              {t("Edit key")}
+              <input
+                type="password"
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  setKeyState("idle");
+                }}
+                placeholder={t("needed to save")}
+                autoComplete="off"
+                className="w-36 rounded-full border border-line bg-elev px-3 py-1.5 normal-case text-fg"
+              />
+              <button type="submit" disabled={!draft || keyState === "checking"} className="rounded-full border border-line px-4 py-1.5 transition-colors hover:text-fg disabled:opacity-50">
+                {keyState === "checking" ? t("Checking…") : t("Unlock")}
+              </button>
+              {keyState === "wrong" && <span style={{ color: "var(--goal)" }}>{t("Wrong key")}</span>}
+              {keyState === "error" && <span style={{ color: "var(--goal)" }}>{t("Could not check the key")}</span>}
+            </form>
+          )
         }
       >
-        {!canEdit && <Hint>{t("Read-only until you type the edit key. Only the key holder can save.")}</Hint>}
+        {!canEdit && <Hint>{t("Read-only until you unlock it with the edit key. Only the key holder can save.")}</Hint>}
         <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
           {races
             .filter((r) => r.date >= current)
@@ -174,7 +256,7 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
               status={status[w.start] ?? "idle"}
               isOpen={open.has(w.start)}
               toggle={() => setOpen((s) => { const n = new Set(s); if (n.has(w.start)) n.delete(w.start); else n.add(w.start); return n; })}
-              onEdit={(day, patch) => edit(w.start, day, patch)}
+              onEdit={(day, sport, patch) => edit(w.start, day, sport, patch)}
               editable={canEdit}
               prevPlanned={totals(plan[addDays(w.start, -7)] ?? []).hours || null}
               lang={lang}
@@ -210,7 +292,7 @@ function WeekCard({
   status: Status;
   isOpen: boolean;
   toggle: () => void;
-  onEdit: (day: number, patch: Partial<PlanDay>) => void;
+  onEdit: (day: number, sport: PlanSport | null, patch: Partial<PlanSlot> | { rest: boolean }) => void;
   editable: boolean;
   prevPlanned: number | null;
   lang: "en" | "pt";
@@ -221,6 +303,9 @@ function WeekCard({
   const vsTarget = tot.hours > 0 ? ((tot.hours - w.target) / w.target) * 100 : null;
   const vsPrev = prevPlanned && tot.hours > 0 ? ((tot.hours - prevPlanned) / prevPlanned) * 100 : null;
   const end = addDays(w.start, 6);
+  const lp = labelPhase(written?.title);
+  const differs = lp !== null && (lp === "lighter" ? !(w.kind === "deload" || w.phase === "recovery") : lp !== w.phase);
+  const color = lp && lp !== "lighter" ? PHASE_COLOR[lp] : lp === "lighter" ? "var(--muted)" : PHASE_COLOR[w.phase];
   const dateOf = (iso: string) => fmt.dateLabel(`${iso}T00:00:00`, { day: "2-digit", month: "short" });
   const position = w.cycle
     ? w.phase === "recovery"
@@ -233,16 +318,21 @@ function WeekCard({
       : t("Base block");
 
   return (
-    <div className="card lab-glow min-w-0 p-4 sm:p-6" style={{ borderLeft: `4px solid ${PHASE_COLOR[w.phase]}` }}>
+    <div className="card lab-glow min-w-0 p-4 sm:p-6" style={{ borderLeft: `4px solid ${color}` }}>
       <button onClick={toggle} aria-expanded={isOpen} className="flex w-full flex-wrap items-start justify-between gap-x-4 gap-y-2 text-left">
         <span className="min-w-0">
           <span className="label block">
             {dateOf(w.start)} – {dateOf(end)}
           </span>
-          <span className="num mt-1 block text-2xl uppercase sm:text-3xl" style={{ color: PHASE_COLOR[w.phase] }}>
-            {written?.title ?? `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`}
+          <span className="num mt-1 block text-2xl uppercase sm:text-3xl" style={{ color }}>
+            {written?.title ? t(written.title) : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`}
           </span>
           <span className="mt-0.5 block text-sm text-muted">{position}</span>
+          {differs && (
+            <span className="label mt-1 block" style={{ color: "var(--goal)" }}>
+              {t("The season model expected: {phase}", { phase: t(w.kind === "deload" ? "lighter week" : w.phase) })}
+            </span>
+          )}
         </span>
         <span className="text-right">
           <span className="num block text-2xl">
@@ -259,7 +349,7 @@ function WeekCard({
           <ul className="grid gap-x-6 gap-y-1 text-sm text-muted sm:grid-cols-2">
             {w.focus.map((f) => (
               <li key={f} className="flex gap-2">
-                <span style={{ color: PHASE_COLOR[w.phase] }}>▸</span>
+                <span style={{ color }}>▸</span>
                 {t(f)}
               </li>
             ))}
@@ -267,43 +357,65 @@ function WeekCard({
 
           <ul className="divide-y divide-line/60">
             {days.map((d) => (
-              <li key={d.day} className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-2 py-2.5 sm:grid-cols-[6rem_1fr_5.5rem_5.5rem]">
-                <span className="label pt-2">{t(DAY_NAMES[d.day])}</span>
-                <textarea
-                  value={d.description}
-                  onChange={(e) => onEdit(d.day, { description: e.target.value })}
-                  readOnly={!editable}
-                  rows={2}
-                  placeholder={t("Workout description (write Rest for a day off)")}
-                  className="col-span-1 w-full resize-y rounded-xl border border-line bg-elev px-3 py-2 text-sm text-fg read-only:opacity-80"
-                />
-                <label className="label col-start-2 flex items-center gap-2 sm:col-start-auto sm:block">
-                  <span className="sm:mb-1 sm:block">{t("Time")}</span>
-                  <input
-                    key={`${w.start}-${d.day}-${d.minutes}`}
-                    defaultValue={fmtMinutes(d.minutes)}
-                    onBlur={(e) => onEdit(d.day, { minutes: parseMinutes(e.target.value) })}
-                    readOnly={!editable}
-                    inputMode="text"
-                    placeholder="1:30"
-                    className="w-24 rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg sm:w-full"
-                  />
-                </label>
-                <label className="label col-start-2 flex items-center gap-2 sm:col-start-auto sm:block">
-                  <span className="sm:mb-1 sm:block">{t("Distance")}</span>
-                  <input
-                    key={`${w.start}-${d.day}-km-${d.km}`}
-                    defaultValue={d.km ?? ""}
-                    onBlur={(e) => {
-                      const v = parseFloat(e.target.value.replace(",", "."));
-                      onEdit(d.day, { km: Number.isFinite(v) ? v : null });
-                    }}
-                    readOnly={!editable}
-                    inputMode="decimal"
-                    placeholder="km"
-                    className="w-24 rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg sm:w-full"
-                  />
-                </label>
+              <li key={d.day} className="py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="label">
+                    {t(DAY_NAMES[d.day])}
+                    {!dayFilled(d) && <span className="ml-2 opacity-60">·</span>}
+                  </span>
+                  <label className="label flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(d.rest)} disabled={!editable} onChange={(e) => onEdit(d.day, null, { rest: e.target.checked })} className="h-4 w-4 accent-[var(--brand)]" />
+                    {t("Rest day")}
+                  </label>
+                </div>
+                {!d.rest && (
+                  <div className="mt-2 space-y-2.5">
+                    {PLAN_SPORTS.map((sport) => {
+                      const slot = d.slots.find((x) => x.sport === sport) as PlanSlot;
+                      const km = HAS_DISTANCE[sport];
+                      return (
+                        <div key={sport} className="grid grid-cols-[1fr_5rem_5rem] items-start gap-x-2 gap-y-1.5 sm:grid-cols-[5.5rem_1fr_5rem_5rem]">
+                          <span className="label col-span-3 sm:col-span-1 sm:pt-2.5" style={{ color: SPORT_COLOR[sport] }}>
+                            {t(SPORT_LABEL[sport])}
+                          </span>
+                          <textarea
+                            value={slot.description}
+                            onChange={(e) => onEdit(d.day, sport, { description: e.target.value })}
+                            readOnly={!editable}
+                            rows={1}
+                            placeholder={t("Workout (optional)")}
+                            className="col-span-3 min-h-10 w-full resize-y rounded-xl border border-line bg-elev px-3 py-2 text-sm text-fg read-only:opacity-80 sm:col-span-1"
+                          />
+                          <input
+                            key={`${w.start}-${d.day}-${sport}-t-${slot.minutes}`}
+                            defaultValue={fmtMinutes(slot.minutes)}
+                            onBlur={(e) => onEdit(d.day, sport, { minutes: parseMinutes(e.target.value) })}
+                            readOnly={!editable}
+                            inputMode="text"
+                            placeholder={t("Time")}
+                            aria-label={`${t(SPORT_LABEL[sport])} · ${t("Time")}`}
+                            className="col-start-2 w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg sm:col-start-auto"
+                          />
+                          {km && (
+                            <input
+                              key={`${w.start}-${d.day}-${sport}-km-${slot.km}`}
+                              defaultValue={slot.km ?? ""}
+                              onBlur={(e) => {
+                                const v = parseFloat(e.target.value.replace(",", "."));
+                                onEdit(d.day, sport, { km: Number.isFinite(v) ? v : null });
+                              }}
+                              readOnly={!editable}
+                              inputMode="decimal"
+                              placeholder="km"
+                              aria-label={`${t(SPORT_LABEL[sport])} · ${t("Distance")}`}
+                              className="w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -312,21 +424,33 @@ function WeekCard({
             <span className="num text-xl">{fmt.num(tot.hours, 1)} h</span>
             <span className="num text-xl">{fmt.num(tot.km, 0)} km</span>
             <span className="label">{t("{n} sessions", { n: tot.sessions })}</span>
+            <span className="label">{t("{n} rest days", { n: tot.restDays })}</span>
             {vsTarget !== null && <span className="label">{t("{p}% vs suggested", { p: `${vsTarget > 0 ? "+" : ""}${Math.round(vsTarget)}` })}</span>}
             {vsPrev !== null && <span className="label">{t("{p}% vs previous week", { p: `${vsPrev > 0 ? "+" : ""}${Math.round(vsPrev)}` })}</span>}
             <span className="label ml-auto" style={status.startsWith("error") ? { color: "var(--goal)" } : undefined}>
-              {status === "saving" ? t("Saving…") : status === "describing" ? t("Writing the week description…") : status === "saved" ? t("Saved") : status.startsWith("error:") ? status.slice(6) : ""}
+              {status === "saving" ? t("Saving…") : status === "describing" ? t("Analysing the week…") : status === "saved" ? t("Saved") : status.startsWith("error:") ? status.slice(6) : ""}
             </span>
           </div>
 
+          <ul className="flex flex-wrap gap-x-5 gap-y-1">
+            {PLAN_SPORTS.filter((sp) => tot.bySport[sp].sessions > 0).map((sp) => {
+              const x = tot.bySport[sp];
+              return (
+                <li key={sp} className="label">
+                  <span style={{ color: SPORT_COLOR[sp] }}>{t(SPORT_LABEL[sp])}</span> {fmt.num(x.minutes / 60, 1)} h{HAS_DISTANCE[sp] ? ` · ${fmt.num(x.km, 0)} km` : ""} · {x.sessions}×
+                </li>
+              );
+            })}
+          </ul>
+
           {written ? (
             <div className="rounded-2xl border border-line p-4">
-              <p className="label">{t("Week description")}</p>
+              <p className="label">{t("Week analysis")}</p>
               <p className="mt-2 whitespace-pre-line leading-relaxed">{lang === "pt" ? written.pt : written.en}</p>
-              {written.hash && written.hash !== planHash(days) && <p className="label mt-3">{t("The plan changed since this was written: it is rewritten when the week is complete and saved.")}</p>}
+              {written.hash && written.hash !== planHash(days) && <p className="label mt-3">{t("The plan changed since this was analysed: it is analysed again when the week is complete and saved.")}</p>}
             </div>
           ) : (
-            <p className="label">{done ? t("Saving the week writes its description.") : t("When all 7 days are filled, the week gets its description.")}</p>
+            <p className="label">{done ? t("Saving the week analyses it.") : t("When every day is filled in (or marked as a rest day), the week is analysed and labelled.")}</p>
           )}
         </div>
       )}

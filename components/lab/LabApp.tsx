@@ -20,7 +20,7 @@ import { RacesTab } from "./RacesTab";
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
 type TabId = "machine" | "load" | "progression" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
-const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill in each week and get its description." };
+const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
 const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
