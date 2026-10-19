@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
 import { commentOnForm } from "@/lib/lab/form-ai";
 import { labelAndStore, labelContext } from "@/lib/lab/labeling";
+import { analyzeRace } from "@/lib/lab/race-ai";
 import { dbBackfilled } from "@/lib/strava/db";
 import { syncRecent } from "@/lib/strava/sync";
 import { getSupabase } from "@/lib/supabase";
@@ -51,6 +52,12 @@ export async function GET(request: NextRequest) {
   });
 
   if (hasAnthropic()) {
+    await step("race analysis", async () => {
+      const days = new Set(recent.map((a) => a.date.slice(0, 10)));
+      const out: string[] = [];
+      for (const d of days) out.push(`${d}: ${await analyzeRace(d)}`);
+      return out;
+    });
     await step("analyses", async () => {
       let n = 0;
       for (const a of recent.filter((x) => !haveAnalysis.has(x.id) && x.sport !== "strength").slice(0, 6)) if (await analyzeAndStore(a.id)) n++;

@@ -4,6 +4,7 @@ import { dbBackfilled } from "@/lib/strava/db";
 import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
 import { commentOnForm } from "@/lib/lab/form-ai";
 import { labelAndStore } from "@/lib/lab/labeling";
+import { analyzeRaceOfActivity } from "@/lib/lab/race-ai";
 import { getOverview } from "@/lib/strava/get-data";
 import { deleteOne, syncOne } from "@/lib/strava/sync";
 
@@ -80,6 +81,8 @@ export async function POST(request: NextRequest) {
       // workout type name (and, if STRAVA_LABEL_WRITE is set, written back to Strava)
       await step("naming the workout", () => labelAndStore(id));
       if (hasAnthropic()) {
+        // a race day: once the run (the last leg) is in, the whole triathlon is analysed
+        await step("race analysis", () => analyzeRaceOfActivity(id));
         await step("workout analysis", () => analyzeAndStore(id));
         await step("form comment", () => commentOnForm());
       }

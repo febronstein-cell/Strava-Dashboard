@@ -13,14 +13,20 @@ import { BuildsTab } from "./BuildsTab";
 import { LoadTab } from "./LoadTab";
 import { MachineTab } from "./MachineTab";
 import { WorkoutTab } from "./WorkoutTab";
+import { PlanTab } from "./PlanTab";
 import { ProgressionTab } from "./ProgressionTab";
+import { RacesTab } from "./RacesTab";
 
-type TabId = "machine" | "load" | "progression" | "builds" | "workouts";
+/** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
+type TabId = "machine" | "load" | "progression" | "builds" | "races" | "workouts" | "plan";
+const PLAN_HASH = siteConfig.lab.planHash;
+const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill in each week and get its description." };
 const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
   { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
-  { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race, and your past results." },
+  { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race and the form you should arrive with." },
+  { id: "races", label: "Races", blurb: "Every triathlon you raced, grouped from your activities into one result with splits, transitions and an analysis." },
   { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
 ];
 
@@ -40,7 +46,8 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
   useEffect(() => {
     const read = () => {
       const h = window.location.hash.slice(1);
-      if (TABS.some((x) => x.id === h)) setTab(h as TabId);
+      if (h === PLAN_HASH) setTab("plan");
+      else if (TABS.some((x) => x.id === h)) setTab(h as TabId);
     };
     read();
     window.addEventListener("hashchange", read);
@@ -60,7 +67,7 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
   );
   const profile = useMemo(() => buildProfile(lab.thresholds, activities, lab.power), [lab.thresholds, activities, lab.power]);
   const series = useMemo(() => loadSeries(activities, profile, todayKey), [activities, profile, todayKey]);
-  const current = TABS.find((x) => x.id === tab)!;
+  const current = tab === "plan" ? PLAN_TAB : TABS.find((x) => x.id === tab)!;
 
   return (
     <>
@@ -127,6 +134,8 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
         {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}
         {tab === "builds" && <BuildsTab activities={activities} lab={lab} todayKey={todayKey} series={series} />}
+        {tab === "races" && <RacesTab activities={activities} lab={lab} profile={profile} todayKey={todayKey} />}
+        {tab === "plan" && <PlanTab activities={activities} lab={lab} todayKey={todayKey} />}
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">

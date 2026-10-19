@@ -3,6 +3,7 @@ import { analyzeAndStore, hasAnthropic, workoutPayload } from "@/lib/lab/ai";
 import { commentOnForm, formFacts } from "@/lib/lab/form-ai";
 import { applyBrick, getLabels, labelAndStore, labelContext, previewLabel, publishToStrava } from "@/lib/lab/labeling";
 import { getSupabase } from "@/lib/supabase";
+import { analyzeRace } from "@/lib/lab/race-ai";
 import { detectAndStoreRaces } from "@/lib/lab/races-sync";
 
 export const maxDuration = 300;
@@ -36,6 +37,12 @@ export async function GET(request: NextRequest) {
     const out = [];
     for (const i of ids) out.push(await workoutPayload(i));
     return Response.json({ workouts: out });
+  }
+
+  // the written analysis of a configured race day: ?task=race&date=2026-10-18 (&force=1 to write it again)
+  if (task === "race") {
+    const date = q.get("date") ?? "";
+    return Response.json({ date, result: await analyzeRace(date, { force: q.get("force") === "1" }) });
   }
 
   if (task === "races") return Response.json(await detectAndStoreRaces(undefined, { reset: q.get("reset") === "1" }));

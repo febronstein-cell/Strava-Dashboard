@@ -49,11 +49,49 @@ export interface RaceRow {
   notes?: string;
 }
 
+/** One day of a planned week, as filled in the planner. */
+export interface PlanDay {
+  /** 0 = Monday ... 6 = Sunday */
+  day: number;
+  description: string;
+  /** total time in minutes */
+  minutes: number | null;
+  /** total distance in km */
+  km: number | null;
+}
+
 export interface PlannedWeekRow {
   /** Monday, YYYY-MM-DD */
   weekStart: string;
+  /** the kind of week once described: "Build week", "Taper week"... */
   title?: string;
   plannedHours?: number;
+  /** the 7 days written in the planner (empty when only the hours were typed in the database) */
+  days?: PlanDay[];
+  /** the written description of the week, in both languages, and the fingerprint of the days it was written for */
+  description?: { en: string; pt: string; hash?: string };
+}
+
+/** Laps of one leg, summarised for the pacing charts. */
+export interface LapSummary {
+  unit: "pace" | "speed";
+  /** one entry per lap: v is seconds per km (pace) or km/h (speed) */
+  laps: { km: number; v: number; hr?: number; watts?: number }[];
+  /** average of the first and of the second half of the distance, same unit as v */
+  first: number;
+  second: number;
+  hrFirst?: number;
+  hrSecond?: number;
+}
+
+/** Stored analysis of one race: the laps and the written comment. */
+export interface RaceAnalysisStored {
+  date: string;
+  laps: { swim?: LapSummary; bike?: LapSummary; run?: LapSummary };
+  en: string;
+  pt: string;
+  model?: string;
+  createdAt: string;
 }
 
 /** Written analysis of one workout (made once, when the workout arrives). */
@@ -86,4 +124,6 @@ export interface LabData {
   analyses: Record<number, WorkoutAnalysisRow>;
   /** daily comments on fitness / fatigue / form, newest first */
   formComments: FormComment[];
+  /** written analyses of races, by race date */
+  raceAnalyses: Record<string, RaceAnalysisStored>;
 }

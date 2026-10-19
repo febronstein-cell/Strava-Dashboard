@@ -35,6 +35,13 @@ export interface UpcomingRace {
   date: string;
   /** Optional: first day of the week when the build for this race began (a big volume increase). Overrides the automatic cycle length in the Lab. */
   cycleStart?: string;
+  /**
+   * Distance of the race. With it, the Lab's Races tab groups the swim, bike and run of the race day into one
+   * triathlon (with transitions) and analyses it. Without it the race is only listed.
+   */
+  format?: "sprint" | "olympic" | "70.3" | "ironman";
+  /** A = a goal of the season (full build-up), B / C = secondary races (shorter build-up). Default: A for 70.3 and Ironman, B for the rest. */
+  priority?: "A" | "B" | "C";
   note?: string;
 }
 
@@ -120,12 +127,15 @@ export const siteConfig = {
       location: "Florianópolis, SC",
       date: "2026-10-18",
       cycleStart: "2026-08-03",
+      format: "70.3",
       note: "1.9 km swim · 90 km bike · 21.1 km run",
     },
     {
       name: "Troféu Brasil de Triathlon · Stage 4",
       location: "Santos, SP · Praia da Aparecida",
       date: "2026-12-13",
+      format: "olympic",
+      priority: "A",
       note: "Final stage of the 2026 circuit",
     },
   ] as UpcomingRace[],
@@ -175,6 +185,16 @@ export const siteConfig = {
   lab: {
     /** Resting heart rate, used only to estimate training load from HR. Replace it with a "resting_hr" test in the database. */
     restHr: 50,
+    /**
+     * The training planner is a hidden part of the Lab: it is not in the tab bar and is opened only by this address
+     * (/lab#<this text>). Change the text to move it; keep it to yourself. Editing needs PLAN_EDIT_KEY (see README).
+     */
+    planHash: "planner-hq",
+    /**
+     * The Races tab (grouping, analysis, automatic recognition) and its automatic analysis work for races from this
+     * date on. Earlier races are not touched. 2026-10-18 is the Ironman 70.3 Florianópolis, the first one registered.
+     */
+    racesFrom: "2026-10-18",
   },
 
   // ----------------------------------------------------------- geography

@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { records } from "@/lib/records";
 import { getSupabase, hasSupabase } from "@/lib/supabase";
-import type { FormComment, LabData, PlannedWeekRow, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
+import type { FormComment, LabData, PlanDay, PlannedWeekRow, RaceAnalysisStored, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
 
 const num = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
 const str = (v: unknown): string | undefined => (v === null || v === undefined || v === "" ? undefined : String(v));
@@ -20,18 +20,19 @@ export async function getLabData(): Promise<LabData> {
   cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
   cacheTag("strava-live");
 
-  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile(), analyses: {}, formComments: [] };
+  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile(), analyses: {}, formComments: [], raceAnalyses: {} };
   if (!hasSupabase()) return empty;
 
   try {
     const db = getSupabase();
-    const [th, rc, wk, pc, wa, fc] = await Promise.all([
+    const [th, rc, wk, pc, wa, fc, ra] = await Promise.all([
       db.from("thresholds").select("kind,test_date,value,unit,notes").order("test_date", { ascending: false }),
       db.from("races").select("*").order("race_date", { ascending: false }),
-      db.from("training_weeks").select("week_start,title,planned_hours").order("week_start", { ascending: true }),
+      db.from("training_weeks").select("week_start,title,planned_hours,planned_sessions,notes").order("week_start", { ascending: true }),
       db.from("power_curve").select("duration_s,watts"),
       db.from("workout_analysis").select("activity_id,model,summary,details,created_at").order("created_at", { ascending: false }).limit(300),
       db.from("form_comments").select("day,model,en,pt,created_at").order("day", { ascending: false }).limit(14),
+      db.from("sync_state").select("key,value").like("key", "race_analysis:%"),
     ]);
     // workout_analysis and form_comments are optional (created by schema-lab.sql): an error there is not fatal
     for (const r of [th, rc, wk, pc]) if (r.error) throw new Error(r.error.message);
@@ -60,11 +61,20 @@ export async function getLabData(): Promise<LabData> {
       category: str(r.category),
       notes: str(r.notes),
     }));
-    const plannedWeeks: PlannedWeekRow[] = (wk.data ?? []).map((r) => ({
-      weekStart: String(r.week_start).slice(0, 10),
-      title: str(r.title),
-      plannedHours: num(r.planned_hours),
-    }));
+    const plannedWeeks: PlannedWeekRow[] = (wk.data ?? []).map((r) => {
+      const sessions = Array.isArray(r.planned_sessions) ? (r.planned_sessions as Partial<PlanDay>[]) : [];
+      const days: PlanDay[] = sessions
+        .filter((d) => typeof d?.day === "number")
+        .map((d) => ({ day: Number(d.day), description: String(d.description ?? ""), minutes: d.minutes == null ? null : Number(d.minutes), km: d.km == null ? null : Number(d.km) }));
+      let description: PlannedWeekRow["description"];
+      try {
+        const n = r.notes ? (JSON.parse(String(r.notes)) as { en?: string; pt?: string; hash?: string }) : null;
+        if (n?.en) description = { en: n.en, pt: n.pt ?? n.en, hash: n.hash };
+      } catch {
+        /* notes typed by hand in the table: not a description */
+      }
+      return { weekStart: String(r.week_start).slice(0, 10), title: str(r.title), plannedHours: num(r.planned_hours), days: days.length ? days : undefined, description };
+    });
 
     const power = fromFile();
     for (const r of pc.data ?? []) power[String(r.duration_s)] = Number(r.watts);
@@ -89,7 +99,17 @@ export async function getLabData(): Promise<LabData> {
       pt: String(r.pt),
     }));
 
-    return { dbReady: true, thresholds, races, plannedWeeks, power, analyses, formComments };
+    const raceAnalyses: Record<string, RaceAnalysisStored> = {};
+    for (const r of ra.error ? [] : (ra.data ?? [])) {
+      try {
+        const v = JSON.parse(String(r.value)) as RaceAnalysisStored;
+        if (v?.date) raceAnalyses[v.date] = v;
+      } catch {
+        /* ignore a broken row */
+      }
+    }
+
+    return { dbReady: true, thresholds, races, plannedWeeks, power, analyses, formComments, raceAnalyses };
   } catch (e) {
     console.error("Lab: could not read the database:", e);
     return empty;

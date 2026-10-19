@@ -13,6 +13,7 @@ export const instant = false;
 export const metadata: Metadata = {
   title: `Lab · ${siteConfig.nickname}`,
   description: "Thresholds, training load, progression and race builds.",
+  robots: { index: false, follow: false },
 };
 
 export default async function LabPage() {
