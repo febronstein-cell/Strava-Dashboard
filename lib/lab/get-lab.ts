@@ -1,7 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { records } from "@/lib/records";
 import { getSupabase, hasSupabase } from "@/lib/supabase";
-import { sanitizeDays } from "./plan";
+import { isComplete, sanitizeDays, totals } from "./plan";
 import type { FormComment, LabData, PlanDay, PlannedWeekRow, RaceAnalysisStored, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
 
 const num = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
@@ -71,7 +71,14 @@ export async function getLabData(): Promise<LabData> {
       } catch {
         /* notes typed by hand in the table: not a description */
       }
-      return { weekStart: String(r.week_start).slice(0, 10), title: str(r.title), plannedHours: num(r.planned_hours), days: days ?? undefined, description };
+      return {
+        weekStart: String(r.week_start).slice(0, 10),
+        title: str(r.title),
+        // planner weeks count for the race build only when completely filled in; hours typed by hand in the table still count
+        plannedHours: days ? (isComplete(days) ? Number(totals(days).hours.toFixed(2)) : undefined) : num(r.planned_hours),
+        days: days ?? undefined,
+        description,
+      };
     });
 
     const power = fromFile();

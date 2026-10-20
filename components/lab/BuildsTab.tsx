@@ -167,7 +167,10 @@ function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; p
                 <li key={w.start} className="flex items-baseline gap-3 border-b border-line/60 py-1.5 last:border-0">
                   <span className="label w-14">{fmt.dateLabel(`${w.start}T00:00:00`, { day: "2-digit", month: "short" })}</span>
                   <span className="label w-16" style={{ color: w.phase ? PHASE_COLOR[w.phase] : undefined }}>{w.phase ? t(w.phase) : ""}</span>
-                  <span className="label flex-1">{w.kind === "deload" ? t("recovery week") : w.kind === "taper" ? t("taper") : w.kind === "race" ? t("race week") : t("load week")}</span>
+                  <span className="label flex-1">
+                    {w.custom && w.title ? t(w.title) : w.kind === "deload" ? t("recovery week") : w.kind === "taper" ? t("taper") : w.kind === "race" ? t("race week") : t("load week")}
+                    {w.custom && <span className="ml-2" style={{ color: "var(--brand)" }}>· {t("from your planner")}</span>}
+                  </span>
                   <span className="num text-lg">{w.target === null ? "—" : `${fmt.num(w.target, 1)} h`}</span>
                   <span className="num w-14 text-right text-lg text-muted">{w.state === "future" ? "" : `${fmt.num(w.actual, 1)} h`}</span>
                 </li>
@@ -178,7 +181,7 @@ function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; p
 
         <div className="mt-6 space-y-2 text-sm text-muted">
           <p>
-            {t("Automatic plan: a {n}-week preparation cycle (12 weeks for a 70.3, 16 for a full Ironman) that grows from {avg} h/week in a 3:1 load/recovery rhythm up to a peak, then tapers. Weeks you add to the training_weeks table replace the automatic target.", { n: plan.cycleWeeks, avg: fmt.num(plan.baseline, 1) })}
+            {t("Automatic plan: a {n}-week preparation cycle (12 weeks for a 70.3, 16 for a full Ironman) that grows from {avg} h/week in a 3:1 load/recovery rhythm up to a peak, then tapers. Weeks you fill in completely in the planner replace the automatic target (solid bars).", { n: plan.cycleWeeks, avg: fmt.num(plan.baseline, 1) })}
           </p>
           {plan.volumeRising && <p>{t("Your volume has been rising recently, so the cycle is shortened and starts from your recent level.")}</p>}
           <p>

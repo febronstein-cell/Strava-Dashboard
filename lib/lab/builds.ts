@@ -210,6 +210,10 @@ export function buildPlan(
     }
   }
 
+  // a week filled in the planner that goes above the automatic peak becomes the peak shown
+  const plannedPeak = Math.max(0, ...weeks.filter((w) => w.custom && w.inCycle && w.target !== null).map((w) => w.target as number));
+  peak = Math.max(peak, plannedPeak);
+
   return { weeks, weeksLeft: weeksToRace - 1, baseline, peak, taperWeeks, distance, cycleWeeks, cycleStart, cycleStarted, volumeRising, cycleFixed, baselineIsCycleAverage };
 }
 

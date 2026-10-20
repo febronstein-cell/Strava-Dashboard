@@ -57,6 +57,9 @@ interface Written {
   hash?: string;
 }
 
+/** Minutes planned in one day (a rest day counts as none). */
+const dayMinutes = (d: PlanDay) => (d.rest ? 0 : d.slots.reduce((s, x) => s + (x.minutes ?? 0), 0));
+
 const addDays = (key: string, n: number) => new Date(Date.parse(key + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
 
 /**
@@ -64,7 +67,17 @@ const addDays = (key: string, n: number) => new Date(Date.parse(key + "T00:00:00
  * filled in day by day (description, time, distance). When all 7 days of a week are filled, the week gets a written
  * description that knows where it sits in the cycle and what the race asks for. Saving needs the edit key.
  */
-export function PlanTab({ activities, lab, todayKey }: { activities: Activity[]; lab: LabData; todayKey: string }) {
+export function PlanTab({
+  activities,
+  lab,
+  todayKey,
+  onPlan,
+}: {
+  activities: Activity[];
+  lab: LabData;
+  todayKey: string;
+  onPlan: (week: string, entry: { days: PlanDay[]; title?: string; description?: { en: string; pt: string; hash?: string } }) => void;
+}) {
   const { t, fmt, lang } = useI18n();
 
   // ---- the season, from the race calendar and the real recent volume
@@ -162,6 +175,7 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
         set(week, "describing");
         const d = (await call("/api/plan/describe", { weekStart: week })) as unknown as Written;
         setWritten((p) => ({ ...p, [week]: d }));
+        onPlan(week, { days, title: d.title, description: { en: d.en, pt: d.pt, hash: d.hash } });
       }
       set(week, "saved");
     } catch (e) {
@@ -176,6 +190,7 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
       return { ...d, slots: d.slots.map((x) => (x.sport === sport ? { ...x, ...patch } : x)) };
     });
     setPlan((p) => ({ ...p, [week]: days }));
+    onPlan(week, { days });
     if (!key) return;
     clearTimeout(timers.current[week]);
     set(week, "idle");
@@ -224,7 +239,9 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
           )
         }
       >
-        {!canEdit && <Hint>{t("Read-only until you unlock it with the edit key. Only the key holder can save.")}</Hint>}
+        {!canEdit && <Hint>{t("Locked. Enter the edit key to open the planner.")}</Hint>}
+        {canEdit && (
+          <>
         <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
           {races
             .filter((r) => r.date >= current)
@@ -236,9 +253,11 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
             ))}
         </ul>
         <p className="label mt-4">{t("Recent real volume: {h} h per week (last 6 weeks)", { h: fmt.num(recent, 1) })}</p>
+          </>
+        )}
       </Panel>
 
-      {shown.map((w, i) => {
+      {canEdit && shown.map((w, i) => {
         const prev = shown[i - 1];
         const banner = w.race && w.race.date !== prev?.race?.date;
         return (
@@ -265,7 +284,7 @@ export function PlanTab({ activities, lab, todayKey }: { activities: Activity[];
         );
       })}
 
-      {!showAll && season.length > shown.length && (
+      {canEdit && !showAll && season.length > shown.length && (
         <button onClick={() => setShowAll(true)} className="label rounded-full border border-line px-5 py-3 transition-colors hover:text-fg">
           {t("Show the rest of the year ({n} more weeks)", { n: season.length - shown.length })}
         </button>
@@ -362,6 +381,7 @@ function WeekCard({
                   <span className="label">
                     {t(DAY_NAMES[d.day])}
                     {!dayFilled(d) && <span className="ml-2 opacity-60">·</span>}
+                    <span className="num ml-3 text-xl normal-case text-fg">{dayMinutes(d) > 0 ? `${fmtMinutes(dayMinutes(d))} h` : d.rest ? "" : "—"}</span>
                   </span>
                   <label className="label flex items-center gap-2">
                     <input type="checkbox" checked={Boolean(d.rest)} disabled={!editable} onChange={(e) => onEdit(d.day, null, { rest: e.target.checked })} className="h-4 w-4 accent-[var(--brand)]" />

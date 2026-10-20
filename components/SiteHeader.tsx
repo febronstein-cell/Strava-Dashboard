@@ -4,6 +4,7 @@ import Link from "next/link";
 import { siteConfig, type SectionId } from "@/site.config";
 import type { DashboardContext } from "@/lib/dashboard";
 import { useI18n } from "@/lib/i18n";
+import { PlannerGate } from "./PlannerGate";
 import type { Period } from "@/lib/stats";
 import { useNow } from "@/lib/use-now";
 import { ThemeToggle } from "./ThemeToggle";
@@ -75,7 +76,7 @@ export function SiteHeader({
 
         <div className="flex items-center gap-2 sm:gap-3">
           <span
-            className="label hidden items-center gap-2 whitespace-nowrap md:inline-flex"
+            className="label hidden items-center gap-2 whitespace-nowrap lg:inline-flex"
             title={t("Last sync: {when}", { when: new Date(synced).toLocaleString(locale) })}
           >
             <span className="relative flex size-2">
@@ -92,6 +93,10 @@ export function SiteHeader({
             </span>
             {t("Lab")}
           </Link>
+
+          <PlannerGate className="label hidden items-center whitespace-nowrap rounded-full border border-line px-3 py-2 transition-colors hover:border-fg hover:text-fg sm:inline-flex">
+            {t("Planner")}
+          </PlannerGate>
 
           <div role="group" aria-label={t("Language")} className="label flex rounded-full border border-line p-0.5">
             {(["en", "pt"] as const).map((l) => (

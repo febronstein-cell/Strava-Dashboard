@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { type NextRequest } from "next/server";
 import { siteConfig } from "@/site.config";
 import { ANALYSIS_EFFORT, ANALYSIS_MODEL, hasAnthropic, writeJson } from "@/lib/lab/ai";
@@ -120,5 +121,6 @@ export async function POST(request: NextRequest) {
   const notes = JSON.stringify({ en: out.en, pt: out.pt ?? out.en, hash });
   const { error } = await db.from("training_weeks").update({ title, notes }).eq("week_start", weekStart);
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  revalidateTag("strava-live", { expire: 0 });
   return Response.json({ title, en: out.en, pt: out.pt ?? out.en, hash });
 }

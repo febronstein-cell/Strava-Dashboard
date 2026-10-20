@@ -518,7 +518,7 @@ export const pt: Record<string, string> = {
   "Acute:chronic workload ratio (7 vs 28 days, exponentially weighted).": "Relação carga aguda:crônica (7 contra 28 dias, com média exponencial).",
   "After a session this demanding, keep the next day easy or off and wait about 48 hours before another hard one.": "Depois de um treino tão exigente, deixe o dia seguinte leve ou de descanso e espere cerca de 48 horas antes de outro forte.",
   "Allen H, Coggan AR (2019). Training and Racing with a Power Meter, 3rd ed. VeloPress.": "Allen H, Coggan AR (2019). Training and Racing with a Power Meter, 3rd ed. VeloPress.",
-  "Automatic plan: a {n}-week preparation cycle (12 weeks for a 70.3, 16 for a full Ironman) that grows from {avg} h/week in a 3:1 load/recovery rhythm up to a peak, then tapers. Weeks you add to the training_weeks table replace the automatic target.": "Plano automático: um ciclo de preparação de {n} semanas (12 para um 70.3, 16 para um Ironman completo) que cresce a partir de {avg} h/semana num ritmo de 3 semanas de carga para 1 de recuperação até um pico e depois faz o polimento. Semanas cadastradas na tabela training_weeks substituem a meta automática.",
+  "Automatic plan: a {n}-week preparation cycle (12 weeks for a 70.3, 16 for a full Ironman) that grows from {avg} h/week in a 3:1 load/recovery rhythm up to a peak, then tapers. Weeks you fill in completely in the planner replace the automatic target (solid bars).": "Plano automático: um ciclo de preparação de {n} semanas (12 semanas para um 70.3, 16 para um Ironman completo) que cresce a partir de {avg} h/semana em um ritmo de 3 semanas de carga para 1 de recuperação até um pico, e depois reduz. As semanas que você preenche por completo no planejador substituem a meta automática (barras cheias).",
   "Banister EW et al. (1975). A systems model of training for athletic performance. Aust J Sports Med 7:57.": "Banister EW et al. (1975). A systems model of training for athletic performance. Aust J Sports Med 7:57.",
   "Bike efficiency factor (power per bpm)": "Fator de eficiência na bike (potência por bpm)",
   "Bike efficiency factor (power per heartbeat) is down {pct}%: heat, fatigue or a recent rise in intensity can lower it.": "O fator de eficiência na bike (potência por batimento) caiu {pct}%: calor, fadiga ou um aumento recente de intensidade podem reduzi-lo.",
@@ -781,4 +781,12 @@ export const pt: Record<string, string> = {
   "The plan changed since this was analysed: it is analysed again when the week is complete and saved.": "O plano mudou desde esta análise: ele é analisado de novo quando a semana estiver completa e salva.",
   "Saving the week analyses it.": "Salvar a semana faz a análise dela.",
   "When every day is filled in (or marked as a rest day), the week is analysed and labelled.": "Quando todos os dias estiverem preenchidos (ou marcados como descanso), a semana é analisada e recebe um rótulo.",
+
+  // lab (8)
+  "Planner": "Planejador",
+  "Enter the code": "Digite o código",
+  "The planner opens only with the edit key.": "O planejador só abre com a chave de edição.",
+  "Open the planner": "Abrir o planejador",
+  "Locked. Enter the edit key to open the planner.": "Bloqueado. Digite a chave de edição para abrir o planejador.",
+  "from your planner": "do seu planejador",
 };

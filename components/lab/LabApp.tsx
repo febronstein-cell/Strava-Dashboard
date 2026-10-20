@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { siteConfig } from "@/site.config";
 import { LanguageProvider, useI18n } from "@/lib/i18n";
 import { loadSeries } from "@/lib/lab/load";
+import { isComplete, totals } from "@/lib/lab/plan";
 import { buildProfile } from "@/lib/lab/profile";
-import type { LabData } from "@/lib/lab/types";
+import type { LabData, PlanDay, PlannedWeekRow } from "@/lib/lab/types";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
+import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
 import { LoadTab } from "./LoadTab";
@@ -30,6 +32,13 @@ const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
 ];
 
+/** What the planner holds for a week while it is being edited. */
+interface LivePlan {
+  days: PlanDay[];
+  title?: string;
+  description?: { en: string; pt: string; hash?: string };
+}
+
 export function LabApp(props: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
   return (
     <LanguageProvider>
@@ -41,6 +50,23 @@ export function LabApp(props: { overview: StravaOverview; activities: Activity[]
 function LabInner({ overview, activities, lab, labels }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
   const { t, lang, setLang } = useI18n();
   const [tab, setTab] = useState<TabId>("machine");
+
+  // what is being edited in the planner, so the Race builds tab follows it without a reload
+  const [live, setLive] = useState<Record<string, LivePlan>>({});
+  const onPlan = (week: string, entry: LivePlan) => setLive((p) => ({ ...p, [week]: { ...p[week], ...entry } }));
+  const labLive = useMemo<LabData>(() => {
+    const rows = new Map(lab.plannedWeeks.map((w) => [w.weekStart, w]));
+    for (const [week, v] of Object.entries(live)) {
+      const prev = rows.get(week);
+      const row: PlannedWeekRow = { ...(prev ?? { weekStart: week }), days: v.days };
+      // only a complete week replaces the automatic volume of the build; a half-filled one would look like a drop
+      row.plannedHours = isComplete(v.days) ? Number(totals(v.days).hours.toFixed(2)) : undefined;
+      if (v.title) row.title = v.title;
+      if (v.description) row.description = v.description;
+      rows.set(week, row);
+    }
+    return { ...lab, plannedWeeks: [...rows.values()] };
+  }, [lab, live]);
 
   // the tab lives in the address (#load) so it can be linked and survives a reload
   useEffect(() => {
@@ -108,7 +134,11 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
                 {t(x.label)}
               </button>
             ))}
-
+            <PlannerGate
+              className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === "plan" ? "lab-tab-on border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
+            >
+              {t("Planner")}
+            </PlannerGate>
           </div>
         </div>
       </div>
@@ -133,9 +163,9 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
         {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
         {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}
-        {tab === "builds" && <BuildsTab activities={activities} lab={lab} todayKey={todayKey} series={series} />}
+        {tab === "builds" && <BuildsTab activities={activities} lab={labLive} todayKey={todayKey} series={series} />}
         {tab === "races" && <RacesTab activities={activities} lab={lab} profile={profile} todayKey={todayKey} />}
-        {tab === "plan" && <PlanTab activities={activities} lab={lab} todayKey={todayKey} />}
+        {tab === "plan" && <PlanTab activities={activities} lab={labLive} todayKey={todayKey} onPlan={onPlan} />}
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">

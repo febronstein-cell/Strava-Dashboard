@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
+import { PlannerGate } from "./PlannerGate";
 
 export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athleteId?: number }) {
   const { t, locale } = useI18n();
@@ -44,6 +45,7 @@ export function SiteFooter({ fetchedAt, athleteId }: { fetchedAt: string; athlet
           }).format(new Date(fetchedAt))}
         </span>
         <Link href="/lab" className="transition-colors hover:text-fg">{t("Lab")} →</Link>
+        <PlannerGate className="transition-colors hover:text-fg">{t("Planner")} →</PlannerGate>
         <span>Powered by Strava</span>
       </div>
 
