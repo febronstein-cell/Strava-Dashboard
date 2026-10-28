@@ -5,13 +5,15 @@ import { useI18n } from "@/lib/i18n";
 import { usePlanSession } from "@/lib/use-plan-session";
 import { useSeason } from "@/lib/season-context";
 import { weeklyHours } from "@/lib/lab/builds";
-import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, parseMinutes, planHash, totals } from "@/lib/lab/plan";
+import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, planHash, totals } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonPhase, type SeasonRace, type SeasonWeek } from "@/lib/lab/season";
 import type { LabData, PlanDay, PlanSlot, PlanSport } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
 import { triFormat, type PhaseFocus } from "@/lib/season-plan";
 import { Hint, Panel } from "./LabBits";
+import { PlanVsDone } from "./PlanVsDone";
+import { SlotEditor } from "./SlotEditor";
 
 const PHASE_COLOR: Record<SeasonPhase, string> = {
   base: "var(--swim)",
@@ -36,6 +38,8 @@ function labelPhase(title: string | undefined): SeasonPhase | "lighter" | null {
   return (["base", "build", "peak", "taper", "race", "recovery"] as const).find((p) => p === w) ?? null;
 }
 type Status = "idle" | "saving" | "saved" | "describing" | `error:${string}`;
+/** An edit of the planner: fields of one session, the rest-day switch, a new double, or removing a double. */
+type SlotPatch = Partial<PlanSlot> | { rest: boolean } | { add: PlanSport } | { remove: true };
 interface Written {
   title?: string;
   en: string;
@@ -147,11 +151,13 @@ export function PlanTab({
     }
   };
 
-  const edit = (week: string, day: number, sport: PlanSport | null, patch: Partial<PlanSlot> | { rest: boolean }) => {
+  const edit = (week: string, day: number, idx: number | null, patch: SlotPatch) => {
     const days = (plan[week] ?? emptyDays()).map((d) => {
       if (d.day !== day) return d;
-      if (sport === null) return { ...d, ...(patch as { rest: boolean }) };
-      return { ...d, slots: d.slots.map((x) => (x.sport === sport ? { ...x, ...patch } : x)) };
+      if ("rest" in patch) return { ...d, rest: patch.rest };
+      if ("add" in patch) return d.slots.length >= 10 ? d : { ...d, slots: [...d.slots, { sport: patch.add, description: "", minutes: null, km: null }] };
+      if ("remove" in patch) return { ...d, slots: d.slots.filter((_, i) => i !== idx) };
+      return { ...d, slots: d.slots.map((x, i) => (i === idx ? { ...x, ...patch } : x)) };
     });
     setPlan((p) => ({ ...p, [week]: days }));
     onPlan(week, { days });
@@ -239,7 +245,9 @@ export function PlanTab({
               status={status[w.start] ?? "idle"}
               isOpen={open.has(w.start)}
               toggle={() => setOpen((s) => { const n = new Set(s); if (n.has(w.start)) n.delete(w.start); else n.add(w.start); return n; })}
-              onEdit={(day, sport, patch) => edit(w.start, day, sport, patch)}
+              onEdit={(day, idx, patch) => edit(w.start, day, idx, patch)}
+              activities={activities}
+              todayKey={todayKey}
               editable={canEdit}
               prevPlanned={totals(plan[addDays(w.start, -7)] ?? []).hours || null}
               lang={lang}
@@ -248,12 +256,48 @@ export function PlanTab({
         );
       })}
 
+      {canEdit && <PastWeeks plan={plan} current={current} activities={activities} todayKey={todayKey} />}
+
       {canEdit && !showAll && season.length > shown.length && (
         <button onClick={() => setShowAll(true)} className="label rounded-full border border-line px-5 py-3 transition-colors hover:text-fg">
           {t("Show the rest of the year ({n} more weeks)", { n: season.length - shown.length })}
         </button>
       )}
     </div>
+  );
+}
+
+/** The weeks already gone that have a plan: plan against what was really done, newest first. */
+function PastWeeks({ plan, current, activities, todayKey }: { plan: Record<string, PlanDay[]>; current: string; activities: Activity[]; todayKey: string }) {
+  const { t, fmt } = useI18n();
+  const weeks = Object.keys(plan)
+    .filter((w) => w < current)
+    .sort()
+    .reverse()
+    .slice(0, 12);
+  const [open, setOpen] = useState<string | null>(weeks[0] ?? null);
+  if (!weeks.length) return null;
+  const dateOf = (iso: string) => fmt.dateLabel(`${iso}T00:00:00`, { day: "2-digit", month: "short" });
+  return (
+    <Panel title={t("Past weeks")} subtitle={t("What was planned against what was done.")}>
+      <ul className="space-y-3">
+        {weeks.map((w) => (
+          <li key={w}>
+            <button onClick={() => setOpen(open === w ? null : w)} aria-expanded={open === w} className="label flex w-full items-center justify-between rounded-xl border border-line px-4 py-3 text-left hover:text-fg">
+              <span>
+                {dateOf(w)} – {dateOf(addDays(w, 6))}
+              </span>
+              <span>{open === w ? "−" : "+"}</span>
+            </button>
+            {open === w && (
+              <div className="mt-3">
+                <PlanVsDone weekStart={w} days={plan[w]} activities={activities} todayKey={todayKey} editable />
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
@@ -266,6 +310,8 @@ function WeekCard({
   toggle,
   onEdit,
   editable,
+  activities,
+  todayKey,
   prevPlanned,
   lang,
 }: {
@@ -275,8 +321,10 @@ function WeekCard({
   status: Status;
   isOpen: boolean;
   toggle: () => void;
-  onEdit: (day: number, sport: PlanSport | null, patch: Partial<PlanSlot> | { rest: boolean }) => void;
+  onEdit: (day: number, idx: number | null, patch: SlotPatch) => void;
   editable: boolean;
+  activities: Activity[];
+  todayKey: string;
   prevPlanned: number | null;
   lang: "en" | "pt";
 }) {
@@ -372,51 +420,33 @@ function WeekCard({
                   </label>
                 </div>
                 {!d.rest && (
-                  <div className="mt-2 space-y-2.5">
-                    {PLAN_SPORTS.map((sport) => {
-                      const slot = d.slots.find((x) => x.sport === sport) as PlanSlot;
-                      const km = HAS_DISTANCE[sport];
+                  <div className="mt-2 space-y-3">
+                    {d.slots.map((slot, idx) => {
+                      const same = d.slots.filter((x) => x.sport === slot.sport);
+                      const order = same.indexOf(slot);
+                      const label = `${t(SPORT_LABEL[slot.sport])}${same.length > 1 ? ` · ${order === 0 ? t("AM") : t("PM")}` : ""}`;
                       return (
-                        <div key={sport} className="grid grid-cols-[1fr_5rem_5rem] items-start gap-x-2 gap-y-1.5 sm:grid-cols-[5.5rem_1fr_5rem_5rem]">
-                          <span className="label col-span-3 sm:col-span-1 sm:pt-2.5" style={{ color: SPORT_COLOR[sport] }}>
-                            {t(SPORT_LABEL[sport])}
-                          </span>
-                          <textarea
-                            value={slot.description}
-                            onChange={(e) => onEdit(d.day, sport, { description: e.target.value })}
-                            readOnly={!editable}
-                            rows={1}
-                            placeholder={t("Workout (optional)")}
-                            className="col-span-3 min-h-10 w-full resize-y rounded-xl border border-line bg-elev px-3 py-2 text-sm text-fg read-only:opacity-80 sm:col-span-1"
-                          />
-                          <input
-                            key={`${w.start}-${d.day}-${sport}-t-${slot.minutes}`}
-                            defaultValue={fmtMinutes(slot.minutes)}
-                            onBlur={(e) => onEdit(d.day, sport, { minutes: parseMinutes(e.target.value) })}
-                            readOnly={!editable}
-                            inputMode="text"
-                            placeholder={t("Time")}
-                            aria-label={`${t(SPORT_LABEL[sport])} · ${t("Time")}`}
-                            className="col-start-2 w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg sm:col-start-auto"
-                          />
-                          {km && (
-                            <input
-                              key={`${w.start}-${d.day}-${sport}-km-${slot.km}`}
-                              defaultValue={slot.km ?? ""}
-                              onBlur={(e) => {
-                                const v = parseFloat(e.target.value.replace(",", "."));
-                                onEdit(d.day, sport, { km: Number.isFinite(v) ? v : null });
-                              }}
-                              readOnly={!editable}
-                              inputMode="decimal"
-                              placeholder="km"
-                              aria-label={`${t(SPORT_LABEL[sport])} · ${t("Distance")}`}
-                              className="w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg"
-                            />
-                          )}
-                        </div>
+                        <SlotEditor
+                          key={idx}
+                          slot={slot}
+                          label={label}
+                          editable={editable}
+                          idKey={`${w.start}-${d.day}-${idx}`}
+                          onChange={(patch) => onEdit(d.day, idx, patch)}
+                          onRemove={idx >= PLAN_SPORTS.length ? () => onEdit(d.day, idx, { remove: true }) : undefined}
+                        />
                       );
                     })}
+                    {editable && (
+                      <div className="flex flex-wrap items-center gap-2 sm:pl-[7.1rem]">
+                        <span className="label">{t("Add a second session")}:</span>
+                        {(["run", "ride", "swim", "strength"] as PlanSport[]).map((sp) => (
+                          <button key={sp} onClick={() => onEdit(d.day, null, { add: sp })} className="label rounded-full border border-line px-3 py-1.5 hover:text-fg">
+                            + {t(SPORT_LABEL[sp])}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </li>
@@ -445,6 +475,8 @@ function WeekCard({
               );
             })}
           </ul>
+
+          {w.start <= todayKey && <PlanVsDone weekStart={w.start} days={days} activities={activities} todayKey={todayKey} editable={editable} />}
 
           {written ? (
             <div className="rounded-2xl border border-line p-4">

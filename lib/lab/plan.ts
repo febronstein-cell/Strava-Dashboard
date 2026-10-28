@@ -1,4 +1,4 @@
-import type { PlanDay, PlanSlot, PlanSport } from "./types";
+import type { PlanDay, PlanSlot, PlanSport, PlanStructure, PlanTarget } from "./types";
 
 /** Helpers of the training planner. Pure: used by the page and by the server routes. */
 
@@ -73,13 +73,15 @@ export function totals(days: PlanDay[]): PlanTotals {
       continue;
     }
     let used = 0;
+    const sportsToday = new Set<PlanSport>();
     for (const s of d.slots) {
       if (!slotFilled(s)) continue;
       const t = bySport[s.sport];
       t.minutes += s.minutes ?? 0;
       t.km += HAS_DISTANCE[s.sport] ? (s.km ?? 0) : 0;
       t.sessions++;
-      t.days++;
+      if (!sportsToday.has(s.sport)) t.days++;
+      sportsToday.add(s.sport);
       used++;
     }
     if (used >= 2) doubleDays++;
@@ -98,7 +100,7 @@ export function totals(days: PlanDay[]): PlanTotals {
 /** Fingerprint of the days: tells whether a written analysis still matches what is planned. */
 export function planHash(days: PlanDay[]): string {
   const raw = days
-    .map((d) => `${d.day}|${d.rest ? "R" : ""}|${d.slots.map((s) => `${s.sport}:${s.description.trim()}:${s.minutes ?? ""}:${s.km ?? ""}`).join(";")}`)
+    .map((d) => `${d.day}|${d.rest ? "R" : ""}|${d.slots.map((s) => `${s.sport}:${s.description.trim()}:${s.minutes ?? ""}:${s.km ?? ""}${s.key ? ":K" : ""}${s.target ? `:${JSON.stringify(s.target)}` : ""}${s.structure ? `:${JSON.stringify(s.structure)}` : ""}`).join(";")}`)
     .join("§");
   let h = 5381;
   for (let i = 0; i < raw.length; i++) h = ((h << 5) + h + raw.charCodeAt(i)) | 0;
@@ -106,6 +108,28 @@ export function planHash(days: PlanDay[]): string {
 }
 
 const num = (v: unknown): number | null => (v == null || v === "" ? null : Number(v));
+
+/** Five fixed slots plus room for doubles. */
+const MAX_SLOTS = 10;
+const TARGETS = ["hr-cap", "hr-range", "pace-range", "power-range"];
+const pos = (v: unknown, max: number) => (v == null || v === "" ? undefined : Number(v) > 0 && Number(v) <= max ? Number(v) : undefined);
+
+function cleanTarget(t: unknown): PlanTarget | undefined {
+  const x = t as Partial<PlanTarget> | null;
+  if (!x || !TARGETS.includes(x.type as string)) return undefined;
+  const max = x.type === "pace-range" ? 1200 : 3000;
+  const out: PlanTarget = { type: x.type as PlanTarget["type"], min: pos(x.min, max), max: pos(x.max, max) };
+  if (out.min != null && out.max != null && out.min > out.max) [out.min, out.max] = [out.max, out.min];
+  return out.min != null || out.max != null ? out : undefined;
+}
+
+function cleanStructure(s: unknown): PlanStructure | undefined {
+  const x = s as Partial<PlanStructure> | null;
+  if (!x) return undefined;
+  const out: PlanStructure = { reps: pos(x.reps, 100), repSeconds: pos(x.repSeconds, 7200), repMeters: pos(x.repMeters, 100000), recoverySeconds: pos(x.recoverySeconds, 3600) };
+  if (out.reps != null) out.reps = Math.round(out.reps);
+  return Object.values(out).some((v) => v != null) ? out : undefined;
+}
 
 /**
  * Reads the days stored in the database (or sent by the browser) into the current shape: 7 days with the 5 slots each.
@@ -119,15 +143,29 @@ export function sanitizeDays(input: unknown): PlanDay[] | null {
     const raw = input[i] as { rest?: unknown; slots?: unknown; description?: unknown; minutes?: unknown; km?: unknown } | null;
     const slots = emptySlots();
     if (Array.isArray(raw?.slots)) {
+      const seen = new Set<PlanSport>();
       for (const s of raw.slots as Partial<PlanSlot>[]) {
-        const slot = slots.find((x) => x.sport === s?.sport);
-        if (!slot) continue;
+        if (!PLAN_SPORTS.includes(s?.sport as PlanSport)) continue;
+        const sport = s.sport as PlanSport;
+        // the first entry of a sport fills its fixed slot; a second one (a double, AM and PM) is added after the five
+        let slot = seen.has(sport) ? null : slots.find((x) => x.sport === sport) ?? null;
+        if (!slot) {
+          if (slots.length >= MAX_SLOTS) continue;
+          slot = { sport, description: "", minutes: null, km: null };
+          slots.push(slot);
+        }
+        seen.add(sport);
         const minutes = num(s.minutes);
         const km = HAS_DISTANCE[slot.sport] ? num(s.km) : null;
         if ((minutes !== null && !(minutes >= 0 && minutes <= 1440)) || (km !== null && !(km >= 0 && km <= 1000))) return null;
         slot.description = String(s.description ?? "").slice(0, 600);
         slot.minutes = minutes;
         slot.km = km;
+        if (s.key) slot.key = true;
+        const target = cleanTarget(s.target);
+        if (target) slot.target = target;
+        const structure = cleanStructure(s.structure);
+        if (structure) slot.structure = structure;
       }
     } else if (raw && (raw.description || raw.minutes || raw.km)) {
       const extra = slots[slots.length - 1];

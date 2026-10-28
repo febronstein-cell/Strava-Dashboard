@@ -7,6 +7,8 @@ import { DAY_NAMES, SPORT_LABEL, isComplete, planHash, sanitizeDays, slotFilled,
 import { realWeeks, summarize } from "@/lib/lab/plan-history";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonRace } from "@/lib/lab/season";
+import { matchWeek, sessionCompliance, weekCompliance } from "@/lib/compliance";
+import { getOverrides } from "@/lib/laps-cache";
 import { readSeason } from "@/lib/season-data";
 import { seasonBrief, triFormat } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
@@ -30,11 +32,12 @@ Choose "label" from what the week CONTAINS, not from the season model:
 - Recovery: easy movement after a race or a very hard block.
 Judge "hard" or "easy" against the athlete's own history: a week that looks big can be normal for them, and one that looks small can be a step up. Say so with numbers (hours, km, sessions per sport against the real weeks and against the previous build-up).
 
-The text ("en", plain text, 4 short paragraphs separated by a blank line, 170 to 240 words in total):
+The text ("en", plain text, 4 short paragraphs (5 when the week has started) separated by a blank line, 170 to 280 words in total):
 1. What the week is and why this label: the main workouts and the weekly load against the real recent weeks and the previous build-up.
 2. Frequency and distribution: sessions per sport, doubles, rest days, where the hard days and the long sessions fall, whether hard days are too close together.
 3. Fit with the season: if your label differs from the expected phase, say it plainly and say what to change (or accept) so the week serves its purpose; if it matches, say what the week still lacks for this race (distance, how far away, what the race asks for).
-4. One or two concrete tips.
+4. Only when "actualSoFar" is given (the week has started): what really happened so far, with numbers: compliance score, sessions missed or cut short (key sessions first), unplanned work (especially on rest days), planned against done hours per sport.
+5. One or two concrete tips.
 Rules: use ONLY the given data; read intensity only from the descriptions and never invent workouts; if a sport has no sessions say so; direct and encouraging, no hype, no emojis. "pt" is the same text in Brazilian Portuguese. "label" is exactly one of the allowed labels.`;
 
 const SCHEMA = {
@@ -76,6 +79,11 @@ export async function POST(request: NextRequest) {
   // the previous planned weeks and the label they got
   const { data: prevRows } = await db.from("training_weeks").select("week_start,title,planned_hours").lt("week_start", weekStart).not("title", "is", null).order("week_start", { ascending: false }).limit(6);
 
+  // what really happened so far, when the week has started: the analysis then comments on it, not only on the plan
+  const started = weekStart <= todayKey;
+  const matched = started ? matchWeek(days, weekStart, acts, await getOverrides(weekStart)) : null;
+  const done = matched && weekCompliance(matched, todayKey);
+
   const t = totals(days);
   const facts = {
     weekStart,
@@ -96,6 +104,25 @@ export async function POST(request: NextRequest) {
     realLastEightWeeks: recentWeeks,
     previousBuildUp: pastRace && buildUp ? { race: pastRace.name, date: pastRace.date, summary: summarize(buildUp), weeks: buildUp } : null,
     previousPlannedWeeks: (prevRows ?? []).map((r) => ({ week: String(r.week_start).slice(0, 10), label: r.title, plannedHours: r.planned_hours != null ? Number(r.planned_hours) : null })),
+    actualSoFar: done && {
+      throughDate: todayKey,
+      complianceScorePct: done.score,
+      sessionsPlanned: done.planned,
+      done: done.done,
+      missed: done.missed,
+      unplanned: done.unplanned,
+      unplannedOnRestDays: done.unplannedOnRest,
+      keySessions: { planned: done.keyPlanned, done: done.keyDone },
+      bySport: Object.fromEntries(Object.entries(done.bySport).map(([k, v]) => [k, { plannedH: Number(v.plannedH.toFixed(1)), doneH: Number(v.doneH.toFixed(1)), plannedKm: Math.round(v.plannedKm), doneKm: Math.round(v.doneKm) }])),
+      sessions: matched!
+        .filter((d) => d.date <= todayKey)
+        .flatMap((d) =>
+          d.entries.map((e) => {
+            const c = sessionCompliance(e);
+            return { day: DAY_NAMES[d.day], sport: e.entry.sport, key: !!e.entry.key, planned: e.entry.description, done: e.activity ? e.activity.name : "missed", timePct: c.duration.pct && Math.round(c.duration.pct), color: c.duration.color };
+          }),
+        ),
+    },
     expectedBySeasonModel: week && {
       phase: week.phase,
       kind: week.kind,

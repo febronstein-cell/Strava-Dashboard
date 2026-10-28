@@ -51,6 +51,23 @@ export interface RaceRow {
 
 export type PlanSport = "run" | "ride" | "swim" | "strength" | "other";
 
+export type TargetType = "hr-cap" | "hr-range" | "pace-range" | "power-range";
+
+/** Intensity target of a planned session: bpm, pace in s/km, or watts. For an HR cap only max is used. */
+export interface PlanTarget {
+  type: TargetType;
+  min?: number;
+  max?: number;
+}
+
+/** Interval structure of a planned session, e.g. 5 x 4' with 2' recovery. */
+export interface PlanStructure {
+  reps?: number;
+  repSeconds?: number;
+  repMeters?: number;
+  recoverySeconds?: number;
+}
+
 /** One sport of one day, as filled in the planner. */
 export interface PlanSlot {
   sport: PlanSport;
@@ -61,6 +78,8 @@ export interface PlanSlot {
   km: number | null;
   /** the key session of the day or week */
   key?: boolean;
+  target?: PlanTarget;
+  structure?: PlanStructure;
 }
 
 /** One day of a planned week: five slots (run, bike, swim, strength, extra) or a rest day. */
