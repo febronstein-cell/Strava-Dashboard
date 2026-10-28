@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState } from "react";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
+import { usePlanSession } from "@/lib/use-plan-session";
 import { weeklyHours } from "@/lib/lab/builds";
 import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, parseMinutes, planHash, totals } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
@@ -33,22 +34,6 @@ function labelPhase(title: string | undefined): SeasonPhase | "lighter" | null {
   if (w === "lighter") return "lighter";
   return (["base", "build", "peak", "taper", "race", "recovery"] as const).find((p) => p === w) ?? null;
 }
-const KEY_STORAGE = "plan-key";
-const subscribeKey = (cb: () => void) => {
-  window.addEventListener("plan-key", cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    window.removeEventListener("plan-key", cb);
-    window.removeEventListener("storage", cb);
-  };
-};
-const readKey = () => {
-  try {
-    return localStorage.getItem(KEY_STORAGE) ?? "";
-  } catch {
-    return "";
-  }
-};
 type Status = "idle" | "saving" | "saved" | "describing" | `error:${string}`;
 interface Written {
   title?: string;
@@ -103,64 +88,28 @@ export function PlanTab({
   const [open, setOpen] = useState<Set<string>>(() => new Set(season.slice(0, 2).map((w) => w.start)));
   const [showAll, setShowAll] = useState(false);
 
-  // ---- the edit key (kept in this browser only)
-  const key = useSyncExternalStore(subscribeKey, readKey, () => "");
-  const saveKey = (v: string) => {
-    try {
-      if (v) localStorage.setItem(KEY_STORAGE, v);
-      else localStorage.removeItem(KEY_STORAGE);
-    } catch {}
-    window.dispatchEvent(new Event("plan-key"));
-  };
-  // Editing unlocks only when the server confirms the key: a typed or remembered value alone never does.
-  const [verified, setVerified] = useState("");
+  // ---- write access: the server unlocks this device for 30 days with a signed httpOnly cookie (the key is never kept here)
+  const session = usePlanSession();
   const [draft, setDraft] = useState("");
   const [keyState, setKeyState] = useState<"idle" | "checking" | "wrong" | "error">("idle");
-  const check = async (candidate: string): Promise<boolean | null> => {
-    try {
-      const res = await fetch("/api/plan/verify", { method: "POST", headers: { "x-plan-key": candidate } });
-      return res.ok ? true : res.status === 401 ? false : null;
-    } catch {
-      return null;
-    }
-  };
   const unlock = async () => {
     if (!draft) return;
     setKeyState("checking");
-    const ok = await check(draft);
+    const ok = await session.unlock(draft);
     if (ok) {
-      saveKey(draft);
-      setVerified(draft);
       setDraft("");
       setKeyState("idle");
     } else {
       setKeyState(ok === false ? "wrong" : "error");
     }
   };
-  const lock = () => {
-    saveKey("");
-    setVerified("");
-  };
-  // a key remembered by this browser is checked again before it unlocks anything
-  useEffect(() => {
-    if (!key || key === verified) return;
-    let alive = true;
-    void check(key).then((ok) => {
-      if (!alive) return;
-      if (ok) setVerified(key);
-      else if (ok === false) saveKey("");
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  const lock = () => void session.lock();
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const set = (week: string, s: Status) => setStatus((p) => ({ ...p, [week]: s }));
 
   const call = async (path: string, body: unknown) => {
-    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "x-plan-key": key }, body: JSON.stringify(body) });
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const json = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
     return json;
@@ -191,13 +140,13 @@ export function PlanTab({
     });
     setPlan((p) => ({ ...p, [week]: days }));
     onPlan(week, { days });
-    if (!key) return;
+    if (!session.unlocked) return;
     clearTimeout(timers.current[week]);
     set(week, "idle");
     timers.current[week] = setTimeout(() => void persist(week, days), 1300);
   };
 
-  const canEdit = key.length > 0 && key === verified;
+  const canEdit = session.unlocked;
   const shown = showAll ? season : season.slice(0, 12);
 
   return (

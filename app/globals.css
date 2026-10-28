@@ -482,3 +482,7 @@ body {
   @keyframes lab-pop { from { transform: scale(0.92); } to { transform: scale(1); } }
   .lab-tab-on { animation: lab-pop 0.28s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 }
+
+/* CountUp: with JavaScript on, the final value waits for the climbing digits to finish; without it, it shows as is */
+[data-js] .countup:not([data-done]) .countup-final { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { [data-js] .countup .countup-final { visibility: visible; } }

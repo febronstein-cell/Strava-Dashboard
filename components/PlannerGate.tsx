@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
+import { usePlanSession } from "@/lib/use-plan-session";
 
-const KEY_STORAGE = "plan-key";
 
 /**
  * A button that asks for the planner's edit key and opens the planner only after the server confirms it.
@@ -13,17 +13,25 @@ const KEY_STORAGE = "plan-key";
  */
 export function PlannerGate({ className, style, children, ariaLabel }: { className?: string; style?: CSSProperties; children: ReactNode; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
+  const session = usePlanSession();
+  const router = useRouter();
+  // a device unlocked in the last 30 days goes straight in
+  const go = () => {
+    if (!session.unlocked) return setOpen(true);
+    if (window.location.pathname === "/lab") window.location.hash = siteConfig.lab.planHash;
+    else router.push(`/lab#${siteConfig.lab.planHash}`);
+  };
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className} style={style} aria-label={ariaLabel}>
+      <button type="button" onClick={go} className={className} style={style} aria-label={ariaLabel}>
         {children}
       </button>
-      {open && <KeyDialog onClose={() => setOpen(false)} />}
+      {open && <KeyDialog onClose={() => setOpen(false)} unlock={session.unlock} />}
     </>
   );
 }
 
-function KeyDialog({ onClose }: { onClose: () => void }) {
+function KeyDialog({ onClose, unlock }: { onClose: () => void; unlock: (key: string) => Promise<boolean | null> }) {
   const { t } = useI18n();
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -40,15 +48,11 @@ function KeyDialog({ onClose }: { onClose: () => void }) {
     if (!value || state === "checking") return;
     setState("checking");
     try {
-      const res = await fetch("/api/plan/verify", { method: "POST", headers: { "x-plan-key": value } });
-      if (!res.ok) {
-        setState(res.status === 401 ? "wrong" : "error");
+      const ok = await unlock(value);
+      if (!ok) {
+        setState(ok === false ? "wrong" : "error");
         return;
       }
-      try {
-        localStorage.setItem(KEY_STORAGE, value);
-      } catch {}
-      window.dispatchEvent(new Event("plan-key"));
       if (window.location.pathname === "/lab") {
         window.location.hash = siteConfig.lab.planHash;
         onClose();

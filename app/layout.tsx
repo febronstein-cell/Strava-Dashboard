@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 // Aplica o tema salvo (ou o do sistema) antes da primeira pintura: sem flash.
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t;if(sessionStorage.getItem('splash')){document.documentElement.dataset.splash='off'}else{sessionStorage.setItem('splash','1')}}catch(e){}})();`;
+const themeScript = `(function(){document.documentElement.dataset.js='1';try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t;if(sessionStorage.getItem('splash')){document.documentElement.dataset.splash='off'}else{sessionStorage.setItem('splash','1')}}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const sportVars = {

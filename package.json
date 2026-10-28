@@ -14,7 +14,8 @@
     "strava:records": "node --env-file=.env.local scripts/strava-records.mjs",
     "strava:backfill": "node --env-file=.env.local scripts/strava-backfill.mjs",
     "supabase:check": "node --env-file=.env.local scripts/supabase-check.mjs",
-    "power:to-db": "node --env-file=.env.local scripts/power-to-db.mjs"
+    "power:to-db": "node --env-file=.env.local scripts/power-to-db.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
@@ -33,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
