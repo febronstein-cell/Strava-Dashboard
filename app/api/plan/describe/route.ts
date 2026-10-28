@@ -1,6 +1,5 @@
 import { revalidateTag } from "next/cache";
 import { type NextRequest } from "next/server";
-import { siteConfig } from "@/site.config";
 import { ANALYSIS_EFFORT, ANALYSIS_MODEL, hasAnthropic, writeJson } from "@/lib/lab/ai";
 import { labelContext } from "@/lib/lab/labeling";
 import { checkPlanKey } from "@/lib/lab/plan-auth";
@@ -8,6 +7,8 @@ import { DAY_NAMES, SPORT_LABEL, isComplete, planHash, sanitizeDays, slotFilled,
 import { realWeeks, summarize } from "@/lib/lab/plan-history";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonRace } from "@/lib/lab/season";
+import { readSeason } from "@/lib/season-data";
+import { seasonBrief, triFormat } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 
 export const maxDuration = 60;
@@ -56,21 +57,21 @@ export async function POST(request: NextRequest) {
   const days = sanitizeDays(row?.planned_sessions);
   if (!days || !isComplete(days)) return Response.json({ error: "The week is not complete yet." }, { status: 400 });
 
-  const { acts } = await labelContext();
+  const [{ acts }, seasonData] = await Promise.all([labelContext(), readSeason()]);
   const monday = (offset: number) => new Date(Date.parse(weekStart + "T00:00:00Z") + offset * 7 * 86_400_000).toISOString().slice(0, 10);
 
   // the real recent weeks, and the build-up of the last race that had a fixed cycle
   const recentWeeks = realWeeks(acts, monday(-8), monday(-1));
   const recentMean = recentWeeks.slice(-6).reduce((s, w) => s + w.hours, 0) / 6;
-  const pastRace = siteConfig.upcomingRaces
+  const pastRace = seasonData.races
     .filter((r) => r.cycleStart && r.date < weekStart)
     .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
   const buildUp = pastRace?.cycleStart ? realWeeks(acts, mondayOf(pastRace.cycleStart), mondayOf(pastRace.date)) : null;
 
   // where the model expects this week to sit in the season
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  const races: SeasonRace[] = siteConfig.upcomingRaces.map((r) => ({ name: r.name, date: r.date, format: r.format, priority: r.priority ?? defaultPriority(r.format), cycleStart: r.cycleStart }));
-  const week = buildSeason(races, todayKey, recentMean, 60).find((w) => w.start === weekStart);
+  const races: SeasonRace[] = seasonData.races.map((r) => ({ name: r.name, date: r.date, format: triFormat(r.type), type: r.type, goal: r.goal, priority: r.priority ?? defaultPriority(triFormat(r.type)), cycleStart: r.cycleStart }));
+  const week = buildSeason(races, todayKey, recentMean, 60, seasonData.phases).find((w) => w.start === weekStart);
 
   // the previous planned weeks and the label they got
   const { data: prevRows } = await db.from("training_weeks").select("week_start,title,planned_hours").lt("week_start", weekStart).not("title", "is", null).order("week_start", { ascending: false }).limit(6);
@@ -102,6 +103,8 @@ export async function POST(request: NextRequest) {
       race: week.race && { name: week.race.name, date: week.race.date, format: week.race.format ?? "unknown", priority: week.race.priority },
       cycle: week.cycle,
       isRaceWeek: week.raceWeek,
+      seasonPhase: week.seasonPhase && { name: week.seasonPhase.name, focus: week.seasonPhase.focus, hours: [week.seasonPhase.hoursMin, week.seasonPhase.hoursMax], runKm: [week.seasonPhase.runKmMin ?? null, week.seasonPhase.runKmMax ?? null], notes: week.seasonPhase.notes ?? null },
+      nextARace: week.aRace && { name: week.aRace.name, date: week.aRace.date, type: week.aRace.type ?? null, goal: week.aRace.goal ?? null },
     },
   };
 
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
     model: ANALYSIS_MODEL,
     effort: ANALYSIS_EFFORT,
     system: SYSTEM,
-    user: `Planned week (JSON):\n${JSON.stringify(facts)}`,
+    user: `${seasonBrief(seasonData, weekStart)}\n\nPlanned week (JSON):\n${JSON.stringify(facts)}`,
     label: `week ${weekStart}`,
     schema: SCHEMA as unknown as Record<string, unknown>,
   });

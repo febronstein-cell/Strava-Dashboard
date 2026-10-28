@@ -1,6 +1,8 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { dbYear } from "@/lib/strava/db";
+import { readSeason } from "@/lib/season-data";
+import { seasonBrief } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
 import { translate } from "@/lib/i18n/translate";
@@ -128,7 +130,7 @@ export async function analyzeAndStore(id: number, opts: { force?: boolean; publi
     model: ANALYSIS_MODEL,
     effort: ANALYSIS_EFFORT,
     system: SYSTEM,
-    user: `Workout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading, workoutType })}`,
+    user: `${seasonBrief(await readSeason(), facts.date.slice(0, 10))}\n\nWorkout data (JSON):\n${JSON.stringify({ workout: facts, athlete, ruleBasedReading: reading, workoutType })}`,
     label: `analysis ${id}`,
     schema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
   });

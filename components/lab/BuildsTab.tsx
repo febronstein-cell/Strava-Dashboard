@@ -6,6 +6,7 @@ import { buildPlan, forecastRaceDay, tssPerHour, weeklyHours, type BuildPlan, ty
 import type { LoadDay } from "@/lib/lab/load";
 import type { LabData } from "@/lib/lab/types";
 import { upcoming, type RaceCountdown } from "@/lib/races";
+import { useSeason } from "@/lib/season-context";
 import type { Activity } from "@/lib/strava/types";
 import { Hint } from "./LabBits";
 import { PHASE_COLOR, WeeksChart } from "./WeeksChart";
@@ -22,10 +23,11 @@ export function BuildsTab({ activities, lab, todayKey, series }: { activities: A
   const { t, fmt } = useI18n();
   const hours = useMemo(() => weeklyHours(activities), [activities]);
   const nowMs = useMemo(() => Date.parse(todayKey + "T12:00:00-03:00"), [todayKey]);
-  const races = useMemo(() => upcoming(nowMs), [nowMs]);
+  const season = useSeason();
+  const races = useMemo(() => upcoming(nowMs, season.races), [nowMs, season.races]);
   const plans = useMemo(
-    () => races.map((r) => ({ race: r, plan: buildPlan(r.name, r.date, hours, todayKey, lab.plannedWeeks, r.cycleStart) })),
-    [races, hours, todayKey, lab.plannedWeeks],
+    () => races.map((r) => ({ race: r, plan: buildPlan(r.name, r.date, hours, todayKey, lab.plannedWeeks, r.cycleStart, { phases: season.phases, type: r.type, priority: r.priority }) })),
+    [races, hours, todayKey, lab.plannedWeeks, season.phases],
   );
   const [open, setOpen] = useState<number | null>(null);
 
@@ -168,7 +170,7 @@ function BuildDialog({ race, plan, forecast, onClose }: { race: RaceCountdown; p
                   <span className="label w-14">{fmt.dateLabel(`${w.start}T00:00:00`, { day: "2-digit", month: "short" })}</span>
                   <span className="label w-16" style={{ color: w.phase ? PHASE_COLOR[w.phase] : undefined }}>{w.phase ? t(w.phase) : ""}</span>
                   <span className="label flex-1">
-                    {w.custom && w.title ? t(w.title) : w.kind === "deload" ? t("recovery week") : w.kind === "taper" ? t("taper") : w.kind === "race" ? t("race week") : t("load week")}
+                    {w.custom && w.title ? t(w.title) : w.phaseName ? w.phaseName : w.kind === "deload" ? t("recovery week") : w.kind === "taper" ? t("taper") : w.kind === "race" ? t("race week") : t("load week")}
                     {w.custom && <span className="ml-2" style={{ color: "var(--brand)" }}>· {t("from your planner")}</span>}
                   </span>
                   <span className="num text-lg">{w.target === null ? "—" : `${fmt.num(w.target, 1)} h`}</span>

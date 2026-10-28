@@ -42,6 +42,13 @@ export interface UpcomingRace {
   format?: "sprint" | "olympic" | "70.3" | "ironman";
   /** A = a goal of the season (full build-up), B / C = secondary races (shorter build-up). Default: A for 70.3 and Ironman, B for the rest. */
   priority?: "A" | "B" | "C";
+  /** Kind of race, including non-triathlons. Defaults to `format`. */
+  type?: "sprint" | "olympic" | "70.3" | "ironman" | "run" | "other";
+  /** Free-text goal, e.g. "sub 4:10". */
+  goal?: string;
+  status?: "upcoming" | "done" | "dnf";
+  /** Finish time once done, e.g. "4:49:19". */
+  result?: string;
   note?: string;
 }
 
@@ -121,6 +128,10 @@ export const siteConfig = {
    * Future races, in any order. The nearest one becomes the highlight with a
    * countdown (and the pop-up); races that already happened disappear on their own.
    */
+  /**
+   * The race calendar. This is the starting point (seed) of the season_races table: once that table has rows, the
+   * site reads the races from it (edit them in the Lab's Season tab) and this list is only the fallback.
+   */
   upcomingRaces: [
     {
       name: "Ironman 70.3 Florianópolis",
@@ -128,6 +139,9 @@ export const siteConfig = {
       date: "2026-10-18",
       cycleStart: "2026-08-03",
       format: "70.3",
+      priority: "A",
+      status: "done",
+      result: "4:49:19",
       note: "1.9 km swim · 90 km bike · 21.1 km run",
     },
     {
@@ -135,8 +149,24 @@ export const siteConfig = {
       location: "Santos, SP · Praia da Aparecida",
       date: "2026-12-13",
       format: "olympic",
-      priority: "A",
+      priority: "B",
       note: "Final stage of the 2026 circuit",
+    },
+    {
+      name: "IRONMAN 70.3 Brasília",
+      location: "Brasília, DF",
+      date: "2027-04-18",
+      format: "70.3",
+      priority: "A",
+      note: "1.9 km swim · 90 km bike · 21.1 km run",
+    },
+    {
+      name: "IRONMAN Brasil",
+      location: "Florianópolis, SC",
+      date: "2027-06-13",
+      format: "ironman",
+      priority: "A",
+      note: "3.8 km swim · 180 km bike · 42.2 km run",
     },
   ] as UpcomingRace[],
   /** Show a pop-up about the next race once per visit. */

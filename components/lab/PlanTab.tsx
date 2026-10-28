@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { useSeason } from "@/lib/season-context";
 import { weeklyHours } from "@/lib/lab/builds";
 import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, parseMinutes, planHash, totals } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonPhase, type SeasonRace, type SeasonWeek } from "@/lib/lab/season";
 import type { LabData, PlanDay, PlanSlot, PlanSport } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
+import { triFormat, type PhaseFocus } from "@/lib/season-plan";
 import { Hint, Panel } from "./LabBits";
 
 const PHASE_COLOR: Record<SeasonPhase, string> = {
@@ -42,6 +43,16 @@ interface Written {
   hash?: string;
 }
 
+const FOCUS_LABEL: Record<PhaseFocus, string> = {
+  swim: "swim focus",
+  bike: "bike focus",
+  run: "run focus",
+  mixed: "mixed",
+  "race-specific": "race-specific",
+  taper: "taper",
+  recovery: "recovery",
+};
+
 /** Minutes planned in one day (a rest day counts as none). */
 const dayMinutes = (d: PlanDay) => (d.rest ? 0 : d.slots.reduce((s, x) => s + (x.minutes ?? 0), 0));
 
@@ -66,9 +77,13 @@ export function PlanTab({
   const { t, fmt, lang } = useI18n();
 
   // ---- the season, from the race calendar and the real recent volume
+  const seasonData = useSeason();
   const races = useMemo<SeasonRace[]>(
-    () => siteConfig.upcomingRaces.map((r) => ({ name: r.name, date: r.date, format: r.format, priority: r.priority ?? defaultPriority(r.format), cycleStart: r.cycleStart })),
-    [],
+    () =>
+      seasonData.races
+        .filter((r) => r.status !== "dnf")
+        .map((r) => ({ name: r.name, date: r.date, format: triFormat(r.type), type: r.type, goal: r.goal, priority: r.priority ?? defaultPriority(triFormat(r.type)), cycleStart: r.cycleStart })),
+    [seasonData.races],
   );
   const hours = useMemo(() => weeklyHours(activities), [activities]);
   const current = mondayOf(todayKey);
@@ -77,7 +92,7 @@ export function PlanTab({
     for (let i = 1; i <= 6; i++) s += hours.get(addDays(current, -7 * i)) ?? 0;
     return s / 6;
   }, [hours, current]);
-  const season = useMemo(() => buildSeason(races, todayKey, recent, 52), [races, todayKey, recent]);
+  const season = useMemo(() => buildSeason(races, todayKey, recent, 52, seasonData.phases), [races, todayKey, recent, seasonData.phases]);
 
   // ---- what is already filled in
   const [plan, setPlan] = useState<Record<string, PlanDay[]>>(() => Object.fromEntries(lab.plannedWeeks.filter((w) => w.days).map((w) => [w.weekStart, w.days as PlanDay[]])));
@@ -296,6 +311,21 @@ function WeekCard({
             {written?.title ? t(written.title) : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`}
           </span>
           <span className="mt-0.5 block text-sm text-muted">{position}</span>
+          {w.seasonPhase && (
+            <span className="mt-1 block text-sm">
+              <span className="label mr-2" style={{ color }}>{t("Phase")}</span>
+              {w.seasonPhase.name}
+              <span className="text-muted"> · {t(FOCUS_LABEL[w.seasonPhase.focus])}</span>
+              {w.seasonPhase.runKmMin != null && (
+                <span className="text-muted"> · {t("run {km} km", { km: w.seasonPhase.runKmMin === w.seasonPhase.runKmMax ? fmt.num(w.seasonPhase.runKmMin, 0) : `${fmt.num(w.seasonPhase.runKmMin, 0)}–${fmt.num(w.seasonPhase.runKmMax ?? w.seasonPhase.runKmMin, 0)}` })}</span>
+              )}
+            </span>
+          )}
+          {w.aRace && (
+            <span className="mt-0.5 block text-sm text-muted">
+              {t("Builds towards the A race: {race}", { race: w.aRace.name })} · {fmt.dateLabel(`${w.aRace.date}T00:00:00`, { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+          )}
           {differs && (
             <span className="label mt-1 block" style={{ color: "var(--goal)" }}>
               {t("The season model expected: {phase}", { phase: t(w.kind === "deload" ? "lighter week" : w.phase) })}
@@ -307,7 +337,11 @@ function WeekCard({
             {tot.hours > 0 ? `${fmt.num(tot.hours, 1)} h` : "—"}
             <span className="label ml-2">{t("planned")}</span>
           </span>
-          <span className="label block">{t("suggested {h} h", { h: fmt.num(w.target, 1) })}</span>
+          <span className="label block">
+            {w.targetRange && w.targetRange[0] !== w.targetRange[1]
+              ? t("phase target {a}–{b} h", { a: fmt.num(w.targetRange[0], 0), b: fmt.num(w.targetRange[1], 0) })
+              : t("suggested {h} h", { h: fmt.num(w.target, 1) })}
+          </span>
           {done && <span className="label block text-brand">{t("complete")}</span>}
         </span>
       </button>

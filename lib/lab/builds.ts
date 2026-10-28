@@ -1,6 +1,7 @@
 import type { Activity } from "@/lib/strava/types";
 import { K_ATL, K_CTL, type LoadDay } from "./load";
 import { mondayOf } from "./progress";
+import { phaseOfWeek, phaseTarget, taperRule, type PhaseEntry, type RacePriority, type RaceType } from "@/lib/season-plan";
 import type { PlannedWeekRow } from "./types";
 
 const DAY = 86_400_000;
@@ -19,6 +20,8 @@ export interface BuildWeek {
   target: number | null;
   /** true when the target comes from the database (training_weeks) instead of the automatic plan */
   custom: boolean;
+  /** name of the season phase whose hours set the target (when no planner week does) */
+  phaseName?: string;
   title?: string;
   /** ELAPSED hours actually trained */
   actual: number;
@@ -105,6 +108,8 @@ export function buildPlan(
   planned: PlannedWeekRow[],
   /** Monday (or any day of the week) when the volume increase of this cycle began; overrides the automatic cycle length */
   cycleStartOverride?: string,
+  /** season phases (their hours come before the automatic targets) and the race's type and priority (taper rules) */
+  season: { phases?: PhaseEntry[]; type?: RaceType; priority?: RacePriority } = {},
 ): BuildPlan | null {
   const current = mondayOf(todayKey);
   const raceWeek = mondayOf(raceDate);
@@ -150,8 +155,12 @@ export function buildPlan(
     }
   }
 
-  const taperWeeks = Math.min(TAPER[distance].length, cycleWeeks - 1);
-  const taperFactors = TAPER[distance].slice(TAPER[distance].length - taperWeeks);
+  // taper: by priority when the race has one (A full, B mini, C none), otherwise by distance
+  const rule = season.priority ? taperRule(season.type ?? (distance === "half" ? "70.3" : distance === "full" ? "ironman" : "olympic"), season.priority) : null;
+  const taperSet = rule ? rule.before : TAPER[distance];
+  const taperWeeks = Math.min(taperSet.length, cycleWeeks - 1);
+  const taperFactors = taperSet.slice(taperSet.length - taperWeeks);
+  const raceWeekFactor = rule ? rule.raceWeek : RACE_WEEK;
   const loadWeeks = cycleWeeks - 1 - taperWeeks;
 
   const isDeload = (i: number) => (i + 1) % 4 === 0 && i !== loadWeeks - 1 && loadWeeks > 3;
@@ -177,10 +186,14 @@ export function buildPlan(
     const own = planByWeek.get(w.start);
     // weeks already finished before today show only what was done (no invented plan), unless you saved one
     const pastWeek = w.start < current;
+    // order: a complete planner week, then the season phase, then the automatic target
+    const phase = season.phases ? phaseOfWeek(season.phases, w.start) : null;
+    const auto = pastWeek ? null : phase ? phaseTarget(phase) : w.target;
     weeks.push({
       ...w,
-      target: own?.plannedHours ?? (pastWeek ? null : w.target),
+      target: own?.plannedHours ?? auto,
       custom: own?.plannedHours !== undefined,
+      phaseName: own?.plannedHours === undefined && phase && !pastWeek ? phase.name : undefined,
       title: own?.title,
       actual: hoursByWeek.get(w.start) ?? 0,
       state: stateOf(w.start),
@@ -206,7 +219,7 @@ export function buildPlan(
     } else if (i < loadWeeks + taperWeeks) {
       push({ start, phase: "taper", kind: "taper", target: peak * taperFactors[i - loadWeeks], inCycle: true });
     } else {
-      push({ start, phase: "race", kind: "race", target: peak * RACE_WEEK, inCycle: true });
+      push({ start, phase: "race", kind: "race", target: peak * raceWeekFactor, inCycle: true });
     }
   }
 

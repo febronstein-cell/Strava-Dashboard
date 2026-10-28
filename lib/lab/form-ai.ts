@@ -1,5 +1,7 @@
 import "server-only";
 import { upcoming } from "@/lib/races";
+import { readSeason } from "@/lib/season-data";
+import { seasonBrief } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 import { BILINGUAL_SCHEMA, hasAnthropic, writeJson } from "./ai";
 import { labelContext } from "./labeling";
@@ -22,7 +24,7 @@ const brtDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_P
 /** Today's fitness / fatigue / form numbers handed to the writer (the AI, or a person). */
 export async function formFacts() {
   const day = brtDay();
-  const { acts, profile } = await labelContext();
+  const [{ acts, profile }, season] = await Promise.all([labelContext(), readSeason()]);
   const series = loadSeries(acts, profile, day);
   const now = series[series.length - 1];
   if (!now) return null;
@@ -42,10 +44,10 @@ export async function formFacts() {
     weeklyLoadPoints: mono ? Math.round(mono.week) : null,
     last7DaysLoad: series.slice(-7).map((d) => ({ date: d.date, load: Math.round(d.tss) })),
     fitnessBySport: Object.fromEntries(Object.entries(sportFitness(acts, profile, day)).filter(([k]) => ["swim", "ride", "run"].includes(k)).map(([k, v]) => [k, Math.round(v)])),
-    nextRaces: upcoming(Date.now()).slice(0, 2).map((r) => ({ name: r.name, date: r.date, daysToGo: r.days })),
+    nextRaces: upcoming(Date.now(), season.races).slice(0, 3).map((r) => ({ name: r.name, date: r.date, priority: r.priority, daysToGo: r.days })),
   };
 
-  return { day, facts };
+  return { day, facts, season: seasonBrief(season, day) };
 }
 
 /** Writes (or rewrites) today's comment on fitness, fatigue and form and saves it in form_comments. */
@@ -53,7 +55,7 @@ export async function commentOnForm(opts: { force?: boolean } = {}): Promise<boo
   if (!hasAnthropic()) return false;
   const data = await formFacts();
   if (!data) return false;
-  const { day, facts } = data;
+  const { day, facts, season } = data;
 
   // several workouts in a row (a brick, a double day) must not each cost a new comment
   if (!opts.force) {
@@ -66,7 +68,7 @@ export async function commentOnForm(opts: { force?: boolean } = {}): Promise<boo
     model: FORM_MODEL,
     effort: "low",
     system: SYSTEM,
-    user: `Today's training-load data (JSON):\n${JSON.stringify(facts)}`,
+    user: `${season}\n\nToday's training-load data (JSON):\n${JSON.stringify(facts)}`,
     label: "form comment",
     schema: BILINGUAL_SCHEMA as unknown as Record<string, unknown>,
   });

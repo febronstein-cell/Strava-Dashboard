@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
+import { useSeason } from "@/lib/season-context";
+import { triFormat } from "@/lib/season-plan";
 import type { Profile } from "@/lib/lab/profile";
 import { detectRaceDays, FORMATS, groupRace, type RaceFormat, type RaceResult } from "@/lib/lab/race-group";
 import { shares, swimPaces } from "@/lib/lab/race-stats";
@@ -29,11 +31,13 @@ const PART_COLOR = { swim: "var(--swim)", t1: "var(--muted)", bike: "var(--ride)
 export function RacesTab({ activities, lab, profile, todayKey }: { activities: Activity[]; lab: LabData; profile: Profile; todayKey: string }) {
   const { t, fmt } = useI18n();
 
+  const season = useSeason();
   const entries = useMemo<Entry[]>(() => {
     const from = siteConfig.lab.racesFrom;
-    const out: Entry[] = siteConfig.upcomingRaces.filter((r) => r.date >= from).map((r) => {
+    const out: Entry[] = season.races.filter((r) => r.date >= from).map((r) => {
       const done = r.date <= todayKey;
-      return { date: r.date, name: r.name, format: r.format ?? null, location: r.location, done, result: done && r.format ? groupRace(activities, r.date, r.format) : null, auto: false };
+      const format = triFormat(r.type) ?? null;
+      return { date: r.date, name: r.name, format, location: r.location, done, result: done && format ? groupRace(activities, r.date, format) : null, auto: false };
     });
     const known = new Set(out.map((e) => e.date));
     for (const d of detectRaceDays(activities)) {
@@ -42,7 +46,7 @@ export function RacesTab({ activities, lab, profile, todayKey }: { activities: A
     }
     // finished races, newest first, then the ones still to come, soonest first
     return out.sort((a, b) => (a.done !== b.done ? (a.done ? -1 : 1) : a.done ? (a.date < b.date ? 1 : -1) : a.date < b.date ? -1 : 1));
-  }, [activities, todayKey]);
+  }, [activities, todayKey, season.races]);
 
   const firstDone = entries.find((e) => e.done && e.result)?.date ?? entries[0]?.date;
   const [pick, setPick] = useState<string | null>(null);

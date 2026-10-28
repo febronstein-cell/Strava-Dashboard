@@ -3,6 +3,7 @@
 import type { DashboardContext } from "@/lib/dashboard";
 import { useI18n } from "@/lib/i18n";
 import { upcoming } from "@/lib/races";
+import { useSeason } from "@/lib/season-context";
 import { useNow } from "@/lib/use-now";
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
@@ -13,7 +14,8 @@ const DAY = 86_400_000;
 export function Races({ ctx }: { ctx: DashboardContext }) {
   const { t, fmt } = useI18n();
   const now = useNow(ctx.today.getTime(), 3_600_000);
-  const [next, ...others] = upcoming(now);
+  const { races } = useSeason();
+  const [next, ...others] = upcoming(now, races);
   if (!next) return null;
   const when = (iso: string) => fmt.dateLabel(`${iso}T00:00:00`, { day: "2-digit", month: "long", year: "numeric" });
 

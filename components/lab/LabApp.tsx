@@ -9,6 +9,8 @@ import { isComplete, totals } from "@/lib/lab/plan";
 import { buildProfile } from "@/lib/lab/profile";
 import type { LabData, PlanDay, PlannedWeekRow } from "@/lib/lab/types";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
+import { SeasonProvider } from "@/lib/season-context";
+import type { SeasonData } from "@/lib/season-plan";
 import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
@@ -18,15 +20,17 @@ import { WorkoutTab } from "./WorkoutTab";
 import { PlanTab } from "./PlanTab";
 import { ProgressionTab } from "./ProgressionTab";
 import { RacesTab } from "./RacesTab";
+import { SeasonTab } from "./SeasonTab";
 
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
-type TabId = "machine" | "load" | "progression" | "builds" | "races" | "workouts" | "plan";
+type TabId = "machine" | "load" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
 const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
 const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
   { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
+  { id: "season", label: "Season", blurb: "The whole season: phases, races by priority and the weekly hours, planned against done." },
   { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race and the form you should arrive with." },
   { id: "races", label: "Races", blurb: "Every triathlon you raced, grouped from your activities into one result with splits, transitions and an analysis." },
   { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
@@ -39,10 +43,12 @@ interface LivePlan {
   description?: { en: string; pt: string; hash?: string };
 }
 
-export function LabApp(props: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
+export function LabApp({ season, ...props }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string>; season: SeasonData }) {
   return (
     <LanguageProvider>
-      <LabInner {...props} />
+      <SeasonProvider season={season}>
+        <LabInner {...props} />
+      </SeasonProvider>
     </LanguageProvider>
   );
 }
@@ -163,6 +169,7 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
         {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
         {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}
+        {tab === "season" && <SeasonTab activities={activities} lab={labLive} todayKey={todayKey} />}
         {tab === "builds" && <BuildsTab activities={activities} lab={labLive} todayKey={todayKey} series={series} />}
         {tab === "races" && <RacesTab activities={activities} lab={lab} profile={profile} todayKey={todayKey} />}
         {tab === "plan" && <PlanTab activities={activities} lab={labLive} todayKey={todayKey} onPlan={onPlan} />}

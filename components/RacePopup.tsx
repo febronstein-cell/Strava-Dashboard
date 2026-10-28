@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { siteConfig } from "@/site.config";
 import { useI18n } from "@/lib/i18n";
 import { upcoming } from "@/lib/races";
+import { useSeason } from "@/lib/season-context";
 import { useNow } from "@/lib/use-now";
 
 const SEEN_KEY = "race-popup-seen";
@@ -12,7 +13,8 @@ const SEEN_KEY = "race-popup-seen";
 export function RacePopup({ serverNow }: { serverNow: number }) {
   const { t, fmt } = useI18n();
   const now = useNow(serverNow, 3_600_000);
-  const next = upcoming(now)[0];
+  const { races } = useSeason();
+  const next = upcoming(now, races)[0];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDialogElement>(null);
 

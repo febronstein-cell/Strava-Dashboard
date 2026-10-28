@@ -5,6 +5,8 @@ import { siteConfig, type SectionId } from "@/site.config";
 import { buildContext } from "@/lib/dashboard";
 import { LanguageProvider } from "@/lib/i18n";
 import { upcoming } from "@/lib/races";
+import { SeasonProvider } from "@/lib/season-context";
+import type { SeasonData } from "@/lib/season-plan";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { ActivityDialogProvider } from "./ActivityDialog";
@@ -21,20 +23,34 @@ import { sectionRegistry } from "./sections/registry";
  * Page shell (client): keeps the chosen period, computes the numbers from the history
  * and draws the sections in the order set in `site.config.ts`.
  */
-export function Dashboard(props: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string> }) {
+export function Dashboard({ season, ...props }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string>; season: SeasonData }) {
   return (
     <LanguageProvider>
-      <DashboardInner {...props} />
+      <SeasonProvider season={season}>
+        <DashboardInner {...props} races={season} />
+      </SeasonProvider>
     </LanguageProvider>
   );
 }
 
-function DashboardInner({ overview, activities, labels, titles }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string> }) {
+function DashboardInner({
+  overview,
+  activities,
+  labels,
+  titles,
+  races,
+}: {
+  overview: StravaOverview;
+  activities: Activity[];
+  labels: Record<number, string>;
+  titles: Record<number, string>;
+  races: SeasonData;
+}) {
   const [period, setPeriod] = useState<Period>(overview.currentYear);
   const ctx = useMemo(() => buildContext(overview, activities, period, labels, titles), [overview, activities, period, labels, titles]);
 
   const serverNow = ctx.today.getTime();
-  const hasRaces = upcoming(serverNow).length > 0;
+  const hasRaces = upcoming(serverNow, races.races).length > 0;
   const enabled: SectionId[] = siteConfig.sections
     .filter((s) => s.enabled)
     .map((s) => s.id)

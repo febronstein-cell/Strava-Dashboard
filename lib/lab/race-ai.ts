@@ -1,5 +1,7 @@
 import "server-only";
 import { siteConfig } from "@/site.config";
+import { readSeason } from "@/lib/season-data";
+import { triFormat } from "@/lib/season-plan";
 import { stravaGet } from "@/lib/strava/client";
 import { getSupabase } from "@/lib/supabase";
 import { BILINGUAL_SCHEMA, hasAnthropic, writeJson } from "./ai";
@@ -41,7 +43,8 @@ export async function analyzeRace(date: string, opts: { force?: boolean } = {}):
   const { acts, profile } = await labelContext();
   // a configured goal race of that day, or a triathlon the history itself reveals
   if (date < siteConfig.lab.racesFrom) return "no race";
-  const configured = siteConfig.upcomingRaces.find((r) => r.date === date && r.format);
+  const season = await readSeason();
+  const configured = season.races.map((r) => ({ ...r, format: triFormat(r.type) })).find((r) => r.date === date && r.format);
   const auto = configured ? null : detectRaceDays(acts).find((d) => d.date === date);
   if (!configured && !auto) return "no race";
   const format = (configured?.format ?? auto!.format) as RaceFormat;

@@ -1,3 +1,4 @@
+import { phaseOfWeek, phaseTarget, taperRule, type PhaseEntry, type RaceType } from "@/lib/season-plan";
 import { mondayOf } from "./progress";
 import type { RaceFormat } from "./race-group";
 
@@ -24,6 +25,9 @@ export interface SeasonRace {
   priority: "A" | "B" | "C";
   /** optional hand-fixed start of the cycle (a Monday, or any day of that week) */
   cycleStart?: string;
+  /** kind of race, including run and other races (defaults to the format) */
+  type?: RaceType;
+  goal?: string;
 }
 
 export interface SeasonWeek {
@@ -41,6 +45,12 @@ export interface SeasonWeek {
   raceWeek: boolean;
   /** race-specific things the week should contain, in English (translated by the page) */
   focus: string[];
+  /** the season phase that covers most of the week (its hours replace the automatic target) */
+  seasonPhase: PhaseEntry | null;
+  /** target hours as a range when a phase gives one */
+  targetRange: [number, number] | null;
+  /** the next A race on or after this week: what the week ultimately builds towards */
+  aRace: SeasonRace | null;
 }
 
 /** Length of a full cycle (weeks, including the race week), taper weeks and recovery weeks after the race. */
@@ -51,9 +61,6 @@ const SHAPE: Record<RaceFormat | "other", { cycle: number; taper: number; recove
   ironman: { cycle: 16, taper: 3, recovery: 3 },
   other: { cycle: 8, taper: 1, recovery: 1 },
 };
-/** Share of the peak week for the weeks before the race week, in order, and for the race week. */
-const TAPER_FACTOR: Record<number, number[]> = { 1: [0.7], 2: [0.75, 0.55], 3: [0.8, 0.6, 0.45] };
-const RACE_WEEK_FACTOR = 0.4;
 
 export function defaultPriority(format?: RaceFormat): "A" | "B" {
   return format === "70.3" || format === "ironman" ? "A" : "B";
@@ -87,7 +94,7 @@ function focusFor(phase: SeasonPhase, kind: SeasonKind, format?: RaceFormat): st
  * Builds the season from `todayKey` to `horizon` weeks ahead.
  * `recentHours` is the average of the last finished weeks (the starting level of the progression).
  */
-export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: number, horizon = 52): SeasonWeek[] {
+export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: number, horizon = 52, phases: PhaseEntry[] = []): SeasonWeek[] {
   const current = mondayOf(todayKey);
   const last = addDays(current, 7 * (horizon - 1));
   const upcoming = races
@@ -103,6 +110,9 @@ export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: 
     cycle: null,
     raceWeek: false,
     focus: [],
+    seasonPhase: null,
+    targetRange: null,
+    aRace: null,
   }));
   const idx = (date: string) => weeksBetween(current, mondayOf(date));
 
@@ -116,7 +126,9 @@ export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: 
     let start = race.cycleStart ? Math.max(0, idx(race.cycleStart)) : ri - (fullLen - 1);
     start = Math.max(start, claimed + 1, 0);
     const length = ri - start + 1;
-    const taper = Math.min(shape.taper, Math.max(0, length - 1));
+    // taper by priority: A full, B a mini taper inside the race week, C none
+    const rule = taperRule(race.type ?? race.format ?? "other", race.priority);
+    const taper = Math.min(rule.before.length, Math.max(0, length - 1));
     const loadWeeks = Math.max(0, length - 1 - taper);
 
     // progression of this cycle: it starts from the level reached so far and rises towards a peak
@@ -145,12 +157,12 @@ export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: 
       } else if (i < loadWeeks + taper) {
         w.phase = "taper";
         w.kind = "taper";
-        w.target = peak * (TAPER_FACTOR[taper]?.[i - loadWeeks] ?? 0.6);
+        w.target = peak * (rule.before[i - loadWeeks] ?? 0.7);
       } else {
         w.phase = "race";
         w.kind = "race";
         w.raceWeek = true;
-        w.target = peak * RACE_WEEK_FACTOR;
+        w.target = (race.priority === "A" ? peak : lastLoad) * rule.raceWeek;
       }
     }
 
@@ -189,6 +201,21 @@ export function buildSeason(races: SeasonRace[], todayKey: string, recentHours: 
     // the base block belongs to the next race, when there is one, so the week can say what it builds towards
     const next = upcoming.find((r) => mondayOf(r.date) > w.start);
     if (next) w.race = next;
+  }
+
+  // ---- the season phases set by hand come first: their hours replace the automatic target
+  for (const w of weeks) {
+    const p = phaseOfWeek(phases, w.start);
+    w.aRace = upcoming.find((r) => r.priority === "A" && mondayOf(r.date) >= w.start) ?? null;
+    if (!p) continue;
+    w.seasonPhase = p;
+    w.targetRange = [p.hoursMin, p.hoursMax];
+    w.target = phaseTarget(p);
+    if (!w.raceWeek && p.focus === "taper") w.phase = "taper";
+    if (!w.raceWeek && p.focus === "recovery") {
+      w.phase = "recovery";
+      w.kind = "recovery";
+    }
   }
 
   for (const w of weeks) w.focus = focusFor(w.phase, w.kind, w.race?.format);

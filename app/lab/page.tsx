@@ -3,6 +3,7 @@ import { siteConfig } from "@/site.config";
 import { LabApp } from "@/components/lab/LabApp";
 import { getLabData } from "@/lib/lab/get-lab";
 import { getLabels } from "@/lib/lab/labeling";
+import { getSeason } from "@/lib/season-data";
 import { getAllData } from "@/lib/strava/get-data";
 
 export const maxDuration = 60;
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LabPage() {
-  const [{ overview, years }, lab, labels] = await Promise.all([getAllData(), getLabData(), getLabels()]);
+  const [{ overview, years }, lab, labels, season] = await Promise.all([getAllData(), getLabData(), getLabels(), getSeason()]);
   const activities = years.flatMap((y) => y.activities).sort((a, b) => (a.date < b.date ? 1 : -1));
-  return <LabApp overview={overview} activities={activities} lab={lab} labels={labels} />;
+  return <LabApp overview={overview} activities={activities} lab={lab} labels={labels} season={season} />;
 }
