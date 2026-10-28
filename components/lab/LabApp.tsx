@@ -14,6 +14,7 @@ import type { SeasonData } from "@/lib/season-plan";
 import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
+import { CheckinTab } from "./CheckinTab";
 import { LoadTab } from "./LoadTab";
 import { MachineTab } from "./MachineTab";
 import { WorkoutTab } from "./WorkoutTab";
@@ -23,10 +24,11 @@ import { RacesTab } from "./RacesTab";
 import { SeasonTab } from "./SeasonTab";
 
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
-type TabId = "machine" | "load" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
+type TabId = "checkin" | "machine" | "load" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
 const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
 const TABS: { id: TabId; label: string; blurb: string }[] = [
+  { id: "checkin", label: "Check-in", blurb: "Twenty seconds each morning: how you slept and feel, plus what the watch measured, turned into a green, yellow or red signal." },
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
   { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
@@ -165,6 +167,7 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
           <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
         </header>
 
+        {tab === "checkin" && <CheckinTab />}
         {tab === "machine" && <MachineTab profile={profile} lab={lab} />}
         {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}

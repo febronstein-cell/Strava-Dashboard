@@ -16,6 +16,7 @@ import { RacePopup } from "./RacePopup";
 import { ScrollEffects } from "./ScrollEffects";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
+import { TodayCard } from "./TodayCard";
 import { Splash } from "./Splash";
 import { sectionRegistry } from "./sections/registry";
 
@@ -63,6 +64,9 @@ function DashboardInner({
       <div id="topo" />
       <SiteHeader ctx={ctx} period={period} onPeriod={setPeriod} sections={enabled} />
       <main className="flex-1">
+        <div className="mx-auto w-full max-w-6xl px-5 pt-6 empty:hidden sm:px-8">
+          <TodayCard />
+        </div>
         {enabled.map((id) => (
           <Fragment key={id}>{sectionRegistry[id](ctx)}</Fragment>
         ))}

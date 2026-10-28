@@ -59,6 +59,8 @@ export interface PlanSlot {
   minutes: number | null;
   /** distance in km (run, bike and swim only) */
   km: number | null;
+  /** the key session of the day or week */
+  key?: boolean;
 }
 
 /** One day of a planned week: five slots (run, bike, swim, strength, extra) or a rest day. */

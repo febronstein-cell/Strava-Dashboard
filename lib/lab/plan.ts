@@ -31,6 +31,12 @@ export const fmtMinutes = (min: number | null): string => (min == null ? "" : `$
 
 /** A slot counts when it has a description, a time or a distance. */
 export const slotFilled = (s: PlanSlot): boolean => s.description.trim().length > 0 || (s.minutes ?? 0) > 0 || (s.km ?? 0) > 0;
+/** The key session among a day's sessions: the one flagged as key, otherwise the longest. */
+export function keySession(slots: PlanSlot[]): PlanSlot | null {
+  const used = slots.filter(slotFilled);
+  return used.find((s) => s.key) ?? [...used].sort((a, b) => (b.minutes ?? 0) - (a.minutes ?? 0))[0] ?? null;
+}
+
 /** A day is filled in when it is marked as a rest day or at least one slot is used. */
 export const dayFilled = (d: PlanDay): boolean => Boolean(d.rest) || d.slots.some(slotFilled);
 

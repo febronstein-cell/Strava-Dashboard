@@ -8,6 +8,7 @@ import type { FormComment } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
 import { Hint, Panel, Pills, Stat } from "./LabBits";
 import { LoadChart } from "./LoadChart";
+import { TodayCard } from "../TodayCard";
 
 const STATE_TEXT: Record<FormState, { label: string; text: string; color: string }> = {
   transition: { label: "Very fresh", text: "Much more rested than loaded: good for a break, but fitness fades if it lasts.", color: "#b06bff" },
@@ -72,6 +73,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
 
   return (
     <div className="lab-enter space-y-6">
+      <TodayCard />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t("Fitness")} value={fmt.int(now.ctl)} count={{ value: now.ctl }} sub={t("42-day average load")} accent="var(--brand)" />
         <Stat label={t("Fatigue")} value={fmt.int(now.atl)} count={{ value: now.atl }} sub={t("7-day average load")} accent="var(--goal)" />
