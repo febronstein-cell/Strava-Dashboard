@@ -5,6 +5,7 @@ import { labelAndStore, labelContext } from "@/lib/lab/labeling";
 import { analyzeRace } from "@/lib/lab/race-ai";
 import { dbBackfilled } from "@/lib/strava/db";
 import { syncRecent } from "@/lib/strava/sync";
+import { backfillStreams } from "@/lib/streams-cache";
 import { getSupabase } from "@/lib/supabase";
 
 export const maxDuration = 60;
@@ -65,6 +66,9 @@ export async function GET(request: NextRequest) {
     });
     await step("form comment", () => commentOnForm());
   }
+
+  // streams of the last 12 months, newest first, a small batch a day (far below Strava's rate limits)
+  await step("streams backfill", () => backfillStreams(ctx.acts, 20));
 
   return Response.json(log);
 }

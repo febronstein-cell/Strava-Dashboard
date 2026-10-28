@@ -12,10 +12,12 @@ import type { LabData, PlanDay, PlannedWeekRow } from "@/lib/lab/types";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { SeasonProvider } from "@/lib/season-context";
 import type { SeasonData } from "@/lib/season-plan";
+import type { ActivityZones, ZoneMeta } from "@/lib/zones-data";
 import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
 import { CheckinTab } from "./CheckinTab";
+import { IntensityPanel } from "./IntensityPanel";
 import { LoadTab } from "./LoadTab";
 import { MachineTab } from "./MachineTab";
 import { WorkoutTab } from "./WorkoutTab";
@@ -47,7 +49,17 @@ interface LivePlan {
   description?: { en: string; pt: string; hash?: string };
 }
 
-export function LabApp({ season, ...props }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string>; season: SeasonData }) {
+export function LabApp({
+  season,
+  ...props
+}: {
+  overview: StravaOverview;
+  activities: Activity[];
+  lab: LabData;
+  labels: Record<number, string>;
+  season: SeasonData;
+  zones: { byId: Record<number, ActivityZones>; meta: ZoneMeta };
+}) {
   return (
     <LanguageProvider>
       <SeasonProvider season={season}>
@@ -57,7 +69,19 @@ export function LabApp({ season, ...props }: { overview: StravaOverview; activit
   );
 }
 
-function LabInner({ overview, activities: strava, lab, labels }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
+function LabInner({
+  overview,
+  activities: strava,
+  lab,
+  labels,
+  zones,
+}: {
+  overview: StravaOverview;
+  activities: Activity[];
+  lab: LabData;
+  labels: Record<number, string>;
+  zones: { byId: Record<number, ActivityZones>; meta: ZoneMeta };
+}) {
   // session RPE attached and the manual sessions added: the load, the check-in and the planner all see them
   const activities = useMemo(() => withRpe(strava, lab.rpe ?? {}, lab.manual ?? []), [strava, lab.rpe, lab.manual]);
   const { t, lang, setLang } = useI18n();
@@ -180,9 +204,16 @@ function LabInner({ overview, activities: strava, lab, labels }: { overview: Str
             </div>
           </>
         )}
-        {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
+        {tab === "load" && (
+          <>
+            <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />
+            <div className="mt-6">
+              <IntensityPanel activities={activities} zones={zones} todayKey={todayKey} />
+            </div>
+          </>
+        )}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
-        {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}
+        {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} zones={zones.byId} />}
         {tab === "season" && <SeasonTab activities={activities} lab={labLive} todayKey={todayKey} />}
         {tab === "builds" && <BuildsTab activities={activities} lab={labLive} todayKey={todayKey} series={series} />}
         {tab === "races" && <RacesTab activities={activities} lab={lab} profile={profile} todayKey={todayKey} />}

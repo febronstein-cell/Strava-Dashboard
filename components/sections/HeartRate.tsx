@@ -15,6 +15,7 @@ import { ScatterChart, type ScatterPoint } from "@/components/charts/ScatterChar
 import { Reveal } from "@/components/Reveal";
 import { SectionShell } from "@/components/SectionShell";
 import { dropSmall, SmallToggle } from "@/components/SmallToggle";
+import { useHrZones } from "@/lib/hr-zones-context";
 
 type Tab = "run" | "ride" | "all";
 
@@ -43,28 +44,48 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
   const list = useMemo(() => withHr(scope), [scope]);
   const byId = useMemo(() => new Map(list.map((a) => [a.id, a])), [list]);
 
+  const hrz = useHrZones();
   const stats = useMemo(() => {
     const secs = list.reduce((s, a) => s + a.movingTime, 0);
     const avg = secs ? list.reduce((s, a) => s + a.hr * a.movingTime, 0) / secs : 0;
     const max = Math.max(0, ...list.map((a) => a.hrMax ?? a.hr));
-    // time spent in each zone (moving seconds) and number of activities
+    // TRUE time in each zone from the second-by-second data; activities not read yet count by their average HR
     const zoneSecs = zones.map(() => 0);
     const zoneCount = zones.map(() => 0);
+    let streamed = 0;
     for (const a of list) {
-      const z = zoneIndex(a.hr);
-      zoneSecs[z] += a.movingTime;
-      zoneCount[z]++;
+      const d = hrz[a.id];
+      if (d) {
+        d.z.forEach((s, i) => (zoneSecs[i] += s));
+        streamed++;
+      } else zoneSecs[zoneIndex(a.hr)] += a.movingTime;
+      zoneCount[zoneIndex(a.hr)]++;
     }
+    const total = zoneSecs.reduce((s, x) => s + x, 0);
     const top = zoneSecs.indexOf(Math.max(...zoneSecs));
-    return { avg, max, zoneSecs, zoneCount, top, total: secs, coverage: scope.length ? list.length / scope.length : 0 };
-  }, [list, scope.length]);
+    return { avg, max, zoneSecs, zoneCount, top, total, streamed, coverage: scope.length ? list.length / scope.length : 0 };
+  }, [list, scope.length, hrz]);
 
   // histogram in 5 bpm bands: TIME SPENT (hours of moving time), stacked by zone
   const histogram = useMemo<BarItem[]>(() => {
     const bin = siteConfig.heartRate.bin;
-    return hrTimeHistogram(list, bin).map((b) => {
+    // seconds in each band: from the streams when there are, else the whole session in the band of its average
+    const band = new Map<number, number>();
+    for (const a of list) {
+      const d = hrz[a.id];
+      if (d && bin === 5) d.b.slice(1).forEach((s, i) => band.set(d.b[0] + i * 5, (band.get(d.b[0] + i * 5) ?? 0) + s));
+      else {
+        const k = Math.floor(a.hr / bin) * bin;
+        band.set(k, (band.get(k) ?? 0) + a.movingTime);
+      }
+    }
+    if (!band.size) return hrTimeHistogram(list, bin).map((b) => ({ key: String(b.from), label: "", axis: String(b.from), segments: [] }));
+    const keys = [...band.keys()].sort((x, y) => x - y);
+    const bands = [];
+    for (let k = keys[0]; k <= keys[keys.length - 1]; k += bin) bands.push({ from: k });
+    return bands.map((b) => {
       const perZone = zones.map(() => 0);
-      for (const a of list) if (a.hr >= b.from && a.hr < b.from + bin) perZone[zoneIndex(a.hr)] += a.movingTime / 3600;
+      perZone[zoneIndex(b.from + (bin - 1) / 2)] += (band.get(b.from) ?? 0) / 3600;
       return {
         key: String(b.from),
         label: `${b.from}–${b.from + bin - 1} bpm`,
@@ -72,7 +93,7 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
         segments: zones.map((z, i) => ({ name: z.name, value: perZone[i], color: z.color })),
       };
     });
-  }, [list]);
+  }, [list, hrz]);
 
   // "hide small values": drops the bands with almost no time (under 3% of the total)
   const bars = useMemo(
@@ -207,7 +228,11 @@ export function HeartRate({ ctx }: { ctx: DashboardContext }) {
               <ChartCard
                 title={t("Time spent in heart rate zones")}
                 controls={<SmallToggle on={smallZones} onChange={setSmallZones} share={0.03} />}
-                subtitle={t("Moving time of each activity, grouped by its average HR in 5 bpm bands")}
+                subtitle={
+                  stats.streamed === list.length
+                    ? t("Time at each heart rate, second by second, in 5 bpm bands")
+                    : t("Time at each heart rate, second by second, in 5 bpm bands ({a} of {b} activities); the rest by their average HR", { a: stats.streamed, b: list.length })
+                }
                 hint={periodLabel}
                 insight={t("most time: {zone}", { zone: t(zones[stats.top].name) })}
               >

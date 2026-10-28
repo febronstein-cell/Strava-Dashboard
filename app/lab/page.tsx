@@ -4,6 +4,8 @@ import { LabApp } from "@/components/lab/LabApp";
 import { getLabData } from "@/lib/lab/get-lab";
 import { getLabels } from "@/lib/lab/labeling";
 import { getSeason } from "@/lib/season-data";
+import { buildProfile } from "@/lib/lab/profile";
+import { getStreams, labZones } from "@/lib/zones-data";
 import { getAllData } from "@/lib/strava/get-data";
 
 export const maxDuration = 60;
@@ -18,7 +20,9 @@ export const metadata: Metadata = {
 };
 
 export default async function LabPage() {
-  const [{ overview, years }, lab, labels, season] = await Promise.all([getAllData(), getLabData(), getLabels(), getSeason()]);
+  const [{ overview, years }, lab, labels, season, streams] = await Promise.all([getAllData(), getLabData(), getLabels(), getSeason(), getStreams()]);
   const activities = years.flatMap((y) => y.activities).sort((a, b) => (a.date < b.date ? 1 : -1));
-  return <LabApp overview={overview} activities={activities} lab={lab} labels={labels} season={season} />;
+  // time in zone with the current thresholds (computed here, so the page only gets a few numbers per activity)
+  const zones = labZones(streams, buildProfile(lab.thresholds, activities, lab.power));
+  return <LabApp overview={overview} activities={activities} lab={lab} labels={labels} season={season} zones={zones} />;
 }

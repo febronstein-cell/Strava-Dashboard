@@ -131,7 +131,19 @@ export type Target = PlanTarget;
 export type Structure = PlanStructure;
 
 /** Share of moving time above an HR cap: from 1-second samples when available, otherwise from lap averages. Pass under 10%. */
-export function hrCapCompliance(cap: number, src: { samples?: { hr: number; dt: number }[]; laps?: Lap[] }): { pctAbove: number; pass: boolean; from: "streams" | "laps" } | null {
+export function hrCapCompliance(
+  cap: number,
+  src: { samples?: { hr: number; dt: number }[]; hist?: Record<string, number>; laps?: Lap[] },
+): { pctAbove: number; pass: boolean; from: "streams" | "laps" } | null {
+  if (src.hist && Object.keys(src.hist).length) {
+    let total = 0;
+    let above = 0;
+    for (const [k, s] of Object.entries(src.hist)) {
+      total += s;
+      if (Number(k) > cap) above += s;
+    }
+    if (total) return { pctAbove: (above / total) * 100, pass: (above / total) * 100 < 10, from: "streams" };
+  }
   if (src.samples?.length) {
     const total = src.samples.reduce((s, x) => s + x.dt, 0);
     if (!total) return null;

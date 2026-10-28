@@ -28,8 +28,8 @@ interface Actuals {
   overrides: Record<number, Override>;
   laps: Record<number, Lap[]>;
   pending: number[];
-  /** HR samples per activity for the HR-cap check, when the streams were fetched (feature 4) */
-  hrSamples?: Record<number, { hr: number; dt: number }[]>;
+  /** seconds at each bpm per activity, for the HR-cap check (from the streams) */
+  hrHist?: Record<number, Record<string, number>>;
 }
 
 /**
@@ -147,7 +147,7 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
   const kind = target?.type === "power-range" ? "power" : "pace";
   const reps = a && laps && (target?.type === "pace-range" || target?.type === "power-range" || target?.type === "hr-range") ? workReps(laps, e.entry.structure, kind) : null;
   const range = reps && target ? rangeCompliance(reps, target) : null;
-  const cap = a && target?.type === "hr-cap" && (target.max ?? target.min) ? hrCapCompliance((target.max ?? target.min)!, { samples: actuals?.hrSamples?.[a.id], laps }) : null;
+  const cap = a && target?.type === "hr-cap" && (target.max ?? target.min) ? hrCapCompliance((target.max ?? target.min)!, { hist: actuals?.hrHist?.[a.id], laps }) : null;
   const fmtValue = (v: number | null) => (v == null ? "—" : target?.type === "pace-range" ? `${clock(v)} /km` : target?.type === "power-range" ? `${Math.round(v)} W` : `${Math.round(v)} bpm`);
 
   return (

@@ -6,6 +6,7 @@ import { buildContext } from "@/lib/dashboard";
 import { LanguageProvider } from "@/lib/i18n";
 import { upcoming } from "@/lib/races";
 import { SeasonProvider } from "@/lib/season-context";
+import { HrZonesProvider, type HrZoneMap } from "@/lib/hr-zones-context";
 import type { SeasonData } from "@/lib/season-plan";
 import type { Period } from "@/lib/stats";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
@@ -24,11 +25,24 @@ import { sectionRegistry } from "./sections/registry";
  * Page shell (client): keeps the chosen period, computes the numbers from the history
  * and draws the sections in the order set in `site.config.ts`.
  */
-export function Dashboard({ season, ...props }: { overview: StravaOverview; activities: Activity[]; labels: Record<number, string>; titles: Record<number, string>; season: SeasonData }) {
+export function Dashboard({
+  season,
+  hrZones,
+  ...props
+}: {
+  overview: StravaOverview;
+  activities: Activity[];
+  labels: Record<number, string>;
+  titles: Record<number, string>;
+  season: SeasonData;
+  hrZones: HrZoneMap;
+}) {
   return (
     <LanguageProvider>
       <SeasonProvider season={season}>
-        <DashboardInner {...props} races={season} />
+        <HrZonesProvider value={hrZones}>
+          <DashboardInner {...props} races={season} />
+        </HrZonesProvider>
       </SeasonProvider>
     </LanguageProvider>
   );

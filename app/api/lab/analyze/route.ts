@@ -1,4 +1,7 @@
 import { type NextRequest } from "next/server";
+import { durabilityOf } from "@/lib/durability";
+import { stravaGet } from "@/lib/strava/client";
+import { summarizeStreams, type Streams } from "@/lib/zones";
 import { analyzeAndStore, hasAnthropic, workoutPayload } from "@/lib/lab/ai";
 import { commentOnForm, formFacts } from "@/lib/lab/form-ai";
 import { applyBrick, getLabels, labelAndStore, labelContext, previewLabel, publishToStrava } from "@/lib/lab/labeling";
@@ -40,6 +43,16 @@ export async function GET(request: NextRequest) {
   }
 
   // the written analysis of a configured race day: ?task=race&date=2026-10-18 (&force=1 to write it again)
+  if (task === "streams") {
+    // dry run: reads one activity's streams and returns the summary (time-in-zone histograms, durability), nothing saved
+    const id = Number(q.get("id"));
+    const { acts } = await labelContext();
+    const a = acts.find((x) => x.id === id) ?? acts.find((x) => x.sport === (q.get("sport") ?? "run") && x.movingTime >= 2700);
+    if (!a) return Response.json({ error: "no such activity" });
+    const raw = await stravaGet<Record<string, { data: unknown[] }>>(`/activities/${a.id}/streams?keys=time,heartrate,watts,velocity_smooth,moving,distance&key_by_type=true`);
+    const streams = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v?.data])) as Streams;
+    return Response.json({ id: a.id, name: a.name, sport: a.sport, date: a.date, summary: summarizeStreams(streams, a.sport), durability: durabilityOf(streams, a) });
+  }
   if (task === "race") {
     const date = q.get("date") ?? "";
     return Response.json({ date, result: await analyzeRace(date, { force: q.get("force") === "1" }) });

@@ -10,6 +10,8 @@ import type { Activity } from "@/lib/strava/types";
 import { usePlanSession } from "@/lib/use-plan-session";
 import { Hint, Panel, Pills } from "./LabBits";
 import { RpePicker } from "./RpePicker";
+import { ZoneBars } from "./ZoneBar";
+import type { ActivityZones } from "@/lib/zones-data";
 import { METHOD_LABEL } from "./SessionsRpe";
 
 const TONE_COLOR = { good: "var(--brand)", warn: "var(--goal)", info: "var(--muted)" } as const;
@@ -22,7 +24,19 @@ const LEVEL_COLOR: Record<WorkoutFacts["intensity"], string> = {
   "very hard": "var(--goal)",
 };
 
-export function WorkoutTab({ activities, profile, lab, labels }: { activities: Activity[]; profile: Profile; lab: LabData; labels: Record<number, string> }) {
+export function WorkoutTab({
+  activities,
+  profile,
+  lab,
+  labels,
+  zones,
+}: {
+  activities: Activity[];
+  profile: Profile;
+  lab: LabData;
+  labels: Record<number, string>;
+  zones: Record<number, ActivityZones>;
+}) {
   const { t, fmt, lang } = useI18n();
   const session = usePlanSession();
   const [sport, setSport] = useState<SportKey | "all">("all");
@@ -108,6 +122,10 @@ export function WorkoutTab({ activities, profile, lab, labels }: { activities: A
                 {selected.elevation > 0 ? <Metric label={t("Climb")} value={`${fmt.int(selected.elevation)} m`} /> : null}
                 {facts.ef ? <Metric label={t("Efficiency factor")} value={fmt.num(facts.ef, 2)} sub={t("power per heartbeat")} /> : null}
               </dl>
+            </Panel>
+
+            <Panel title={t("Time in zone")} subtitle={t("From the second-by-second data (moving time only).")}>
+              <ZoneBars z={zones[selected.id]} />
             </Panel>
 
             {session.unlocked && (

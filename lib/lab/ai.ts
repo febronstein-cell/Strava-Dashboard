@@ -2,6 +2,8 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { dbYear } from "@/lib/strava/db";
 import { readSeason } from "@/lib/season-data";
+import { readStreams } from "@/lib/streams-cache";
+import { HR_MAXES, labZones } from "@/lib/zones-data";
 import { seasonBrief } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 import type { Activity } from "@/lib/strava/types";
@@ -106,7 +108,17 @@ export async function workoutPayload(id: number) {
     runThresholdPaceSecPerKm: profile.run_threshold_pace?.value ?? null,
     run3kPaceSecPerKm: profile.run_3k_pace?.value ?? null,
   };
-  return { facts, athlete, reading };
+  // true time in zone from the second-by-second data, when it was read
+  const stored = await readStreams([id]);
+  const z = stored[id] ? labZones(stored, profile).byId[id] : undefined;
+  const timeInZone = z && {
+    hrZonesSeconds: z.hr && Object.fromEntries(z.hr.map((s, i) => [`Z${i + 1} (up to ${HR_MAXES[i] === Infinity ? "max" : HR_MAXES[i]} bpm)`, s])),
+    threeZoneSeconds: z.three && { belowLT1: z.three[0], betweenLT1andLT2: z.three[1], atOrAboveLT2: z.three[2], basis: z.basis },
+    powerZonesSeconds: z.power,
+    paceZonesSeconds: z.pace,
+    durability: z.durability,
+  };
+  return { facts: timeInZone ? { ...facts, timeInZone } : facts, athlete, reading };
 }
 
 /**

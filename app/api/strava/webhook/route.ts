@@ -2,8 +2,9 @@ import { revalidateTag } from "next/cache";
 import { after, type NextRequest } from "next/server";
 import { dbBackfilled } from "@/lib/strava/db";
 import { analyzeAndStore, hasAnthropic } from "@/lib/lab/ai";
+import { fetchAndStore } from "@/lib/streams-cache";
 import { commentOnForm } from "@/lib/lab/form-ai";
-import { labelAndStore } from "@/lib/lab/labeling";
+import { labelAndStore, labelContext } from "@/lib/lab/labeling";
 import { analyzeRaceOfActivity } from "@/lib/lab/race-ai";
 import { getOverview } from "@/lib/strava/get-data";
 import { deleteOne, syncOne } from "@/lib/strava/sync";
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
           console.error(`Webhook: ${name} failed:`, e);
         }
       };
+      // streams once: time in zone and durability (they feed the written analysis below)
+      await step("streams", async () => {
+        const a = (await labelContext()).acts.find((x) => x.id === id);
+        if (a && a.movingTime >= 300) await fetchAndStore(a);
+      });
       // workout type name (and, if STRAVA_LABEL_WRITE is set, written back to Strava)
       await step("naming the workout", () => labelAndStore(id));
       if (hasAnthropic()) {
