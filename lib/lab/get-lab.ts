@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { records } from "@/lib/records";
 import { getSupabase, hasSupabase } from "@/lib/supabase";
+import { readRpeData } from "@/lib/rpe-data";
 import { isComplete, sanitizeDays, totals } from "./plan";
 import type { FormComment, LabData, PlanDay, PlannedWeekRow, RaceAnalysisStored, RaceRow, ThresholdKind, ThresholdRow, WorkoutAnalysisRow } from "./types";
 
@@ -21,7 +22,7 @@ export async function getLabData(): Promise<LabData> {
   cacheLife({ stale: 120, revalidate: 900, expire: 86400 });
   cacheTag("strava-live");
 
-  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile(), analyses: {}, formComments: [], raceAnalyses: {} };
+  const empty: LabData = { dbReady: false, thresholds: [], races: [], plannedWeeks: [], power: fromFile(), analyses: {}, formComments: [], raceAnalyses: {}, rpe: {}, manual: [] };
   if (!hasSupabase()) return empty;
 
   try {
@@ -114,7 +115,8 @@ export async function getLabData(): Promise<LabData> {
       }
     }
 
-    return { dbReady: true, thresholds, races, plannedWeeks, power, analyses, formComments, raceAnalyses };
+    const { rpe, manual } = await readRpeData();
+    return { dbReady: true, thresholds, races, plannedWeeks, power, analyses, formComments, raceAnalyses, rpe, manual };
   } catch (e) {
     console.error("Lab: could not read the database:", e);
     return empty;

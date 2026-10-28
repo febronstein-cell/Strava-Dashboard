@@ -53,7 +53,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
 
   // how each session's load was estimated (transparency)
   const methods = useMemo(() => {
-    const c: Record<LoadMethod, number> = { power: 0, pace: 0, hr: 0, duration: 0 };
+    const c: Record<LoadMethod, number> = { power: 0, pace: 0, hr: 0, rpe: 0, duration: 0 };
     for (const a of activities) c[activityLoad(a, profile).method]++;
     return c;
   }, [activities, profile]);
@@ -180,12 +180,13 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
       </Panel>
 
       <Panel title={t("How the load is calculated")} subtitle={t("The more sessions with a power meter, pace or heart rate, the more accurate the curve.")}>
-        <ul className="grid gap-3 sm:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {(
             [
               ["power", "Power (normalized power vs FTP)"],
               ["pace", "Pace vs threshold (blended with heart rate)"],
               ["hr", "Heart rate (between resting HR and LTHR)"],
+              ["rpe", "Session RPE (how hard it felt, 1 to 10)"],
               ["duration", "Duration only (a flat estimate per hour)"],
             ] as [LoadMethod, string][]
           ).map(([k, label]) => (

@@ -7,7 +7,10 @@ import type { Profile } from "@/lib/lab/profile";
 import type { LabData } from "@/lib/lab/types";
 import { workoutFacts, workoutFindings, type Finding, type WorkoutFacts } from "@/lib/lab/workout";
 import type { Activity } from "@/lib/strava/types";
+import { usePlanSession } from "@/lib/use-plan-session";
 import { Hint, Panel, Pills } from "./LabBits";
+import { RpePicker } from "./RpePicker";
+import { METHOD_LABEL } from "./SessionsRpe";
 
 const TONE_COLOR = { good: "var(--brand)", warn: "var(--goal)", info: "var(--muted)" } as const;
 const SPORT_LABEL: Record<SportKey, string> = { run: "Run", ride: "Bike", swim: "Swim", strength: "Strength", other: "Other" };
@@ -21,6 +24,7 @@ const LEVEL_COLOR: Record<WorkoutFacts["intensity"], string> = {
 
 export function WorkoutTab({ activities, profile, lab, labels }: { activities: Activity[]; profile: Profile; lab: LabData; labels: Record<number, string> }) {
   const { t, fmt, lang } = useI18n();
+  const session = usePlanSession();
   const [sport, setSport] = useState<SportKey | "all">("all");
   const [pick, setPick] = useState<number | null>(null);
   const detail = useRef<HTMLDivElement>(null);
@@ -95,12 +99,22 @@ export function WorkoutTab({ activities, profile, lab, labels }: { activities: A
                 />
                 <Metric label={t("Heart rate")} value={facts.hr ? `${Math.round(facts.hr)} bpm` : "—"} sub={facts.hrPctLthr ? t("{pct}% of LTHR", { pct: Math.round(facts.hrPctLthr) }) : undefined} />
                 <Metric label={t("Power")} value={facts.watts ? `${facts.watts} W` : "—"} sub={facts.np ? t("NP {w} W", { w: facts.np }) : undefined} />
-                <Metric label={t("Training load")} value={fmt.int(facts.load)} sub={facts.loadPercentile !== null ? t("heavier than {pct}% of recent sessions", { pct: Math.round(facts.loadPercentile * 100) }) : undefined} />
+                <Metric
+                  label={t("Training load")}
+                  value={fmt.int(facts.load)}
+                  sub={`${t(METHOD_LABEL[facts.loadMethod])}${facts.loadPercentile !== null ? ` · ${t("heavier than {pct}% of recent sessions", { pct: Math.round(facts.loadPercentile * 100) })}` : ""}`}
+                />
                 {facts.cadence ? <Metric label={t("Cadence")} value={`${Math.round(selected.sport === "run" ? facts.cadence * 2 : facts.cadence)} ${selected.sport === "run" ? "spm" : "rpm"}`} /> : null}
                 {selected.elevation > 0 ? <Metric label={t("Climb")} value={`${fmt.int(selected.elevation)} m`} /> : null}
                 {facts.ef ? <Metric label={t("Efficiency factor")} value={fmt.num(facts.ef, 2)} sub={t("power per heartbeat")} /> : null}
               </dl>
             </Panel>
+
+            {session.unlocked && (
+              <Panel title={t("How hard did it feel?")} subtitle={t("Session RPE, 1 = very easy, 10 = all out.")}>
+                <RpePicker key={selected.id} activityId={selected.id} value={selected.rpe} editable />
+              </Panel>
+            )}
 
             <Panel title={t("Reading")} subtitle={t("Rule-based reading from sports-science rules of thumb, using your thresholds and your last 120 days.")}>
               <ul className="space-y-3">

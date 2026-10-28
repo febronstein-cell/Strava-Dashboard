@@ -156,4 +156,8 @@ export interface LabData {
   formComments: FormComment[];
   /** written analyses of races, by race date */
   raceAnalyses: Record<string, RaceAnalysisStored>;
+  /** session RPE by activity id */
+  rpe: Record<number, number>;
+  /** sessions added by hand (negative ids) */
+  manual: import("@/lib/strava/types").Activity[];
 }

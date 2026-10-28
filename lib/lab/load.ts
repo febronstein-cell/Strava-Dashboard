@@ -11,10 +11,22 @@ import type { Profile } from "./profile";
  *    because water drag grows with the cube of speed); runs get a small credit for climbing;
  *  - heart rate (hrTSS): IF from the heart-rate reserve, with the threshold scaled per sport because
  *    the same effort gives a lower heart rate on the bike (~4%) and in the water (~10%) (Friel);
- *  - run/swim with both pace and heart rate use the average of the two, which cancels part of each error;
+ *  - runs with both pace and heart rate use the average of the two, which cancels part of each error; swims with a
+ *    distance use pace only (IF = CSS pace / average pace, IF³), because heart rate in the water reads low;
+ *  - session RPE (Foster): IF from the 1-10 rating, load = hours × IF² × 100 (elapsed time for manual sessions);
  *  - no data: a flat points-per-hour guess by sport.
+ * Order: power, then pace, then HR, then RPE, then flat duration.
  */
-export type LoadMethod = "power" | "pace" | "hr" | "duration";
+export type LoadMethod = "power" | "pace" | "hr" | "rpe" | "duration";
+
+/** Estimated intensity factor of each session RPE (1 to 10). */
+export const RPE_IF: Record<number, number> = { 1: 0.5, 2: 0.55, 3: 0.6, 4: 0.65, 5: 0.7, 6: 0.75, 7: 0.82, 8: 0.9, 9: 0.97, 10: 1.05 };
+
+/** Load from a session RPE alone (100 = one hour at threshold). */
+export function rpeLoad(hours: number, rpe: number): number {
+  const f = RPE_IF[Math.round(Math.min(10, Math.max(1, rpe)))];
+  return hours * f * f * 100;
+}
 
 const FLAT_PER_HOUR: Record<SportKey, number> = { run: 65, ride: 50, swim: 55, strength: 35, other: 35 };
 /** Threshold heart rate of each sport relative to the running LTHR. */
@@ -30,13 +42,15 @@ export function powerLooksValid(a: Activity): boolean {
   return !!a.np && !!a.deviceWatts && (!a.watts || a.np / a.watts <= 1.5);
 }
 
-export function activityLoad(a: Activity, p: Profile): { tss: number; method: LoadMethod } {
+export function activityLoad(a: Activity, p: Profile): { tss: number; method: LoadMethod; rpeTss?: number } {
   const hours = a.movingTime / 3600;
+  // the RPE load is always computed when there is a rating, so it can be shown next to the measured one
+  const rpeTss = a.rpe ? rpeLoad((a.manual ? a.elapsedTime : a.movingTime) / 3600, a.rpe) : undefined;
   const ftp = p.ftp?.value;
 
   if (a.sport === "ride" && a.np && ftp && powerLooksValid(a)) {
     const f = Math.min(1.5, a.np / ftp);
-    return { tss: hours * f * f * 100, method: "power" };
+    return { tss: hours * f * f * 100, method: "power", rpeTss };
   }
 
   let paceTss: number | null = null;
@@ -45,8 +59,9 @@ export function activityLoad(a: Activity, p: Profile): { tss: number; method: Lo
     const f = Math.min(1.3, flat / a.movingTime / (1000 / p.run_threshold_pace.value));
     paceTss = hours * f * f * 100;
   } else if (a.sport === "swim" && p.css && a.distance >= 200 && a.movingTime >= 300) {
+    // IF = CSS pace / average pace (the same as average speed / CSS speed), cubed
     const f = Math.min(1.3, a.distance / a.movingTime / (100 / p.css.value));
-    paceTss = hours * f * f * f * 100;
+    return { tss: hours * f * f * f * 100, method: "pace", rpeTss };
   }
 
   let hrTss: number | null = null;
@@ -60,10 +75,11 @@ export function activityLoad(a: Activity, p: Profile): { tss: number; method: Lo
     }
   }
 
-  if (paceTss !== null && hrTss !== null) return { tss: (paceTss + hrTss) / 2, method: "pace" };
-  if (paceTss !== null) return { tss: paceTss, method: "pace" };
-  if (hrTss !== null) return { tss: hrTss, method: "hr" };
-  return { tss: hours * FLAT_PER_HOUR[a.sport], method: "duration" };
+  if (paceTss !== null && hrTss !== null) return { tss: (paceTss + hrTss) / 2, method: "pace", rpeTss };
+  if (paceTss !== null) return { tss: paceTss, method: "pace", rpeTss };
+  if (hrTss !== null) return { tss: hrTss, method: "hr", rpeTss };
+  if (rpeTss !== undefined) return { tss: rpeTss, method: "rpe", rpeTss };
+  return { tss: (a.manual ? a.elapsedTime / 3600 : hours) * FLAT_PER_HOUR[a.sport], method: "duration" };
 }
 
 export interface LoadDay {
@@ -112,10 +128,14 @@ export function loadSeries(acts: Activity[], p: Profile, endKey: string): LoadDa
   return out;
 }
 
-/** Fitness (42-day load) of each sport at `endKey`: how much of the current fitness comes from swim, bike and run. */
+/**
+ * Fitness (42-day load) of each sport at `endKey`: how much of the current fitness comes from swim, bike and run.
+ * Strength counts toward fatigue and the load ratio (in the total), but not toward the fitness of any single sport.
+ */
 export function sportFitness(acts: Activity[], p: Profile, endKey: string): Record<SportKey, number> {
   const out: Record<SportKey, number> = { run: 0, ride: 0, swim: 0, strength: 0, other: 0 };
   for (const sport of Object.keys(out) as SportKey[]) {
+    if (sport === "strength") continue;
     const mine = acts.filter((a) => a.sport === sport);
     if (mine.length === 0) continue;
     const { perDay, first } = loadPerDay(mine, p);

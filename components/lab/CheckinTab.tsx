@@ -6,6 +6,9 @@ import { ACTION, baselines, PAIN_SPOTS, readiness, type Checkin, type Pain, type
 import { usePlanSession } from "@/lib/use-plan-session";
 import { SIGNAL_COLOR, useReasonText } from "../TodayCard";
 import { Hint, Panel } from "./LabBits";
+import { SessionsRpe } from "./SessionsRpe";
+import type { Profile } from "@/lib/lab/profile";
+import type { Activity } from "@/lib/strava/types";
 
 interface Stored extends Checkin {
   signal?: Signal;
@@ -58,7 +61,7 @@ const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v.replace(",",
  * The 20-second morning check-in. Values imported from the watch are filled in with a badge of their source;
  * only the fields you touch are saved as typed by hand (and typed values always win over imports).
  */
-export function CheckinTab() {
+export function CheckinTab({ activities, profile }: { activities: Activity[]; profile: Profile }) {
   const { t, fmt } = useI18n();
   const session = usePlanSession();
   const reasonText = useReasonText();
@@ -288,6 +291,8 @@ export function CheckinTab() {
         </button>
       </div>
       {state.startsWith("error:") && <p className="text-sm" style={{ color: "var(--goal)" }}>{state.slice(6)}</p>}
+
+      <SessionsRpe activities={activities} profile={profile} days={[brt(-1), brt()]} />
 
       <CheckinCharts list={list} today={brt()} fmt={fmt} />
     </div>

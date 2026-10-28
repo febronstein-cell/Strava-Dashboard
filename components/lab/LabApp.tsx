@@ -7,6 +7,7 @@ import { LanguageProvider, useI18n } from "@/lib/i18n";
 import { loadSeries } from "@/lib/lab/load";
 import { isComplete, totals } from "@/lib/lab/plan";
 import { buildProfile } from "@/lib/lab/profile";
+import { withRpe } from "@/lib/rpe";
 import type { LabData, PlanDay, PlannedWeekRow } from "@/lib/lab/types";
 import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { SeasonProvider } from "@/lib/season-context";
@@ -22,6 +23,7 @@ import { PlanTab } from "./PlanTab";
 import { ProgressionTab } from "./ProgressionTab";
 import { RacesTab } from "./RacesTab";
 import { SeasonTab } from "./SeasonTab";
+import { SwimTest } from "./SwimTest";
 
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
 type TabId = "checkin" | "machine" | "load" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
@@ -55,7 +57,9 @@ export function LabApp({ season, ...props }: { overview: StravaOverview; activit
   );
 }
 
-function LabInner({ overview, activities, lab, labels }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
+function LabInner({ overview, activities: strava, lab, labels }: { overview: StravaOverview; activities: Activity[]; lab: LabData; labels: Record<number, string> }) {
+  // session RPE attached and the manual sessions added: the load, the check-in and the planner all see them
+  const activities = useMemo(() => withRpe(strava, lab.rpe ?? {}, lab.manual ?? []), [strava, lab.rpe, lab.manual]);
   const { t, lang, setLang } = useI18n();
   const [tab, setTab] = useState<TabId>("machine");
 
@@ -167,8 +171,15 @@ function LabInner({ overview, activities, lab, labels }: { overview: StravaOverv
           <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
         </header>
 
-        {tab === "checkin" && <CheckinTab />}
-        {tab === "machine" && <MachineTab profile={profile} lab={lab} />}
+        {tab === "checkin" && <CheckinTab activities={activities} profile={profile} />}
+        {tab === "machine" && (
+          <>
+            <MachineTab profile={profile} lab={lab} />
+            <div className="mt-6">
+              <SwimTest />
+            </div>
+          </>
+        )}
         {tab === "load" && <LoadTab activities={activities} series={series} profile={profile} comments={lab.formComments} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
         {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} />}

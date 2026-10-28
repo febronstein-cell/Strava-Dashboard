@@ -29,6 +29,10 @@ export interface Activity {
   deviceWatts?: boolean;
   /** normalized (weighted average) power in W, from a power meter */
   np?: number;
+  /** session RPE, 1 to 10, typed by the athlete (Lab) */
+  rpe?: number;
+  /** added by hand in the Lab (no Strava activity); its id is negative */
+  manual?: boolean;
 }
 
 /** Trajeto simplificado de uma atividade (servido à parte, em /api/geo). */

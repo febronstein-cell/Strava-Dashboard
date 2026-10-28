@@ -4,7 +4,7 @@ import { readSeason } from "@/lib/season-data";
 import { seasonBrief } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 import { BILINGUAL_SCHEMA, hasAnthropic, writeJson } from "./ai";
-import { labelContext } from "./labeling";
+import { loadContext } from "@/lib/load-context";
 import { acwr, formState, loadSeries, monotonyStrain, rampRate, sportFitness } from "./load";
 
 /** Daily fitness / fatigue comment: Sonnet 5.5 at low effort, chosen by the owner. LAB_FORM_MODEL overrides it. */
@@ -24,7 +24,7 @@ const brtDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_P
 /** Today's fitness / fatigue / form numbers handed to the writer (the AI, or a person). */
 export async function formFacts() {
   const day = brtDay();
-  const [{ acts, profile }, season] = await Promise.all([labelContext(), readSeason()]);
+  const [{ acts, profile }, season] = await Promise.all([loadContext(), readSeason()]);
   const series = loadSeries(acts, profile, day);
   const now = series[series.length - 1];
   if (!now) return null;
