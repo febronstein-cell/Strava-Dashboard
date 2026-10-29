@@ -15,12 +15,11 @@ const sec = (v: string) => {
  * Swim test: 400 m and 200 m all-out times give the critical swim speed, CSS = (T400 - T200) / 2 per 100 m.
  * Saved as a "css" test; from then on swims with a distance get their load from pace (IF = CSS pace / average pace).
  */
-export function SwimTest() {
+export function SwimTest({ todayKey }: { todayKey: string }) {
   const { t, fmt } = useI18n();
   const router = useRouter();
   const session = usePlanSession();
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayKey);
   const [t400, setT400] = useState("");
   const [t200, setT200] = useState("");
   const [msg, setMsg] = useState<string | null>(null);

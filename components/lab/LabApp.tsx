@@ -17,6 +17,7 @@ import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
 import { CheckinTab } from "./CheckinTab";
+import { DurabilityTab } from "./DurabilityTab";
 import { IntensityPanel } from "./IntensityPanel";
 import { LoadTab } from "./LoadTab";
 import { MachineTab } from "./MachineTab";
@@ -28,13 +29,14 @@ import { SeasonTab } from "./SeasonTab";
 import { SwimTest } from "./SwimTest";
 
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
-type TabId = "checkin" | "machine" | "load" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
+type TabId = "checkin" | "machine" | "load" | "durability" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
 const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
 const TABS: { id: TabId; label: string; blurb: string }[] = [
   { id: "checkin", label: "Check-in", blurb: "Twenty seconds each morning: how you slept and feel, plus what the watch measured, turned into a green, yellow or red signal." },
   { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
+  { id: "durability", label: "Durability", blurb: "Do pace and power hold when you are tired? Decoupling, second-half fade, fast starts and fatigue resistance." },
   { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
   { id: "season", label: "Season", blurb: "The whole season: phases, races by priority and the weekly hours, planned against done." },
   { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race and the form you should arrive with." },
@@ -200,7 +202,7 @@ function LabInner({
           <>
             <MachineTab profile={profile} lab={lab} />
             <div className="mt-6">
-              <SwimTest />
+              <SwimTest todayKey={todayKey} />
             </div>
           </>
         )}
@@ -212,6 +214,7 @@ function LabInner({
             </div>
           </>
         )}
+        {tab === "durability" && <DurabilityTab activities={activities} zones={zones.byId} />}
         {tab === "progression" && <ProgressionTab activities={activities} todayKey={todayKey} series={series} />}
         {tab === "workouts" && <WorkoutTab activities={activities} profile={profile} lab={lab} labels={labels} zones={zones.byId} />}
         {tab === "season" && <SeasonTab activities={activities} lab={labLive} todayKey={todayKey} />}
