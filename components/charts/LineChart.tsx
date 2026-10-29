@@ -2,13 +2,13 @@
 
 import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
+import { useBoxWidth } from "@/lib/use-box-width";
 
 export interface LinePoint {
   label: string;
   value: number | null;
 }
 
-const W = 600;
 const H = 220;
 const M = { l: 44, r: 12, t: 14, b: 30 };
 
@@ -29,6 +29,7 @@ export function LineChart({
   color?: string;
 }) {
   const { t } = useI18n();
+  const [svgRef, W] = useBoxWidth(600);
   const [active, setActive] = useState<number | null>(null);
   const known = points.filter((p) => p.value !== null).length;
   if (known < 2) return <p className="py-10 text-muted">{t("Few data points in this period.")}</p>;
@@ -62,11 +63,11 @@ export function LineChart({
           <p className="label pt-1">{t("Hover (or tap) the points")}</p>
         )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={M.l} x2={W - M.r} y1={py(t)} y2={py(t)} stroke="var(--line)" strokeDasharray="2 4" />
-            <text x={M.l - 8} y={py(t)} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+            <text x={M.l - 8} y={py(t)} textAnchor="end" dominantBaseline="middle" fontSize="11" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
               {format(t)}
             </text>
           </g>
@@ -79,7 +80,7 @@ export function LineChart({
             {p.value !== null && <circle cx={px(i)} cy={py(p.value)} r={active === i ? 5.5 : 3} fill={color} />}
             <rect x={px(i) - (W - M.l - M.r) / n / 2} y={M.t} width={(W - M.l - M.r) / n} height={H - M.t - M.b} fill="transparent" onMouseEnter={() => setActive(i)} onClick={() => setActive(i)} />
             {i % labelEvery === 0 && (
-              <text x={px(i)} y={H - 10} textAnchor="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+              <text x={px(i)} y={H - 10} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
                 {p.label}
               </text>
             )}

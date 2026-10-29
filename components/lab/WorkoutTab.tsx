@@ -10,6 +10,7 @@ import type { Activity } from "@/lib/strava/types";
 import { usePlanSession } from "@/lib/use-plan-session";
 import { Hint, Panel, Pills } from "./LabBits";
 import { RpePicker } from "./RpePicker";
+import { LockedHint } from "../EditLock";
 import { ZoneBars } from "./ZoneBar";
 import type { ActivityZones } from "@/lib/zones-data";
 import { METHOD_LABEL } from "./SessionsRpe";
@@ -128,11 +129,16 @@ export function WorkoutTab({
               <ZoneBars z={zones[selected.id]} />
             </Panel>
 
-            {session.unlocked && (
-              <Panel title={t("How hard did it feel?")} subtitle={t("Session RPE, 1 = very easy, 10 = all out.")}>
+            <Panel title={t("How hard did it feel?")} subtitle={t("Session RPE, 1 = very easy, 10 = all out.")}>
+              {session.unlocked ? (
                 <RpePicker key={selected.id} activityId={selected.id} value={selected.rpe} editable />
-              </Panel>
-            )}
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-muted">{selected.rpe ? t("RPE {n}", { n: selected.rpe }) : t("No RPE yet.")}</p>
+                  <LockedHint what={t("Enter the password to rate it")} />
+                </div>
+              )}
+            </Panel>
 
             <Panel title={t("Reading")} subtitle={t("Rule-based reading from sports-science rules of thumb, using your thresholds and your last 120 days.")}>
               <ul className="space-y-3">

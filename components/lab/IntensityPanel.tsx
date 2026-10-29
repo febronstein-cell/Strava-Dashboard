@@ -6,6 +6,8 @@ import { useI18n } from "@/lib/i18n";
 import { mondayOf } from "@/lib/lab/progress";
 import type { Activity } from "@/lib/strava/types";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { useBoxWidth } from "@/lib/use-box-width";
+import { LockedHint } from "../EditLock";
 import type { ActivityZones, ZoneMeta } from "@/lib/zones-data";
 import { polarization, type Distribution } from "@/lib/zones";
 import { Panel, Pills } from "./LabBits";
@@ -60,8 +62,8 @@ export function IntensityPanel({ activities, zones, todayKey }: { activities: Ac
     router.refresh();
   };
 
-  const W = 560;
-  const H = 170;
+  const [svgRef, W] = useBoxWidth(560);
+  const H = 180;
   const bw = W / rows.length;
   const y = (h: number) => H - 18 - (h / maxH) * (H - 30);
   const yPct = (p: number) => H - 18 - p * (H - 30);
@@ -96,7 +98,7 @@ export function IntensityPanel({ activities, zones, todayKey }: { activities: Ac
         </p>
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" role="img" aria-label={t("Intensity distribution")}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" role="img" aria-label={t("Intensity distribution")}>
         {/* the usual zone-1 band, 75 to 85% of the time */}
         <rect x={0} y={yPct(0.85)} width={W} height={yPct(0.75) - yPct(0.85)} fill="var(--swim)" opacity={0.1} />
         {rows.map((r, i) => {
@@ -106,14 +108,14 @@ export function IntensityPanel({ activities, zones, todayKey }: { activities: Ac
               {r.z.map((s, k) => {
                 const h = s / 3600;
                 const yTop = top - (y(0) - y(h));
-                const el = <rect key={k} x={i * bw + 5} y={yTop} width={bw - 10} height={Math.max(0, top - yTop)} fill={Z_COLOR[k]} rx={2} />;
+                const el = <rect key={k} className="bar-rise" style={{ animationDelay: `${i * 35}ms` }} x={i * bw + 5} y={yTop} width={bw - 10} height={Math.max(0, top - yTop)} fill={Z_COLOR[k]} rx={2} />;
                 top = yTop;
                 return el;
               })}
               <title>{`${r.w}: ${r.z.map((s) => fmt.duration(s)).join(" / ")}`}</title>
-              <text x={i * bw + bw / 2} y={H - 4} fontSize={10} textAnchor="middle" fill="var(--muted)">
+              {(W >= 480 || i % 2 === 0) && <text x={i * bw + bw / 2} y={H - 4} fontSize={12} textAnchor="middle" fill="var(--muted)">
                 {fmt.dateLabel(`${r.w}T00:00:00`, { day: "2-digit", month: "short" })}
-              </text>
+              </text>}
             </g>
           );
         })}
@@ -140,6 +142,11 @@ export function IntensityPanel({ activities, zones, todayKey }: { activities: Ac
       <p className="mt-3 text-sm text-muted">
         {t("Second-by-second data for {a} of {b} sessions in these 12 weeks. The rest are read in small batches each day.", { a: covered, b: eligible })}
       </p>
+      {!session.unlocked && covered < eligible && (
+        <div className="mt-2">
+          <LockedHint what={t("Enter the password to read more sessions now")} />
+        </div>
+      )}
       {session.unlocked && covered < eligible && (
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <button onClick={() => void backfill()} className="label rounded-full border border-line px-4 py-2 hover:text-fg">

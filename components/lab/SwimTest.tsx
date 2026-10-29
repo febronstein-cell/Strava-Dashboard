@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { LockedHint } from "../EditLock";
 import { Panel } from "./LabBits";
+import { ErrorNote } from "../ErrorNote";
 
 const sec = (v: string) => {
   const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -23,7 +25,8 @@ export function SwimTest({ todayKey }: { todayKey: string }) {
   const [t400, setT400] = useState("");
   const [t200, setT200] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
-  if (!session.unlocked) return null;
+  const [err, setErr] = useState<string | null>(null);
+  if (!session.unlocked) return <LockedHint what={t("Enter the password to add a swim test")} />;
 
   const a = sec(t400);
   const b = sec(t200);
@@ -33,7 +36,8 @@ export function SwimTest({ todayKey }: { todayKey: string }) {
     setMsg(null);
     const res = await fetch("/api/thresholds", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, t400: a, t200: b }) });
     const j = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) return setMsg(j.error ?? String(res.status));
+    if (!res.ok) return setErr(j.error ?? String(res.status));
+    setErr(null);
     setMsg(t("Saved"));
     router.refresh();
   };
@@ -60,7 +64,8 @@ export function SwimTest({ todayKey }: { todayKey: string }) {
           </button>
         </div>
       </div>
-      {msg && <p className="mt-2 text-sm">{msg}</p>}
+      {msg && !err && <p className="fade-up mt-2 text-sm">{msg}</p>}
+      <ErrorNote error={err} className="mt-2" />
     </Panel>
   );
 }

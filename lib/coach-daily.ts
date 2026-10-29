@@ -78,6 +78,7 @@ export async function coachDaily(date: string) {
         const c = sessionCompliance(e);
         return {
           sport: e.entry.sport,
+          name: e.entry.name ?? null,
           description: e.entry.description,
           plannedMin: e.entry.minutes,
           plannedKm: e.entry.km,

@@ -76,6 +76,8 @@ export interface PlanSlot {
   minutes: number | null;
   /** distance in km (run, bike and swim only) */
   km: number | null;
+  /** short name of the workout, e.g. "VO2max Effort 5x4'" */
+  name?: string;
   /** the key session of the day or week */
   key?: boolean;
   target?: PlanTarget;

@@ -64,7 +64,7 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
             <line x1={M.l} x2={W - M.r} y1={yTop(maxLoad * f)} y2={yTop(maxLoad * f)} stroke="var(--line)" strokeDasharray="2 4" />
-            <text x={M.l - 6} y={yTop(maxLoad * f)} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+            <text x={M.l - 6} y={yTop(maxLoad * f)} textAnchor="end" dominantBaseline="middle" fontSize="13.5" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
               {fmt.int(maxLoad * f)}
             </text>
           </g>
@@ -73,7 +73,7 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
         <path d={line((d) => d.atl)} fill="none" stroke="var(--goal)" strokeWidth="1.6" strokeLinejoin="round" opacity="0.9" pathLength={1} className="draw-in" />
 
         <line x1={M.l} x2={W - M.r} y1={yMid} y2={yMid} stroke="var(--line)" />
-        <text x={M.l - 6} y={yMid} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>0</text>
+        <text x={M.l - 6} y={yMid} textAnchor="end" dominantBaseline="middle" fontSize="13.5" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>0</text>
         {days.map((d, i) => (
           <rect
             key={d.date}
@@ -88,7 +88,7 @@ export function LoadChart({ days }: { days: LoadDay[] }) {
         ))}
 
         {labels.filter((_, k) => k % step === 0).map((l) => (
-          <text key={l.i} x={px(l.i)} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+          <text key={l.i} x={px(l.i)} y={H - 6} textAnchor="middle" fontSize="13.5" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
             {l.text}
           </text>
         ))}

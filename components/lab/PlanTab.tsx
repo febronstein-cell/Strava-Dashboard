@@ -5,15 +5,16 @@ import { useI18n } from "@/lib/i18n";
 import { usePlanSession } from "@/lib/use-plan-session";
 import { useSeason } from "@/lib/season-context";
 import { weeklyHours } from "@/lib/lab/builds";
-import { DAY_NAMES, HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, fmtMinutes, isComplete, planHash, totals } from "@/lib/lab/plan";
+import { HAS_DISTANCE, PLAN_SPORTS, SPORT_LABEL, dayFilled, emptyDays, isComplete, planHash, totals } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
 import { buildSeason, defaultPriority, type SeasonPhase, type SeasonRace, type SeasonWeek } from "@/lib/lab/season";
-import type { LabData, PlanDay, PlanSlot, PlanSport } from "@/lib/lab/types";
+import type { LabData, PlanDay, PlanSport } from "@/lib/lab/types";
 import type { Activity } from "@/lib/strava/types";
 import { triFormat, type PhaseFocus } from "@/lib/season-plan";
 import { Hint, Panel } from "./LabBits";
+import { DayEditor, DayStrip, type SlotPatch } from "./DayEditor";
+import { ErrorNote } from "../ErrorNote";
 import { PlanVsDone } from "./PlanVsDone";
-import { SlotEditor } from "./SlotEditor";
 
 const PHASE_COLOR: Record<SeasonPhase, string> = {
   base: "var(--swim)",
@@ -38,8 +39,6 @@ function labelPhase(title: string | undefined): SeasonPhase | "lighter" | null {
   return (["base", "build", "peak", "taper", "race", "recovery"] as const).find((p) => p === w) ?? null;
 }
 type Status = "idle" | "saving" | "saved" | "describing" | `error:${string}`;
-/** An edit of the planner: fields of one session, the rest-day switch, a new double, or removing a double. */
-type SlotPatch = Partial<PlanSlot> | { rest: boolean } | { add: PlanSport } | { remove: true };
 interface Written {
   title?: string;
   en: string;
@@ -56,9 +55,6 @@ const FOCUS_LABEL: Record<PhaseFocus, string> = {
   taper: "taper",
   recovery: "recovery",
 };
-
-/** Minutes planned in one day (a rest day counts as none). */
-const dayMinutes = (d: PlanDay) => (d.rest ? 0 : d.slots.reduce((s, x) => s + (x.minutes ?? 0), 0));
 
 const addDays = (key: string, n: number) => new Date(Date.parse(key + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
 
@@ -329,6 +325,12 @@ function WeekCard({
   lang: "en" | "pt";
 }) {
   const { t, fmt } = useI18n();
+  const [sel, setSel] = useState(() => {
+    const idx = Math.round((Date.parse(todayKey) - Date.parse(w.start)) / 86_400_000);
+    if (idx >= 0 && idx <= 6) return idx;
+    const empty = days.findIndex((d) => !dayFilled(d));
+    return empty >= 0 ? empty : 0;
+  });
   const tot = totals(days);
   const done = isComplete(days);
   const vsTarget = tot.hours > 0 ? ((tot.hours - w.target) / w.target) * 100 : null;
@@ -405,53 +407,10 @@ function WeekCard({
             ))}
           </ul>
 
-          <ul className="divide-y divide-line/60">
-            {days.map((d) => (
-              <li key={d.day} className="py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="label">
-                    {t(DAY_NAMES[d.day])}
-                    {!dayFilled(d) && <span className="ml-2 opacity-60">·</span>}
-                    <span className="num ml-3 text-xl normal-case text-fg">{dayMinutes(d) > 0 ? `${fmtMinutes(dayMinutes(d))} h` : d.rest ? "" : "—"}</span>
-                  </span>
-                  <label className="label flex items-center gap-2">
-                    <input type="checkbox" checked={Boolean(d.rest)} disabled={!editable} onChange={(e) => onEdit(d.day, null, { rest: e.target.checked })} className="h-4 w-4 accent-[var(--brand)]" />
-                    {t("Rest day")}
-                  </label>
-                </div>
-                {!d.rest && (
-                  <div className="mt-2 space-y-3">
-                    {d.slots.map((slot, idx) => {
-                      const same = d.slots.filter((x) => x.sport === slot.sport);
-                      const order = same.indexOf(slot);
-                      const label = `${t(SPORT_LABEL[slot.sport])}${same.length > 1 ? ` · ${order === 0 ? t("AM") : t("PM")}` : ""}`;
-                      return (
-                        <SlotEditor
-                          key={idx}
-                          slot={slot}
-                          label={label}
-                          editable={editable}
-                          idKey={`${w.start}-${d.day}-${idx}`}
-                          onChange={(patch) => onEdit(d.day, idx, patch)}
-                          onRemove={idx >= PLAN_SPORTS.length ? () => onEdit(d.day, idx, { remove: true }) : undefined}
-                        />
-                      );
-                    })}
-                    {editable && (
-                      <div className="flex flex-wrap items-center gap-2 sm:pl-[7.1rem]">
-                        <span className="label">{t("Add a second session")}:</span>
-                        {(["run", "ride", "swim", "strength"] as PlanSport[]).map((sp) => (
-                          <button key={sp} onClick={() => onEdit(d.day, null, { add: sp })} className="label rounded-full border border-line px-3 py-1.5 hover:text-fg">
-                            + {t(SPORT_LABEL[sp])}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <DayStrip days={days} sel={sel} onSel={setSel} today={todayKey} weekStart={w.start} />
+          <div className="rounded-2xl border border-line p-3 sm:p-5">
+            <DayEditor day={days[sel]} weekStart={w.start} editable={editable} onEdit={onEdit} />
+          </div>
 
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-line pt-3">
             <span className="num text-xl">{fmt.num(tot.hours, 1)} h</span>
@@ -460,10 +419,11 @@ function WeekCard({
             <span className="label">{t("{n} rest days", { n: tot.restDays })}</span>
             {vsTarget !== null && <span className="label">{t("{p}% vs suggested", { p: `${vsTarget > 0 ? "+" : ""}${Math.round(vsTarget)}` })}</span>}
             {vsPrev !== null && <span className="label">{t("{p}% vs previous week", { p: `${vsPrev > 0 ? "+" : ""}${Math.round(vsPrev)}` })}</span>}
-            <span className="label ml-auto" style={status.startsWith("error") ? { color: "var(--goal)" } : undefined}>
-              {status === "saving" ? t("Saving…") : status === "describing" ? t("Analysing the week…") : status === "saved" ? t("Saved") : status.startsWith("error:") ? status.slice(6) : ""}
+            <span className="label ml-auto">
+              {status === "saving" ? t("Saving…") : status === "describing" ? t("Analysing the week…") : status === "saved" ? <span className="fade-up text-brand">✓ {t("Saved")}</span> : ""}
             </span>
           </div>
+          {status.startsWith("error:") && <ErrorNote error={status.slice(6)} />}
 
           <ul className="flex flex-wrap gap-x-5 gap-y-1">
             {PLAN_SPORTS.filter((sp) => tot.bySport[sp].sessions > 0).map((sp) => {

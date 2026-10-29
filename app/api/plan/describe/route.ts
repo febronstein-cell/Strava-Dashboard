@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     days: days.map((d) => ({
       day: DAY_NAMES[d.day],
       rest: d.rest ?? false,
-      sessions: d.rest ? [] : d.slots.filter(slotFilled).map((s) => ({ sport: SPORT_LABEL[s.sport], description: s.description, minutes: s.minutes, km: s.km })),
+      sessions: d.rest ? [] : d.slots.filter(slotFilled).map((s) => ({ sport: SPORT_LABEL[s.sport], name: s.name ?? null, description: s.description, minutes: s.minutes, km: s.km })),
       minutes: d.rest ? 0 : d.slots.reduce((s, x) => s + (x.minutes ?? 0), 0),
     })),
     totals: {

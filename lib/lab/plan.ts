@@ -30,7 +30,7 @@ export function parseMinutes(text: string): number | null {
 export const fmtMinutes = (min: number | null): string => (min == null ? "" : `${Math.floor(min / 60)}:${String(Math.round(min % 60)).padStart(2, "0")}`);
 
 /** A slot counts when it has a description, a time or a distance. */
-export const slotFilled = (s: PlanSlot): boolean => s.description.trim().length > 0 || (s.minutes ?? 0) > 0 || (s.km ?? 0) > 0;
+export const slotFilled = (s: PlanSlot): boolean => s.description.trim().length > 0 || !!s.name?.trim() || (s.minutes ?? 0) > 0 || (s.km ?? 0) > 0;
 /** The key session among a day's sessions: the one flagged as key, otherwise the longest. */
 export function keySession(slots: PlanSlot[]): PlanSlot | null {
   const used = slots.filter(slotFilled);
@@ -100,7 +100,7 @@ export function totals(days: PlanDay[]): PlanTotals {
 /** Fingerprint of the days: tells whether a written analysis still matches what is planned. */
 export function planHash(days: PlanDay[]): string {
   const raw = days
-    .map((d) => `${d.day}|${d.rest ? "R" : ""}|${d.slots.map((s) => `${s.sport}:${s.description.trim()}:${s.minutes ?? ""}:${s.km ?? ""}${s.key ? ":K" : ""}${s.target ? `:${JSON.stringify(s.target)}` : ""}${s.structure ? `:${JSON.stringify(s.structure)}` : ""}`).join(";")}`)
+    .map((d) => `${d.day}|${d.rest ? "R" : ""}|${d.slots.map((s) => `${s.sport}:${s.description.trim()}:${s.minutes ?? ""}:${s.km ?? ""}${s.name ? `:N${s.name.trim()}` : ""}${s.key ? ":K" : ""}${s.target ? `:${JSON.stringify(s.target)}` : ""}${s.structure ? `:${JSON.stringify(s.structure)}` : ""}`).join(";")}`)
     .join("§");
   let h = 5381;
   for (let i = 0; i < raw.length; i++) h = ((h << 5) + h + raw.charCodeAt(i)) | 0;
@@ -161,6 +161,7 @@ export function sanitizeDays(input: unknown): PlanDay[] | null {
         slot.description = String(s.description ?? "").slice(0, 600);
         slot.minutes = minutes;
         slot.km = km;
+        if (typeof s.name === "string" && s.name.trim()) slot.name = s.name.trim().slice(0, 80);
         if (s.key) slot.key = true;
         const target = cleanTarget(s.target);
         if (target) slot.target = target;

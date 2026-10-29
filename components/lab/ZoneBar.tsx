@@ -16,7 +16,7 @@ function Bar({ title, secs, names, colors }: { title: string; secs: number[]; na
   return (
     <div>
       <p className="label mb-1.5">{title}</p>
-      <div className="flex h-4 overflow-hidden rounded-full" role="img" aria-label={title}>
+      <div className="grow-x flex h-4 overflow-hidden rounded-full" role="img" aria-label={title}>
         {secs.map((s, i) => (s > 0 ? <span key={i} style={{ width: `${(s / total) * 100}%`, background: colors[i] }} title={`${t(names[i])}: ${fmt.duration(s)}`} /> : null))}
       </div>
       <ul className="label mt-1.5 flex flex-wrap gap-x-4 gap-y-1 normal-case">

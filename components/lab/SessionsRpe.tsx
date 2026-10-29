@@ -8,6 +8,7 @@ import { SPORT_LABEL } from "@/lib/lab/plan";
 import type { Profile } from "@/lib/lab/profile";
 import type { Activity } from "@/lib/strava/types";
 import { Panel } from "./LabBits";
+import { ErrorNote } from "../ErrorNote";
 import { RpePicker } from "./RpePicker";
 
 export const METHOD_LABEL: Record<LoadMethod, string> = {
@@ -137,7 +138,7 @@ export function SessionsRpe({ activities, profile, days }: { activities: Activit
               {t("Cancel")}
             </button>
           </div>
-          {error && <p className="col-span-2 text-sm sm:col-span-3" style={{ color: "var(--goal)" }}>{error}</p>}
+          <ErrorNote error={error} className="col-span-2 sm:col-span-3" />
         </div>
       )}
     </Panel>

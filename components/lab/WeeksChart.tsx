@@ -59,7 +59,7 @@ export function WeeksChart({ weeks, compact = false }: { weeks: BuildWeek[]; com
         {ticks.map((v) => (
           <g key={v}>
             <line x1={M.l} x2={W - M.r} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray="2 4" />
-            <text x={M.l - 6} y={y(v)} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+            <text x={M.l - 6} y={y(v)} textAnchor="end" dominantBaseline="middle" fontSize="13.5" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
               {v}h
             </text>
           </g>
@@ -75,12 +75,12 @@ export function WeeksChart({ weeks, compact = false }: { weeks: BuildWeek[]; com
                 <rect x={x(i) - bw / 2 + 3} y={y(w.actual)} width={bw - 6} height={Math.max(0, H - M.b - y(w.actual))} rx="2" className="lab-grow" style={{ animationDelay: `${Math.min(i, 20) * 40}ms` }} fill={color} opacity={w.state === "current" ? 0.55 : 0.9} />
               )}
               {w.state === "current" && (
-                <text x={x(i)} y={M.t - 2} textAnchor="middle" fontSize="8" fill="var(--fg)" style={{ fontFamily: "var(--f-mono)" }}>
+                <text x={x(i)} y={M.t - 2} textAnchor="middle" fontSize="12.5" fill="var(--fg)" style={{ fontFamily: "var(--f-mono)" }}>
                   {t("now")}
                 </text>
               )}
               {(!compact || i % 2 === 0) && (
-                <text x={x(i)} y={H - 10} textAnchor="middle" fontSize="8.5" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+                <text x={x(i)} y={H - 10} textAnchor="middle" fontSize="13" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
                   {fmt.dateLabel(`${w.start}T00:00:00`, { day: "2-digit", month: "2-digit" })}
                 </text>
               )}

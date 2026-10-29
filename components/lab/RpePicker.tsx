@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { ErrorNote } from "../ErrorNote";
 
 /** Session RPE 1 to 10 for one activity. Saves at once (planner unlock needed) and refreshes the page data. */
 export function RpePicker({ activityId, value, editable }: { activityId: number; value?: number; editable: boolean }) {
@@ -40,7 +41,7 @@ export function RpePicker({ activityId, value, editable }: { activityId: number;
           </button>
         ))}
       </div>
-      {state.startsWith("error:") && <p className="mt-1 text-xs" style={{ color: "var(--goal)" }}>{state.slice(6)}</p>}
+      {state.startsWith("error:") && <ErrorNote error={state.slice(6)} className="mt-2" />}
     </div>
   );
 }

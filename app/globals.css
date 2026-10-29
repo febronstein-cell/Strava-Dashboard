@@ -486,3 +486,24 @@ body {
 /* CountUp: with JavaScript on, the final value waits for the climbing digits to finish; without it, it shows as is */
 [data-js] .countup:not([data-done]) .countup-final { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { [data-js] .countup .countup-final { visibility: visible; } }
+
+/* ---- motion of the October 2026 interface: short, soft, and off with reduced motion ---- */
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes signal-pop { 0% { opacity: 0; transform: scale(0.85); } 60% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes skeleton { to { background-position: -200% 0; } }
+@keyframes bar-rise { from { transform: scaleY(0.15); opacity: 0.4; } to { transform: scaleY(1); opacity: 1; } }
+.skeleton { background: linear-gradient(90deg, var(--line) 25%, color-mix(in srgb, var(--line) 35%, transparent) 50%, var(--line) 75%); background-size: 200% 100%; border-radius: 0.9rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .fade-up { animation: fade-up 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .grow-x { transform-origin: left center; animation: grow-x 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .signal-pop { animation: signal-pop 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+  .key-dialog[open] { animation: dialog-in 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .key-dialog[open]::backdrop { animation: backdrop-in 0.26s ease both; }
+  .skeleton { animation: skeleton 1.4s linear infinite; }
+  .bar-rise { transform-box: fill-box; transform-origin: bottom; animation: bar-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  /* tapping a button gives a small press */
+  button:not(:disabled):active { transition: transform 0.08s ease; }
+}

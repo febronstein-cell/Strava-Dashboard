@@ -6,17 +6,20 @@ import { driftBand } from "@/lib/durability";
 import { durabilityRows, firstKmByMonth, type DurabilityRow } from "@/lib/durability-trends";
 import type { Activity } from "@/lib/strava/types";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { useBoxWidth } from "@/lib/use-box-width";
+import { LockedHint } from "../EditLock";
+import { ErrorNote } from "../ErrorNote";
 import type { ActivityZones } from "@/lib/zones-data";
 import { Hint, Panel } from "./LabBits";
 
 const BAND_COLOR = { good: "#1fe08a", watch: "#ffb020", poor: "#ff4d4d" } as const;
-const W = 560;
-const H = 150;
+const H = 160;
 const PAD = 30;
 
 /** Dots over time with a mean line; `bands` draws the 5% and 8% limits. */
 function Dots({ title, rows, pick, unit, limits, color }: { title: string; rows: DurabilityRow[]; pick: (r: DurabilityRow) => number | undefined; unit: string; limits?: boolean; color: string }) {
   const { t, fmt } = useI18n();
+  const [svgRef, W] = useBoxWidth(560);
   const pts = rows.map((r) => ({ r, v: pick(r) })).filter((p): p is { r: DurabilityRow; v: number } => p.v != null);
   if (pts.length < 2) return (
     <figure>
@@ -38,13 +41,13 @@ function Dots({ title, rows, pick, unit, limits, color }: { title: string; rows:
   return (
     <figure>
       <figcaption className="label mb-1">{title}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
         {limits && (
           <>
             <line x1={PAD} x2={W} y1={y(5)} y2={y(5)} stroke={BAND_COLOR.good} strokeDasharray="3 3" opacity={0.7} />
             <line x1={PAD} x2={W} y1={y(8)} y2={y(8)} stroke={BAND_COLOR.poor} strokeDasharray="3 3" opacity={0.7} />
-            <text x={2} y={y(5) + 3} fontSize={10} fill="var(--muted)">5%</text>
-            <text x={2} y={y(8) + 3} fontSize={10} fill="var(--muted)">8%</text>
+            <text x={2} y={y(5) + 3} fontSize={12} fill="var(--muted)">5%</text>
+            <text x={2} y={y(8) + 3} fontSize={12} fill="var(--muted)">8%</text>
           </>
         )}
         <line x1={PAD} x2={W} y1={y(0)} y2={y(0)} stroke="var(--line)" />
@@ -54,8 +57,8 @@ function Dots({ title, rows, pick, unit, limits, color }: { title: string; rows:
             <title>{`${r.date} · ${r.name} · ${fmt.num(v, 1)}${unit}${r.brick ? ` · ${t("brick")}` : ""}`}</title>
           </circle>
         ))}
-        <text x={PAD} y={H - 3} fontSize={10} fill="var(--muted)">{pts[0].r.date}</text>
-        <text x={W - 4} y={H - 3} fontSize={10} fill="var(--muted)" textAnchor="end">{pts[pts.length - 1].r.date}</text>
+        <text x={PAD} y={H - 3} fontSize={12} fill="var(--muted)">{pts[0].r.date}</text>
+        <text x={W - 4} y={H - 3} fontSize={12} fill="var(--muted)" textAnchor="end">{pts[pts.length - 1].r.date}</text>
       </svg>
     </figure>
   );
@@ -73,6 +76,7 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
   const [comment, setComment] = useState<{ day: string; en: string; pt: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -88,7 +92,8 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
     const res = await fetch("/api/durability", { method: "POST" });
     const j = (await res.json().catch(() => ({}))) as { saved?: boolean; comment?: { day: string; en: string; pt: string }; error?: string };
     setBusy(false);
-    if (!res.ok) return setMsg(j.error ?? String(res.status));
+    if (!res.ok) return setErr(j.error ?? String(res.status));
+    setErr(null);
     if (j.comment) setComment(j.comment);
     if (!j.saved) setMsg(t("Not enough data yet for a comment."));
   };
@@ -108,10 +113,12 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
         title={t("Is it improving?")}
         subtitle={t("A short read of your durability, written from these numbers and the current season phase.")}
         aside={
-          session.unlocked && (
+          session.unlocked ? (
             <button onClick={() => void write()} disabled={busy} className="label rounded-full border border-line px-4 py-2 hover:text-fg disabled:opacity-50">
               {busy ? t("Writing…") : t("Write a new comment")}
             </button>
+          ) : (
+            <LockedHint what={t("Enter the password to write a comment")} />
           )
         }
       >
@@ -124,6 +131,7 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
           <p className="text-sm text-muted">{t("No comment yet: it is written once a week.")}</p>
         )}
         {msg && <p className="mt-2 text-sm text-muted">{msg}</p>}
+        <ErrorNote error={err} className="mt-2" />
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">

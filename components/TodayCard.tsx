@@ -55,12 +55,12 @@ export function TodayCard({ className = "" }: { className?: string }) {
   const color = data.signal ? SIGNAL_COLOR[data.signal] : "var(--line)";
 
   return (
-    <section className={`card lab-card p-4 sm:p-6 ${className}`} style={{ borderLeft: `4px solid ${color}` }} aria-label={t("Today")}>
+    <section className={`card lab-card fade-up p-4 sm:p-6 ${className}`} style={{ borderLeft: `4px solid ${color}` }} aria-label={t("Today")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="label">{t("Today")} · {fmt.dateLabel(`${data.day}T00:00:00`, { weekday: "long", day: "2-digit", month: "short" })}</p>
           {data.signal ? (
-            <p className="num mt-1 text-3xl uppercase sm:text-4xl" style={{ color }}>
+            <p className="num signal-pop mt-1 inline-block text-3xl uppercase sm:text-4xl" style={{ color }}>
               {t(data.signal === "green" ? "Green" : data.signal === "yellow" ? "Yellow" : "Red")}
             </p>
           ) : (

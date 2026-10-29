@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { ACTION, baselines, PAIN_SPOTS, readiness, type Checkin, type Pain, type PainSpot, type Reason, type Signal } from "@/lib/checkin";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { useBoxWidth } from "@/lib/use-box-width";
+import { LockedHint } from "../EditLock";
+import { ErrorNote } from "../ErrorNote";
 import { SIGNAL_COLOR, useReasonText } from "../TodayCard";
 import { Hint, Panel } from "./LabBits";
 import { SessionsRpe } from "./SessionsRpe";
@@ -16,7 +19,6 @@ interface Stored extends Checkin {
 }
 
 const DAY = 86_400_000;
-const brt = (offset = 0) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + offset * DAY));
 const addDays = (key: string, n: number) => new Date(Date.parse(key + "T00:00:00Z") + n * DAY).toISOString().slice(0, 10);
 
 type Form = {
@@ -61,7 +63,9 @@ const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v.replace(",",
  * The 20-second morning check-in. Values imported from the watch are filled in with a badge of their source;
  * only the fields you touch are saved as typed by hand (and typed values always win over imports).
  */
-export function CheckinTab({ activities, profile }: { activities: Activity[]; profile: Profile }) {
+export function CheckinTab({ activities, profile, todayKey }: { activities: Activity[]; profile: Profile; todayKey: string }) {
+  // "today" comes from the Lab (no clock reads while rendering: the page is prerendered)
+  const brt = (offset = 0) => addDays(todayKey, offset);
   const { t, fmt } = useI18n();
   const session = usePlanSession();
   const reasonText = useReasonText();
@@ -158,8 +162,22 @@ export function CheckinTab({ activities, profile }: { activities: Activity[]; pr
   };
 
   if (session.state === "checking") return null;
-  if (!session.unlocked) return <Hint>{t("The check-in holds personal health data: unlock the planner on this device to see and fill it.")}</Hint>;
-  if (!list) return <p className="label">{t("Loading…")}</p>;
+  if (!session.unlocked)
+    return (
+      <div className="space-y-4">
+        <Hint>{t("The check-in holds personal health data (sleep, heart rate, pain): it is shown and edited only with the password.")}</Hint>
+        <LockedHint what={t("Enter the password to open the check-in")} />
+      </div>
+    );
+  if (!list)
+    return (
+      <div className="space-y-4" aria-busy="true" aria-label={t("Loading…")}>
+        <div className="skeleton h-10 w-48" />
+        <div className="skeleton h-28" />
+        <div className="skeleton h-56" />
+        <div className="skeleton h-40" />
+      </div>
+    );
 
   const badge = (field: string) => {
     const src = stored?.sources[field];
@@ -189,7 +207,7 @@ export function CheckinTab({ activities, profile }: { activities: Activity[]; pr
 
       <section className="card lab-card p-4 sm:p-6" style={{ borderLeft: `4px solid ${sig ? SIGNAL_COLOR[sig] : "var(--line)"}` }}>
         <p className="label">{t("Signal")}</p>
-        <p className="num mt-1 text-3xl uppercase" style={{ color: sig ? SIGNAL_COLOR[sig] : undefined }}>
+        <p key={sig ?? "none"} className="num signal-pop mt-1 inline-block text-3xl uppercase" style={{ color: sig ? SIGNAL_COLOR[sig] : undefined }}>
           {sig ? t(sig === "green" ? "Green" : sig === "yellow" ? "Yellow" : "Red") : "—"}
         </p>
         {sig && <p className="mt-2 font-medium">{t(ACTION[sig])}</p>}
@@ -281,7 +299,7 @@ export function CheckinTab({ activities, profile }: { activities: Activity[]; pr
         </label>
       </Panel>
 
-      <div className="sticky bottom-3 z-30 flex items-center gap-3">
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-30 flex items-center gap-3 sm:bottom-3">
         <button
           onClick={() => void save()}
           disabled={dirty.size === 0 || state === "saving"}
@@ -290,7 +308,7 @@ export function CheckinTab({ activities, profile }: { activities: Activity[]; pr
           {state === "saving" ? t("Saving…") : state === "saved" && dirty.size === 0 ? t("Saved") : t("Save")}
         </button>
       </div>
-      {state.startsWith("error:") && <p className="text-sm" style={{ color: "var(--goal)" }}>{state.slice(6)}</p>}
+      {state.startsWith("error:") && <ErrorNote error={state.slice(6)} />}
 
       <SessionsRpe activities={activities} profile={profile} days={[brt(-1), brt()]} />
 
@@ -371,9 +389,8 @@ function CheckinCharts({ list, today, fmt }: { list: Stored[]; today: string; fm
   );
 }
 
-const W = 560;
-const H = 120;
-const PAD = 26;
+const H = 130;
+const PAD = 30;
 
 function scale(values: (number | null)[], extra: number[] = []) {
   const all = [...values.filter((v): v is number => v != null), ...extra];
@@ -382,24 +399,25 @@ function scale(values: (number | null)[], extra: number[] = []) {
   const span = hi - lo || 1;
   return (v: number) => H - 8 - ((v - lo + span * 0.1) / (span * 1.2)) * (H - 16);
 }
-const xAt = (i: number, n: number) => PAD + (i * (W - PAD - 6)) / (n - 1);
+const xAt = (i: number, n: number, W: number) => PAD + (i * (W - PAD - 6)) / (n - 1);
 
 function Line({ title, days, values, band, color }: { title: string; days: string[]; values: (number | null)[]; band: (number[] | null)[]; color: string }) {
+  const [svgRef, W] = useBoxWidth(560);
   if (!values.some((v) => v != null)) return null;
   const y = scale(values, band.flat().filter((v): v is number => v != null));
-  const pts = values.map((v, i) => (v == null ? null : `${xAt(i, days.length)},${y(v)}`)).filter(Boolean);
-  const top = band.map((b, i) => (b ? `${xAt(i, days.length)},${y(b[1])}` : null)).filter(Boolean);
-  const bottom = band.map((b, i) => (b ? `${xAt(i, days.length)},${y(b[0])}` : null)).filter(Boolean).reverse();
+  const pts = values.map((v, i) => (v == null ? null : `${xAt(i, days.length, W)},${y(v)}`)).filter(Boolean);
+  const top = band.map((b, i) => (b ? `${xAt(i, days.length, W)},${y(b[1])}` : null)).filter(Boolean);
+  const bottom = band.map((b, i) => (b ? `${xAt(i, days.length, W)},${y(b[0])}` : null)).filter(Boolean).reverse();
   const last = values.map((v, i) => [v, i] as const).filter(([v]) => v != null).pop();
   return (
     <figure>
       <figcaption className="label mb-1">{title}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
         {top.length > 1 && <polygon points={[...top, ...bottom].join(" ")} fill={color} opacity={0.15} />}
         <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={2} />
-        {values.map((v, i) => (v == null ? null : <circle key={i} cx={xAt(i, days.length)} cy={y(v)} r={2.6} fill={color} />))}
+        {values.map((v, i) => (v == null ? null : <circle key={i} cx={xAt(i, days.length, W)} cy={y(v)} r={2.6} fill={color} />))}
         {last && (
-          <text x={W - 4} y={y(last[0] as number) - 6} textAnchor="end" fontSize={11} fill="var(--fg)">
+          <text x={W - 4} y={y(last[0] as number) - 6} textAnchor="end" fontSize={12} fill="var(--fg)">
             {Math.round(last[0] as number)}
           </text>
         )}
@@ -409,6 +427,7 @@ function Line({ title, days, values, band, color }: { title: string; days: strin
 }
 
 function Bars({ title, days, values, target }: { title: string; days: string[]; values: (number | null)[]; target: number }) {
+  const [svgRef, W] = useBoxWidth(560);
   if (!values.some((v) => v != null)) return null;
   const max = Math.max(target + 1, ...values.filter((v): v is number => v != null));
   const y = (v: number) => H - 8 - (v / max) * (H - 16);
@@ -416,18 +435,19 @@ function Bars({ title, days, values, target }: { title: string; days: string[]; 
   return (
     <figure>
       <figcaption className="label mb-1">{title}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
         {values.map((v, i) =>
-          v == null ? null : <rect key={i} x={xAt(i, days.length) - bw / 2} y={y(v)} width={bw} height={H - 8 - y(v)} rx={2} fill={v >= target ? "var(--brand)" : v >= 6.5 ? "#ffb020" : "#ff4d4d"} />,
+          v == null ? null : <rect key={i} className="bar-rise" style={{ animationDelay: `${i * 20}ms` }} x={xAt(i, days.length, W) - bw / 2} y={y(v)} width={bw} height={H - 8 - y(v)} rx={2} fill={v >= target ? "var(--brand)" : v >= 6.5 ? "#ffb020" : "#ff4d4d"} />,
         )}
         <line x1={PAD - 6} x2={W} y1={y(target)} y2={y(target)} stroke="var(--fg)" strokeDasharray="4 3" opacity={0.6} />
-        <text x={2} y={y(target) + 4} fontSize={10} fill="var(--muted)">8 h</text>
+        <text x={2} y={y(target) + 4} fontSize={12} fill="var(--muted)">8 h</text>
       </svg>
     </figure>
   );
 }
 
 function Dots({ title, days, a, b, labels }: { title: string; days: string[]; a: (number | null)[]; b: (number | null)[]; labels: [string, string] }) {
+  const [svgRef, W] = useBoxWidth(560);
   if (!a.some((v) => v != null) && !b.some((v) => v != null)) return null;
   const y = (v: number) => H - 12 - ((v - 1) / 4) * (H - 24);
   return (
@@ -435,15 +455,15 @@ function Dots({ title, days, a, b, labels }: { title: string; days: string[]; a:
       <figcaption className="label mb-1">
         {title} · <span style={{ color: "var(--ride)" }}>● {labels[0]}</span> <span style={{ color: "var(--swim)" }}>● {labels[1]}</span>
       </figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={title}>
         {[1, 3, 5].map((v) => (
           <g key={v}>
             <line x1={PAD - 6} x2={W} y1={y(v)} y2={y(v)} stroke="var(--line)" />
-            <text x={2} y={y(v) + 4} fontSize={10} fill="var(--muted)">{v}</text>
+            <text x={2} y={y(v) + 4} fontSize={12} fill="var(--muted)">{v}</text>
           </g>
         ))}
-        {a.map((v, i) => (v == null ? null : <circle key={`a${i}`} cx={xAt(i, days.length) - 2} cy={y(v)} r={4} fill="var(--ride)" />))}
-        {b.map((v, i) => (v == null ? null : <circle key={`b${i}`} cx={xAt(i, days.length) + 2} cy={y(v)} r={4} fill="var(--swim)" />))}
+        {a.map((v, i) => (v == null ? null : <circle key={`a${i}`} cx={xAt(i, days.length, W) - 2} cy={y(v)} r={4} fill="var(--ride)" />))}
+        {b.map((v, i) => (v == null ? null : <circle key={`b${i}`} cx={xAt(i, days.length, W) + 2} cy={y(v)} r={4} fill="var(--swim)" />))}
       </svg>
     </figure>
   );

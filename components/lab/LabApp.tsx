@@ -13,6 +13,7 @@ import type { Activity, StravaOverview } from "@/lib/strava/types";
 import { SeasonProvider } from "@/lib/season-context";
 import type { SeasonData } from "@/lib/season-plan";
 import type { ActivityZones, ZoneMeta } from "@/lib/zones-data";
+import { EditLock } from "../EditLock";
 import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
@@ -32,17 +33,50 @@ import { SwimTest } from "./SwimTest";
 type TabId = "checkin" | "machine" | "load" | "durability" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
 const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
-const TABS: { id: TabId; label: string; blurb: string }[] = [
-  { id: "checkin", label: "Check-in", blurb: "Twenty seconds each morning: how you slept and feel, plus what the watch measured, turned into a green, yellow or red signal." },
-  { id: "machine", label: "My Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
-  { id: "load", label: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
-  { id: "durability", label: "Durability", blurb: "Do pace and power hold when you are tired? Decoupling, second-half fade, fast starts and fatigue resistance." },
-  { id: "progression", label: "Progression", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
-  { id: "season", label: "Season", blurb: "The whole season: phases, races by priority and the weekly hours, planned against done." },
-  { id: "builds", label: "Race builds", blurb: "The weekly-hours plan to each upcoming race and the form you should arrive with." },
-  { id: "races", label: "Races", blurb: "Every triathlon you raced, grouped from your activities into one result with splits, transitions and an analysis." },
-  { id: "workouts", label: "Workout analysis", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
+const TABS: { id: TabId; label: string; short: string; blurb: string }[] = [
+  { id: "checkin", label: "Check-in", short: "Check-in", blurb: "Twenty seconds each morning: how you slept and feel, plus what the watch measured, turned into a green, yellow or red signal." },
+  { id: "machine", label: "My Machine", short: "Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
+  { id: "load", label: "Form & Load", short: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
+  { id: "durability", label: "Durability", short: "Durability", blurb: "Do pace and power hold when you are tired? Decoupling, second-half fade, fast starts and fatigue resistance." },
+  { id: "progression", label: "Progression", short: "Progress", blurb: "How your training and fitness changed over the last 3 months, 6 months and year." },
+  { id: "season", label: "Season", short: "Season", blurb: "The whole season: phases, races by priority and the weekly hours, planned against done." },
+  { id: "builds", label: "Race builds", short: "Builds", blurb: "The weekly-hours plan to each upcoming race and the form you should arrive with." },
+  { id: "races", label: "Races", short: "Races", blurb: "Every triathlon you raced, grouped from your activities into one result with splits, transitions and an analysis." },
+  { id: "workouts", label: "Workout analysis", short: "Workouts", blurb: "Pick any workout for a reading of its intensity, load and how it compares with similar sessions, plus an AI write-up." },
 ];
+
+/** The tabs live in three groups: today, training and plan. The planner is the last tab of the plan group. */
+type GroupId = "today" | "training" | "plan";
+const GROUPS: { id: GroupId; label: string; tabs: TabId[] }[] = [
+  { id: "today", label: "Today", tabs: ["checkin", "load"] },
+  { id: "training", label: "Training", tabs: ["workouts", "durability", "progression", "machine"] },
+  { id: "plan", label: "Plan", tabs: ["season", "builds", "races", "plan"] },
+];
+const groupOf = (tab: TabId): GroupId => GROUPS.find((g) => g.tabs.includes(tab))!.id;
+const shortOf = (tab: TabId) => (tab === "plan" ? "Planner" : TABS.find((x) => x.id === tab)!.short);
+
+function GroupIcon({ id }: { id: GroupId }) {
+  const p = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  if (id === "today")
+    return (
+      <svg {...p}>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
+      </svg>
+    );
+  if (id === "training")
+    return (
+      <svg {...p}>
+        <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+      </svg>
+    );
+  return (
+    <svg {...p}>
+      <rect x="3.5" y="5" width="17" height="15" rx="3" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </svg>
+  );
+}
 
 /** What the planner holds for a week while it is being edited. */
 interface LivePlan {
@@ -87,7 +121,8 @@ function LabInner({
   // session RPE attached and the manual sessions added: the load, the check-in and the planner all see them
   const activities = useMemo(() => withRpe(strava, lab.rpe ?? {}, lab.manual ?? []), [strava, lab.rpe, lab.manual]);
   const { t, lang, setLang } = useI18n();
-  const [tab, setTab] = useState<TabId>("machine");
+  const [tab, setTab] = useState<TabId>("checkin");
+  const [lastIn, setLastIn] = useState<Partial<Record<GroupId, TabId>>>({});
 
   // what is being edited in the planner, so the Race builds tab follows it without a reload
   const [live, setLive] = useState<Record<string, LivePlan>>({});
@@ -112,6 +147,7 @@ function LabInner({
       const h = window.location.hash.slice(1);
       if (h === PLAN_HASH) setTab("plan");
       else if (TABS.some((x) => x.id === h)) setTab(h as TabId);
+      else if (h === "") setTab((cur) => cur);
     };
     read();
     window.addEventListener("hashchange", read);
@@ -119,9 +155,17 @@ function LabInner({
   }, []);
   const pick = (id: TabId) => {
     setTab(id);
+    setLastIn((m) => ({ ...m, [groupOf(id)]: id }));
     try {
-      window.history.replaceState(null, "", `#${id}`);
+      window.history.replaceState(null, "", `#${id === "plan" ? PLAN_HASH : id}`);
     } catch {}
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+  const group = groupOf(tab);
+  /** Going to a group opens the tab last used in it (the planner only through its key). */
+  const goGroup = (g: GroupId) => {
+    const target = lastIn[g] && lastIn[g] !== "plan" ? lastIn[g]! : GROUPS.find((x) => x.id === g)!.tabs[0];
+    pick(target);
   };
 
   // today in Brasília time, from the moment of the last sync (stable between server and browser)
@@ -141,7 +185,7 @@ function LabInner({
             <Link href="/" aria-label={t("Dashboard")} className="label shrink-0 whitespace-nowrap rounded-full border border-line px-3 py-2 transition-colors hover:text-fg sm:border-0 sm:px-0 sm:py-0">
               ←<span className="hidden sm:inline"> {t("Dashboard")}</span>
             </Link>
-            <span className="num truncate text-xl uppercase tracking-wide text-brand sm:text-2xl">{siteConfig.shortName || siteConfig.nickname} · Lab</span>
+            <span className="num truncate text-xl uppercase tracking-wide text-brand sm:text-2xl"><span className="hidden sm:inline">{siteConfig.shortName || siteConfig.nickname} · </span>Lab</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <div role="group" aria-label={t("Language")} className="label flex rounded-full border border-line p-0.5">
@@ -156,33 +200,64 @@ function LabInner({
                 </button>
               ))}
             </div>
+            <EditLock />
             <ThemeToggle />
           </div>
         </div>
-        <div className="mx-auto w-full max-w-6xl px-4 pb-3 sm:px-8">
-          <div role="tablist" className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
-            {TABS.map((x) => (
-              <button
-                key={x.id}
-                role="tab"
-                aria-selected={tab === x.id}
-                onClick={() => pick(x.id)}
-                className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === x.id ? "lab-tab-on border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
-              >
-                {t(x.label)}
-              </button>
-            ))}
-            <PlannerGate
-              className={`label shrink-0 snap-start whitespace-nowrap rounded-full border px-3.5 py-2 transition-colors sm:px-4 ${tab === "plan" ? "lab-tab-on border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}
+        {/* the three groups (desktop; on a phone they are the bar at the bottom) */}
+        <nav aria-label={t("Sections")} className="mx-auto hidden w-full max-w-6xl gap-2 px-8 pb-2 sm:flex">
+          {GROUPS.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => goGroup(g.id)}
+              aria-current={group === g.id ? "page" : undefined}
+              className={`num flex items-center gap-2 rounded-full border px-5 py-2 text-lg uppercase tracking-wide transition-colors ${group === g.id ? "lab-tab-on border-fg bg-fg text-bg" : "border-line text-muted hover:border-fg hover:text-fg"}`}
             >
-              {t("Planner")}
-            </PlannerGate>
+              <GroupIcon id={g.id} />
+              {t(g.label)}
+            </button>
+          ))}
+        </nav>
+        {/* the tabs of the current group: at most four, so they fit without scrolling */}
+        <div className="mx-auto w-full max-w-6xl px-4 pb-3 sm:px-8">
+          <div role="tablist" aria-label={t(GROUPS.find((g) => g.id === group)!.label)} className="grid auto-cols-fr grid-flow-col gap-1 rounded-full border border-line p-1">
+            {GROUPS.find((g) => g.id === group)!.tabs.map((id) => {
+              const cls = `label min-w-0 truncate whitespace-nowrap rounded-full px-2 py-2.5 text-center transition-colors sm:px-4 ${tab === id ? "lab-tab-on bg-fg text-bg" : "hover:text-fg"}`;
+              return id === "plan" ? (
+                <PlannerGate key={id} className={cls}>
+                  {t("Planner")}
+                </PlannerGate>
+              ) : (
+                <button key={id} role="tab" aria-selected={tab === id} onClick={() => pick(id)} className={cls}>
+                  {t(shortOf(id))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
+      {/* phone: the groups at the bottom, within thumb reach */}
+      <nav
+        aria-label={t("Sections")}
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-line bg-bg/90 backdrop-blur-xl sm:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {GROUPS.map((g) => (
+          <button
+            key={g.id}
+            onClick={() => goGroup(g.id)}
+            aria-current={group === g.id ? "page" : undefined}
+            className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors active:scale-95 ${group === g.id ? "text-brand" : "text-muted"}`}
+          >
+            <GroupIcon id={g.id} />
+            <span className="label text-[0.62rem]">{t(g.label)}</span>
+          </button>
+        ))}
+      </nav>
+
       <main
-        className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-8 sm:py-14"
+        className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-8 sm:py-14 sm:pb-14"
         onPointerMove={(e) => {
           const el = (e.target as HTMLElement).closest<HTMLElement>(".lab-glow");
           if (!el) return;
@@ -191,13 +266,13 @@ function LabInner({
           el.style.setProperty("--my", `${e.clientY - r.top}px`);
         }}
       >
-        <header className="mb-6 sm:mb-10">
+        <header key={tab} className="lab-enter mb-6 sm:mb-10">
           <p className="label text-brand">{t("Lab")}</p>
           <h1 className="num lab-title mt-1 text-4xl uppercase sm:text-7xl">{t(current.label)}</h1>
           <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
         </header>
 
-        {tab === "checkin" && <CheckinTab activities={activities} profile={profile} />}
+        {tab === "checkin" && <CheckinTab activities={activities} profile={profile} todayKey={todayKey} />}
         {tab === "machine" && (
           <>
             <MachineTab profile={profile} lab={lab} />
@@ -223,7 +298,7 @@ function LabInner({
         {tab === "plan" && <PlanTab activities={activities} lab={labLive} todayKey={todayKey} onPlan={onPlan} />}
       </main>
 
-      <footer className="mx-auto w-full max-w-6xl px-5 pb-12 sm:px-8">
+      <footer className="mx-auto w-full max-w-6xl px-5 pb-28 sm:px-8 sm:pb-12">
         <p className="label border-t border-line pt-6">
           {t("Estimates from your Strava history. Not medical or coaching advice.")}
         </p>

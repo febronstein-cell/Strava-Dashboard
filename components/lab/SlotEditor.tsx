@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { ErrorNote } from "../ErrorNote";
 import { HAS_DISTANCE, SPORT_LABEL, fmtMinutes, parseMinutes } from "@/lib/lab/plan";
 import type { PlanSlot, PlanSport, PlanStructure, PlanTarget, TargetType } from "@/lib/lab/types";
 
@@ -101,7 +102,7 @@ export function SlotEditor({
           readOnly={!editable}
           rows={1}
           placeholder={t("Workout (optional)")}
-          className="col-span-3 min-h-10 w-full resize-y rounded-xl border border-line bg-elev px-3 py-2 text-sm text-fg read-only:opacity-80 sm:col-span-1"
+          className="col-span-3 max-h-48 min-h-10 w-full resize-y rounded-xl border border-line bg-elev px-3 py-2 text-sm text-fg [field-sizing:content] read-only:opacity-80 sm:col-span-1"
         />
         <input
           key={`${idKey}-t-${slot.minutes}`}
@@ -128,6 +129,19 @@ export function SlotEditor({
             className="w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm normal-case text-fg"
           />
         )}
+      </div>
+
+      {/* the name of the workout, under the description */}
+      <div className="sm:pl-[7.1rem]">
+        <input
+          value={slot.name ?? ""}
+          onChange={(e) => onChange({ name: e.target.value || undefined })}
+          readOnly={!editable}
+          maxLength={80}
+          placeholder={t("Workout name (e.g. VO2max Effort 5x4')")}
+          aria-label={`${label} · ${t("Workout name")}`}
+          className="w-full rounded-xl border border-line bg-elev px-3 py-2 text-sm font-medium text-fg placeholder:font-normal read-only:opacity-80"
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:pl-[7.1rem]">
@@ -162,7 +176,7 @@ export function SlotEditor({
             >
               {parsing === "busy" ? t("Reading…") : t("Parse from text")}
             </button>
-            {parsing.startsWith("error:") && <span className="text-xs" style={{ color: "var(--goal)" }}>{parsing.slice(6)}</span>}
+            {parsing.startsWith("error:") && <ErrorNote error={parsing.slice(6)} />}
           </div>
 
           {suggestion && (

@@ -159,7 +159,7 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
             {nth > 1 ? ` · ${t("PM")}` : ""}
             {e.entry.key && <span className="ml-2 rounded-full border border-current px-1.5 text-[10px]">{t("key")}</span>}
           </p>
-          <p className="mt-0.5">{e.entry.description || "—"}</p>
+          <p className="mt-0.5">{e.entry.name ? <span className="font-medium">{e.entry.name}</span> : null}{e.entry.name && e.entry.description ? " · " : ""}{e.entry.description || (e.entry.name ? "" : "—")}</p>
           <p className="label mt-0.5 normal-case">
             {[e.entry.minutes ? `${Math.floor(e.entry.minutes / 60)}:${String(e.entry.minutes % 60).padStart(2, "0")} h` : null, e.entry.km ? `${e.entry.km} km` : null, e.entry.structure && structureText(e.entry.structure), target && targetText(target)]
               .filter(Boolean)

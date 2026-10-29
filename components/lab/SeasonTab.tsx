@@ -23,6 +23,8 @@ import {
 } from "@/lib/season-plan";
 import type { Activity } from "@/lib/strava/types";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { LockedHint } from "../EditLock";
+import { ErrorNote } from "../ErrorNote";
 import { Hint, Panel } from "./LabBits";
 
 export const FOCUS_COLOR: Record<PhaseFocus, string> = {
@@ -168,7 +170,7 @@ export function SeasonTab({ activities, lab, todayKey }: { activities: Activity[
                 <g key={w}>
                   {p && <rect x={x(i) + 4} y={yBar(p.hoursMax)} width={COL - 8} height={Math.max(2, yBar(p.hoursMin) - yBar(p.hoursMax))} rx={3} fill={FOCUS_COLOR[p.focus]} opacity={0.22} />}
                   {plan != null && <rect x={x(i) + 6} y={yBar(plan)} width={COL - 12} height={yBar(0) - yBar(plan)} rx={3} fill="none" stroke="var(--fg)" strokeWidth={1.4} />}
-                  {past && done != null && <rect x={x(i) + 9} y={yBar(done)} width={COL - 18} height={yBar(0) - yBar(done)} rx={2} fill="var(--brand)" />}
+                  {past && done != null && <rect className="bar-rise" style={{ animationDelay: `${Math.min(i, 30) * 25}ms` }} x={x(i) + 9} y={yBar(done)} width={COL - 18} height={yBar(0) - yBar(done)} rx={2} fill="var(--brand)" />}
                   <title>{`${w}${p ? ` · ${p.name} ${p.hoursMin}–${p.hoursMax} h` : ""}${plan != null ? ` · planned ${plan.toFixed(1)} h` : ""}${past && done != null ? ` · done ${done.toFixed(1)} h` : ""}`}</title>
                 </g>
               );
@@ -197,7 +199,7 @@ export function SeasonTab({ activities, lab, todayKey }: { activities: Activity[
 
       <RacesEditor races={season.races} canEdit={session.unlocked && season.source === "db"} onSaved={reload} />
       <PhasesEditor phases={season.phases} canEdit={session.unlocked && season.source === "db"} onSaved={reload} />
-      {!session.unlocked && <p className="label">{t("Unlock the planner on this device to edit the season.")}</p>}
+      <LockedHint what={t("Enter the password to edit races and phases")} />
     </div>
   );
 }
@@ -303,7 +305,7 @@ function RacesEditor({ races, canEdit, onSaved }: { races: SeasonRaceEntry[]; ca
           </div>
         </div>
       )}
-      {error && <p className="mt-3 text-sm" style={{ color: "var(--goal)" }}>{error}</p>}
+      <ErrorNote error={error} className="mt-3" />
     </Panel>
   );
 }
@@ -378,7 +380,7 @@ function PhasesEditor({ phases, canEdit, onSaved }: { phases: PhaseEntry[]; canE
           </div>
         </div>
       )}
-      {error && <p className="mt-3 text-sm" style={{ color: "var(--goal)" }}>{error}</p>}
+      <ErrorNote error={error} className="mt-3" />
     </Panel>
   );
 }

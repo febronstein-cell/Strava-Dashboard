@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/lib/i18n";
 import { useState } from "react";
+import { useBoxWidth } from "@/lib/use-box-width";
 
 export interface ScatterPoint {
   id: number;
@@ -11,7 +12,6 @@ export interface ScatterPoint {
   label: string;
 }
 
-const W = 600;
 const H = 300;
 const M = { l: 46, r: 12, t: 12, b: 34 };
 
@@ -40,6 +40,7 @@ export function ScatterChart({
   color?: string;
 }) {
   const { t } = useI18n();
+  const [svgRef, W] = useBoxWidth(600);
   const [active, setActive] = useState<ScatterPoint | null>(null);
   if (points.length < 3) return <p className="py-10 text-muted">{t("Few data points in this period.")}</p>;
 
@@ -58,17 +59,17 @@ export function ScatterChart({
           <p className="label pt-1">{t("Hover a point; click to open the workout")}</p>
         )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img">
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={M.l} x2={W - M.r} y1={py(t)} y2={py(t)} stroke="var(--line)" strokeDasharray="2 4" />
-            <text x={M.l - 8} y={py(t)} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+            <text x={M.l - 8} y={py(t)} textAnchor="end" dominantBaseline="middle" fontSize="11" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
               {formatY(t)}
             </text>
           </g>
         ))}
         {xTicks.map((t) => (
-          <text key={t} x={px(t)} y={H - 12} textAnchor="middle" fontSize="9" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
+          <text key={t} x={px(t)} y={H - 12} textAnchor="middle" fontSize="11" fill="var(--muted)" style={{ fontFamily: "var(--f-mono)" }}>
             {formatX(t)}
           </text>
         ))}
