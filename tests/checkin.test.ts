@@ -97,3 +97,18 @@ describe("manual always wins", () => {
     expect(applyManual(null, "2026-11-10", { wakeTime: "6:45" })?.wakeTime).toBe("6:45");
   });
 });
+
+import { findToken } from "@/lib/checkin-import";
+
+describe("Garmin token parsing", () => {
+  const jwt = "aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbb.cccccccccccccccc";
+  it("reads a bare token, a flat JSON and a nested JSON, and reports field names only", () => {
+    expect(findToken(jwt).token).toBe(jwt);
+    expect(findToken(JSON.stringify({ access_token: jwt })).token).toBe(jwt);
+    expect(findToken(JSON.stringify({ data: { personalApiToken: jwt, expiresIn: 3600 } })).token).toBe(jwt);
+    const miss = findToken(JSON.stringify({ status: "ok", ttl: 3600 }));
+    expect(miss.token).toBeUndefined();
+    expect(miss.shape).toBe("fields: status, ttl");
+    expect(findToken("").shape).toBe("empty");
+  });
+});

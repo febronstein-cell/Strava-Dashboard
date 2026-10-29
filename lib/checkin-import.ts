@@ -25,6 +25,8 @@ interface ProviderLog {
   received: Record<string, string[]>;
   /** fields the provider never returned in this run */
   missing: string[];
+  /** names (never values) of the fields the provider did send for each day, to see what it knows */
+  seen: Record<string, string[]>;
   errors: string[];
 }
 
@@ -34,16 +36,17 @@ const DAY = 86_400_000;
 const dayStart = (d: string) => Math.floor(Date.parse(`${d}T00:00:00-03:00`) / 1000);
 
 async function garmin(days: string[]): Promise<{ log: ProviderLog; values: Record<string, Values> }> {
-  const log: ProviderLog = { source: "garmin", configured: !!process.env.GARMIN_API_KEY, ok: false, received: {}, missing: [], errors: [] };
+  const log: ProviderLog = { source: "garmin", configured: !!process.env.GARMIN_API_KEY, ok: false, received: {}, missing: [], seen: {}, errors: [] };
   const values: Record<string, Values> = {};
   if (!log.configured) return { log, values };
 
   let token: string | undefined;
   try {
     const res = await fetch(GARMIN_TOKEN_URL, { method: "POST", headers: { Authorization: `ApiKey ${process.env.GARMIN_API_KEY}` }, cache: "no-store" });
-    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    token = String(body.access_token ?? body.accessToken ?? body.token ?? "") || undefined;
-    if (!res.ok || !token) log.errors.push(`token: HTTP ${res.status}`);
+    const text = await res.text();
+    const found = findToken(text);
+    token = found.token;
+    if (!res.ok || !token) log.errors.push(`token: HTTP ${res.status}, no token found in the answer (${found.shape})`);
   } catch (e) {
     log.errors.push(`token: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -96,9 +99,40 @@ async function garmin(days: string[]): Promise<{ log: ProviderLog; values: Recor
   return { log, values };
 }
 
+/**
+ * The access token in Garmin's answer, whatever its shape: a bare token, or JSON with a token under any key that
+ * looks like one (searched through nested objects). `shape` lists the field NAMES only, for the log: never values.
+ */
+export function findToken(text: string): { token?: string; shape: string } {
+  const t = text.trim();
+  if (/^[\w-]+\.[\w-]+\.[\w-]+$/.test(t)) return { token: t, shape: "bare token" };
+  let json: unknown;
+  try {
+    json = JSON.parse(t);
+  } catch {
+    return { shape: t ? "not JSON" : "empty" };
+  }
+  if (typeof json === "string" && json.length > 20) return { token: json, shape: "JSON string" };
+  const names: string[] = [];
+  const walk = (o: unknown, path: string): string | undefined => {
+    if (!o || typeof o !== "object") return undefined;
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      names.push(path + k);
+      if (typeof v === "string" && /token|jwt|bearer/i.test(k) && v.length > 20) return v;
+    }
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      const r = walk(v, path + k + ".");
+      if (r) return r;
+    }
+    return undefined;
+  };
+  const token = walk(json, "");
+  return { token, shape: `fields: ${names.slice(0, 12).join(", ") || "none"}` };
+}
+
 async function intervals(days: string[]): Promise<{ log: ProviderLog; values: Record<string, Values> }> {
   const key = process.env.INTERVALS_API_KEY;
-  const log: ProviderLog = { source: "intervals", configured: !!key, ok: false, received: {}, missing: [], errors: [] };
+  const log: ProviderLog = { source: "intervals", configured: !!key, ok: false, received: {}, missing: [], seen: {}, errors: [] };
   const values: Record<string, Values> = {};
   if (!key) return { log, values };
   const athlete = process.env.INTERVALS_ATHLETE_ID || "0";
@@ -111,6 +145,7 @@ async function intervals(days: string[]): Promise<{ log: ProviderLog; values: Re
       if (res.status === 404) continue;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const w = (await res.json()) as Record<string, unknown>;
+      log.seen[day] = Object.entries(w).filter(([, x]) => x !== null && x !== undefined && x !== "").map(([k]) => k);
       const v: Values = {};
       if (typeof w.restingHR === "number") v.restingHR = w.restingHR;
       if (typeof w.hrv === "number") v.hrv = w.hrv;

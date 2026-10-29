@@ -146,11 +146,11 @@ export function CheckinTab({ activities, profile }: { activities: Activity[]; pr
   const importNow = async () => {
     setState("importing");
     const res = await fetch("/api/checkin/import", { method: "POST" });
-    const j = (await res.json().catch(() => ({}))) as { error?: string; providers?: { source: string; configured: boolean; ok: boolean; missing: string[]; errors: string[] }[] };
+    const j = (await res.json().catch(() => ({}))) as { error?: string; providers?: { source: string; configured: boolean; ok: boolean; missing: string[]; errors: string[]; seen?: Record<string, string[]> }[] };
     if (!res.ok) return setState(`error:${j.error ?? res.status}`);
     setImportLog(
       (j.providers ?? [])
-        .map((p) => (p.configured ? `${p.source}: ${p.ok ? t("ok") : t("failed")}${p.missing.length ? ` · ${t("not provided")}: ${p.missing.join(", ")}` : ""}${p.errors.length ? ` · ${p.errors.join("; ")}` : ""}` : `${p.source}: ${t("not configured")}`))
+        .map((p) => (p.configured ? `${p.source}: ${p.ok ? t("ok") : t("failed")}${p.missing.length ? ` · ${t("not provided")}: ${p.missing.join(", ")}` : ""}${p.errors.length ? ` · ${p.errors.join("; ")}` : ""}${p.seen && Object.keys(p.seen).length ? `\n  ${t("fields it knows")}: ${Object.entries(p.seen).map(([d, f]) => `${d}: ${f.join(", ") || t("none")}`).join(" | ")}` : ""}` : `${p.source}: ${t("not configured")}`))
         .join("\n"),
     );
     setState("idle");

@@ -1061,4 +1061,8 @@ export const pt: Record<string, string> = {
   "Started too fast": "Largou rápido demais",
   "Runs whose first km was more than 3% faster than km 2 to 5. Bricks (a run within 20 minutes of a ride) always show the check.": "Corridas cujo primeiro km foi mais de 3% mais rápido que os km 2 a 5. Bricks (corrida até 20 minutos depois de um pedal) sempre mostram a checagem.",
   "vs km 2 to 5": "vs. km 2 a 5",
+
+  // import diag
+  "fields it knows": "campos que ele conhece",
+  "none": "nenhum",
 };
