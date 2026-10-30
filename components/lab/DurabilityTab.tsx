@@ -135,16 +135,16 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={t("Aerobic decoupling, long runs")} subtitle={t("Efficiency (speed ÷ HR) of the first half against the second, after a 10 minute warm-up. Runs of 45 min or more.")}>
+        <Panel title={t("Aerobic decoupling, long runs")} fold subtitle={t("Efficiency (speed ÷ HR) of the first half against the second, after a 10 minute warm-up. Runs of 45 min or more.")}>
           <Dots title={t("% drift")} rows={longRuns} pick={(r) => r.decoupling} unit="%" limits color="var(--run)" />
         </Panel>
-        <Panel title={t("Aerobic decoupling, long rides")} subtitle={t("Efficiency (power ÷ HR), first half against second. Rides of 60 min or more.")}>
+        <Panel title={t("Aerobic decoupling, long rides")} fold subtitle={t("Efficiency (power ÷ HR), first half against second. Rides of 60 min or more.")}>
           <Dots title={t("% drift")} rows={longRides} pick={(r) => r.decoupling} unit="%" limits color="var(--ride)" />
         </Panel>
-        <Panel title={t("Second-half fade, runs")} subtitle={t("How much slower the second half of the distance was. Floripa 70.3 for reference: 4:24 vs 4:55 per km, 11.7%.")}>
+        <Panel title={t("Second-half fade, runs")} fold subtitle={t("How much slower the second half of the distance was. Floripa 70.3 for reference: 4:24 vs 4:55 per km, 11.7%.")}>
           <Dots title={t("% slower")} rows={rows.filter((r) => r.sport === "run")} pick={(r) => r.fade} unit="%" color="var(--run)" />
         </Panel>
-        <Panel title={t("Fatigue resistance, rides")} subtitle={t("Best 20-minute power after 1,500 and 2,500 kJ of work, as a share of the fresh best of the 90 days before.")}>
+        <Panel title={t("Fatigue resistance, rides")} fold subtitle={t("Best 20-minute power after 1,500 and 2,500 kJ of work, as a share of the fresh best of the 90 days before.")}>
           <Dots title={t("% of fresh best, after 1,500 kJ")} rows={rows.filter((r) => r.sport === "ride")} pick={(r) => r.after1500Pct} unit="%" color="var(--ride)" />
           <div className="mt-4">
             <Dots title={t("% of fresh best, after 2,500 kJ")} rows={rows.filter((r) => r.sport === "ride")} pick={(r) => r.after2500Pct} unit="%" color="var(--goal)" />
@@ -152,7 +152,7 @@ export function DurabilityTab({ activities, zones }: { activities: Activity[]; z
         </Panel>
       </div>
 
-      <Panel title={t("Started too fast")} subtitle={t("Runs whose first km was more than 3% faster than km 2 to 5. Bricks (a run within 20 minutes of a ride) always show the check.")}>
+      <Panel title={t("Started too fast")} fold subtitle={t("Runs whose first km was more than 3% faster than km 2 to 5. Bricks (a run within 20 minutes of a ride) always show the check.")}>
         {flags.length === 0 ? (
           <p className="text-sm text-muted">{t("Not enough sessions with this number yet.")}</p>
         ) : (

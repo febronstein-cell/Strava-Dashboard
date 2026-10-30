@@ -1254,4 +1254,13 @@ export const pt: Record<string, string> = {
   "Ahead": "Pela frente",
   "target {h} h": "meta {h} h",
   "Enter the password to open the planner": "Digite a senha para abrir o planejador",
+
+  // week marks
+  "all days planned": "todos os dias planejados",
+  "Done as planned": "Feita como planejado",
+  "Partly done": "Feita em parte",
+  "Mostly missed": "Quase toda perdida",
+  "Planned": "Planejada",
+  "Partly planned": "Planejada em parte",
+  "Nothing planned": "Nada planejado",
 };

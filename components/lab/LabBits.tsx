@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import { CountUp } from "../CountUp";
 import type { Metric } from "@/lib/lab/profile";
@@ -65,27 +65,47 @@ export function Stat({
   );
 }
 
+/**
+ * A card with a title. With `fold`, on a phone the card is folded to its title (tap to open) so long pages stay short;
+ * `open` starts it unfolded. On a computer it is always open and the title is not a button.
+ */
 export function Panel({
   title,
   subtitle,
   aside,
   children,
+  fold = false,
+  open = false,
 }: {
   title: string;
   subtitle?: string;
   aside?: ReactNode;
   children: ReactNode;
+  fold?: boolean;
+  open?: boolean;
 }) {
+  const [shown, setShown] = useState(open);
+  const folded = fold && !shown;
+  const head = (
+    <>
+      <h3 className="num break-words text-xl uppercase sm:text-3xl">{title}</h3>
+      {subtitle && <p className={`mt-1.5 max-w-2xl text-sm text-muted ${folded ? "hidden sm:block" : ""}`}>{subtitle}</p>}
+    </>
+  );
   return (
     <div className="card lab-glow min-w-0 p-4 sm:p-7">
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 sm:mb-5">
-        <div>
-          <h3 className="num break-words text-xl uppercase sm:text-3xl">{title}</h3>
-          {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-muted">{subtitle}</p>}
-        </div>
-        {aside}
+      <div className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 sm:mb-5 ${folded ? "mb-0" : "mb-4"}`}>
+        {fold ? (
+          <button type="button" onClick={() => setShown((v) => !v)} aria-expanded={shown} className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left sm:pointer-events-none sm:block">
+            <span className="min-w-0">{head}</span>
+            <span aria-hidden className={`label mt-1 shrink-0 transition-transform sm:hidden ${shown ? "rotate-180" : ""}`}>⌄</span>
+          </button>
+        ) : (
+          <div>{head}</div>
+        )}
+        {aside && <span className={folded ? "hidden sm:block" : ""}>{aside}</span>}
       </div>
-      {children}
+      <div className={folded ? "hidden sm:block" : ""}>{children}</div>
     </div>
   );
 }

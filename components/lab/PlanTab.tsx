@@ -16,6 +16,8 @@ import { DayEditor, DayStrip, type SlotPatch } from "./DayEditor";
 import { ErrorNote } from "../ErrorNote";
 import { WeekNav, type WeekRow } from "./WeekNav";
 import { WeekReview } from "./WeekReview";
+import { matchWeek } from "@/lib/compliance";
+import { reviewWeek } from "@/lib/session-status";
 
 const PHASE_COLOR: Record<SeasonPhase, string> = {
   base: "var(--swim)",
@@ -161,6 +163,16 @@ export function PlanTab({
     return [...past, ...season];
   }, [plan, current, season, seasonData.phases]);
 
+  /** A week that is over is marked by what happened; one that is still ahead (or running) only by how much of it is planned. */
+  const markOf = (start: string, d: PlanDay[] | undefined): WeekRow["mark"] => {
+    if (!d || !d.some(dayFilled)) return "empty";
+    if (start < current) {
+      const sc = reviewWeek(matchWeek(d, start, activities), {}, start, todayKey).summary.score;
+      if (sc != null) return sc >= 80 ? "done" : sc >= 50 ? "mid" : "low";
+    }
+    return isComplete(d) ? "planned" : "partial";
+  };
+
   const rows = useMemo<WeekRow[]>(() => {
     let lastBanner = "";
     return weeks.map((w) => {
@@ -176,12 +188,13 @@ export function PlanTab({
         label: written[w.start]?.title ? t(written[w.start].title as string) : w.seasonPhase ? w.seasonPhase.name : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`,
         plannedH: tot,
         targetH: w.target > 0 ? w.target : null,
-        fill: d && isComplete(d) ? "complete" : d && d.some(dayFilled) ? "partial" : "empty",
+        mark: markOf(w.start, d),
         state: w.start < current ? "past" : w.start === current ? "current" : "future",
         banner,
       };
     });
-  }, [weeks, plan, written, current, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weeks, plan, written, current, t, activities, todayKey]);
 
   const canEdit = session.unlocked;
   const w = weeks.find((x) => x.start === sel) ?? weeks[0];
@@ -298,7 +311,7 @@ function WeekPanel({
             {target ? t("target {h} h", { h: target }) : ""}
             {target && tot.km > 0 ? " · " : ""}
             {tot.km > 0 ? `${fmt.num(tot.km, 0)} km · ${t("{n} sessions", { n: tot.sessions })}` : ""}
-            {done && <span className="ml-2 text-brand">✓ {t("complete")}</span>}
+            {done && <span className="ml-2 text-brand">{t("all days planned")}</span>}
           </p>
         </div>
       </header>

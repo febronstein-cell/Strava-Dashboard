@@ -241,7 +241,7 @@ function RacesEditor({ races, canEdit, onSaved }: { races: SeasonRaceEntry[]; ca
   };
 
   return (
-    <Panel title={t("Races")} subtitle={t("Priority A = goal of the season (full taper), B = mini taper of 4 to 5 days, C = no taper.")}>
+    <Panel title={t("Races")} fold subtitle={t("Priority A = goal of the season (full taper), B = mini taper of 4 to 5 days, C = no taper.")}>
       <ul className="divide-y divide-line/60">
         {byDate(races).map((r) => (
           <li key={r.id ?? r.name + r.date} className="flex flex-wrap items-start gap-x-4 gap-y-1 py-3">
@@ -334,7 +334,7 @@ function PhasesEditor({ phases, canEdit, onSaved }: { phases: PhaseEntry[]; canE
   const date = (d: string) => fmt.dateLabel(`${d}T00:00:00`, { day: "2-digit", month: "short" });
 
   return (
-    <Panel title={t("Phases")} subtitle={t("The phases set the target hours of the planner and of the race builds. Weeks no phase covers use the automatic model.")}>
+    <Panel title={t("Phases")} fold subtitle={t("The phases set the target hours of the planner and of the race builds. Weeks no phase covers use the automatic model.")}>
       <ul className="divide-y divide-line/60">
         {[...phases].sort((a, b) => (a.start < b.start ? -1 : 1)).map((p) => (
           <li key={p.id ?? p.start + p.name} className="flex flex-wrap items-start gap-x-4 gap-y-1 py-3">

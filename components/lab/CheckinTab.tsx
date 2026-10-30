@@ -385,7 +385,7 @@ function CheckinCharts({ list, today, fmt }: { list: Stored[]; today: string; fm
   if (!days.some((d) => by.has(d))) return <Hint>{t("The 28-day charts appear after the first check-ins.")}</Hint>;
 
   return (
-    <Panel title={t("Last 28 days")}>
+    <Panel title={t("Last 28 days")} fold>
       <div className="space-y-6">
         <Line title={t("Resting HR (bpm)")} days={days} values={days.map((d) => by.get(d)?.restingHR ?? null)} band={band("restingHR")} color="var(--run)" />
         <Line title={t("HRV (rMSSD, ms)")} days={days} values={days.map((d) => by.get(d)?.hrv ?? null)} band={band("lnHrv")} color="var(--swim)" />

@@ -149,7 +149,7 @@ export function MachineTab({ profile, lab }: { profile: Profile; lab: LabData })
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={t("Heart-rate zones")} subtitle={t("Set in site.config.ts and used across the whole site.")}>
+        <Panel title={t("Heart-rate zones")} fold subtitle={t("Set in site.config.ts and used across the whole site.")}>
           <ZoneTable zones={hrZones()} format={(v) => fmt.int(v)} unit="bpm" />
         </Panel>
 
@@ -169,7 +169,7 @@ export function MachineTab({ profile, lab }: { profile: Profile; lab: LabData })
           {runPace ? <ZoneTable zones={runPaceZones(runPace)} format={(v) => clock(v)} unit="/km" pace /> : <Hint>{t("Not available yet")}</Hint>}
         </Panel>
 
-        <Panel title={t("Power profile")} subtitle={t("Best average power for each duration, indoor and outdoor.")}>
+        <Panel title={t("Power profile")} fold subtitle={t("Best average power for each duration, indoor and outdoor.")}>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
             {POWER_DURATIONS.map((d) => {
               const w = lab.power[String(d)];
@@ -231,7 +231,7 @@ function TestHistory({ rows, dbReady, hasTests }: { rows: ThresholdRow[]; dbRead
   const sorted = useMemo(() => rows.filter((r) => !HIDDEN_KINDS.includes(r.kind)).sort((a, b) => (a.testDate < b.testDate ? 1 : -1)), [rows]);
 
   return (
-    <Panel title={t("Test history")} subtitle={t("Every threshold test saved in your database, newest first.")}>
+    <Panel title={t("Test history")} fold subtitle={t("Every threshold test saved in your database, newest first.")}>
       {!hasTests ? (
         <Hint>
           {dbReady

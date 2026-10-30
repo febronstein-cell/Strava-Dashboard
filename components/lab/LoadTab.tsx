@@ -140,7 +140,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
           )}
         </Panel>
 
-        <Panel title={t("Monotony and strain")} subtitle={t("Last 7 days: how repetitive the week was (Foster).")}>
+        <Panel title={t("Monotony and strain")} fold subtitle={t("Last 7 days: how repetitive the week was (Foster).")}>
           {mono ? (
             <>
               <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
@@ -165,7 +165,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
         </Panel>
       </div>
 
-      <Panel title={t("Fitness by sport")} subtitle={t("Where today's fitness comes from: 42-day load of each sport.")}>
+      <Panel title={t("Fitness by sport")} fold subtitle={t("Where today's fitness comes from: 42-day load of each sport.")}>
         <ul className="space-y-3">
           {sportRows.map((r) => (
             <li key={r.k} className="flex items-center gap-3">
@@ -179,7 +179,7 @@ export function LoadTab({ activities, series, profile, comments }: { activities:
         </ul>
       </Panel>
 
-      <Panel title={t("How the load is calculated")} subtitle={t("The more sessions with a power meter, pace or heart rate, the more accurate the curve.")}>
+      <Panel title={t("How the load is calculated")} fold subtitle={t("The more sessions with a power meter, pace or heart rate, the more accurate the curve.")}>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {(
             [

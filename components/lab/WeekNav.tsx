@@ -11,17 +11,50 @@ export interface WeekRow {
   label: string;
   plannedH: number;
   targetH: number | null;
-  fill: "complete" | "partial" | "empty";
+  /**
+   * What the mark says. A week that is over is judged by what happened: "done" (80% or more of the plan), "mid" (50 to
+   * 79%) or "low". A week still ahead (or running) is only a plan: "planned" (every day filled in), "partial" or "empty".
+   * A plan is never shown as done.
+   */
+  mark: "done" | "mid" | "low" | "planned" | "partial" | "empty";
   state: "past" | "current" | "future";
   /** the race this stretch builds towards: a banner is drawn when it changes */
   banner?: string;
 }
 
-const Mark = ({ fill }: { fill: WeekRow["fill"] }) => (
-  <span aria-hidden className={`inline-flex size-4 items-center justify-center rounded-full border text-[10px] leading-none ${fill === "complete" ? "border-brand bg-brand text-bg" : fill === "partial" ? "border-brand text-brand" : "border-line text-muted"}`}>
-    {fill === "complete" ? "✓" : fill === "partial" ? "◐" : ""}
-  </span>
-);
+const MARK: Record<WeekRow["mark"], { glyph: string; cls: string }> = {
+  done: { glyph: "✓", cls: "border-[#1fe08a] bg-[#1fe08a] text-bg" },
+  mid: { glyph: "◐", cls: "border-[#ffb020] text-[#ffb020]" },
+  low: { glyph: "✕", cls: "border-[#ff4d4d] text-[#ff4d4d]" },
+  planned: { glyph: "●", cls: "border-brand text-brand" },
+  partial: { glyph: "◔", cls: "border-brand text-brand" },
+  empty: { glyph: "", cls: "border-line text-muted" },
+};
+const MARK_LABEL: Record<WeekRow["mark"], string> = { done: "Done as planned", mid: "Partly done", low: "Mostly missed", planned: "Planned", partial: "Partly planned", empty: "Nothing planned" };
+
+const Mark = ({ mark }: { mark: WeekRow["mark"] }) => {
+  const { t } = useI18n();
+  return (
+    <span aria-label={t(MARK_LABEL[mark])} title={t(MARK_LABEL[mark])} className={`inline-flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] leading-none ${MARK[mark].cls}`}>
+      {MARK[mark].glyph}
+    </span>
+  );
+};
+
+/** What the marks mean, shown under the weeks. */
+function Legend() {
+  const { t } = useI18n();
+  return (
+    <ul className="label mt-3 flex flex-wrap gap-x-4 gap-y-1.5 normal-case">
+      {(["done", "mid", "low", "planned", "partial", "empty"] as const).map((m) => (
+        <li key={m} className="flex items-center gap-1.5">
+          <Mark mark={m} />
+          {t(MARK_LABEL[m])}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * Where you are in the year. On a computer it is a sidebar that stays in view while you work on one week; on a phone
@@ -73,10 +106,11 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
             >
               <span className="label">{date(r.start)}</span>
               <span className="num text-lg leading-none">{r.plannedH > 0 ? `${fmt.num(r.plannedH, 1)} h` : "-"}</span>
-              <Mark fill={r.fill} />
+              <Mark mark={r.mark} />
             </button>
           ))}
         </div>
+        <Legend />
       </div>
 
       {/* computer: a sidebar */}
@@ -115,11 +149,12 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
                     </span>
                   ) : null}
                 </span>
-                <Mark fill={r.fill} />
+                <Mark mark={r.mark} />
               </button>
             </div>
           ))}
         </div>
+        <Legend />
       </aside>
     </>
   );
