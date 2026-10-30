@@ -10,6 +10,7 @@ import { mondayOf } from "@/lib/lab/progress";
 import { loadContext } from "@/lib/load-context";
 import { readSeason } from "@/lib/season-data";
 import { nextARace, phaseOn } from "@/lib/season-plan";
+import { contextSnapshot } from "@/lib/context-data";
 import { readStreams } from "@/lib/streams-cache";
 import { getSupabase } from "@/lib/supabase";
 import { labZones } from "@/lib/zones-data";
@@ -106,6 +107,19 @@ export async function coachDaily(date: string) {
   const now = series[series.length - 1];
   const ratio = acwr(series);
 
+  // the Context Log: open events, follow-up answers, session statuses of the day and the signal with its reasons
+  const ctx = await contextSnapshot(date, 14).catch(() => null);
+  const context = ctx && {
+    signal: ctx.signal,
+    openEvents: ctx.events
+      .filter((e) => e.status === "open")
+      .map((e) => ({ id: e.id, type: e.type, bodyArea: e.bodyArea ?? null, severity: e.severity, causeStatedByAthlete: e.causeStated ?? null, tags: e.tags, startDate: e.startDate, openDays: e.openDays, followups: e.followups.map((f) => ({ date: f.date, recoveryScore: f.score, trend: f.trend, redFlags: f.redFlags, note: f.note ?? null })), needsAnswerToday: ctx.due.includes(e.id) })),
+    recentlyClosed: ctx.events.filter((e) => e.status === "closed").slice(0, 5).map((e) => ({ id: e.id, type: e.type, startDate: e.startDate, cost: e.cost })),
+    sessionStatusesOfTheDay: ctx.statuses.filter((s) => s.date === date),
+    notesOfTheDay: ctx.notes.filter((n) => n.date === date).map((n) => ({ text: n.text, confirmed: n.confirmed })),
+    patterns: ctx.patterns,
+  };
+
   const phase = phaseOn(season.phases, date);
   const next = nextARace(season.races, date);
   return {
@@ -129,6 +143,7 @@ export async function coachDaily(date: string) {
       signalReasons: sig?.reasons ?? [],
       baselines: sig && { restingHR: sig.baselines.restingHR && { mean: r1(sig.baselines.restingHR.mean), ready: sig.baselines.restingHR.ready }, lnHrv: sig.baselines.lnHrv && { mean: r1(sig.baselines.lnHrv.mean), sd: r1(sig.baselines.lnHrv.sd), ready: sig.baselines.lnHrv.ready } },
     },
+    context,
     baselinesToday: baselines(history, date),
     load: now && { fitness: Math.round(now.ctl), fatigue: Math.round(now.atl), form: Math.round(now.tsb), formBand: formState(now.tsb), acuteChronicRatio: ratio ? Math.round(ratio.ratio * 100) / 100 : null, acuteChronicBand: ratio?.state ?? null, dayLoad: Math.round(now.tss) },
     season: {

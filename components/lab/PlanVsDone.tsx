@@ -1,144 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import {
-  hrCapCompliance,
-  lapPace,
-  matchWeek,
-  rangeCompliance,
-  sessionCompliance,
-  weekCompliance,
-  workReps,
-  type Color,
-  type DayMatch,
-  type Lap,
-  type MatchedEntry,
-  type Override,
-} from "@/lib/compliance";
-import { DAY_NAMES, SPORT_LABEL } from "@/lib/lab/plan";
-import type { PlanDay } from "@/lib/lab/types";
-import type { Activity } from "@/lib/strava/types";
+import { REASON_TAGS } from "@/lib/context-config";
+import { hrCapCompliance, lapPace, rangeCompliance, sessionCompliance, workReps, type Color, type Lap, type MatchedEntry, type Override } from "@/lib/compliance";
+import { SPORT_LABEL } from "@/lib/lab/plan";
+import type { ReviewSession, SessionState, StatusRow } from "@/lib/session-status";
+import { contextChanged } from "@/lib/use-context-data";
+import { ErrorNote } from "../ErrorNote";
 import { SPORT_COLOR, clock, structureText, targetText } from "./SlotEditor";
 
-const COLOR: Record<Color, string> = { green: "#1fe08a", yellow: "#ffb020", red: "#ff4d4d", grey: "var(--muted)" };
-const hm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.round((s % 3600) / 60)).padStart(2, "0")}`;
+export const COLOR: Record<Color, string> = { green: "#1fe08a", yellow: "#ffb020", red: "#ff4d4d", grey: "var(--muted)" };
+export const hm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.round((s % 3600) / 60)).padStart(2, "0")}`;
 
-interface Actuals {
+/** What the server sends for one week: re-matches, laps, HR histograms and the status of each planned session. */
+export interface Actuals {
   overrides: Record<number, Override>;
   laps: Record<number, Lap[]>;
   pending: number[];
   /** seconds at each bpm per activity, for the HR-cap check (from the streams) */
   hrHist?: Record<number, Record<string, number>>;
+  statuses?: Record<string, StatusRow>;
+}
+
+export const STATE_COLOR: Record<ReviewSession["state"], string> = { done: "#1fe08a", partial: "#ffb020", skipped: "#ff4d4d", changed: "var(--brand)", pending: "var(--muted)" };
+export const STATE_LABEL: Record<ReviewSession["state"], string> = { done: "Done", partial: "Partial", skipped: "Skipped", changed: "Changed", pending: "Ahead" };
+
+export function Chip({ color, children }: { color: Color | string; children: React.ReactNode }) {
+  const c = color in COLOR ? COLOR[color as Color] : color;
+  return (
+    <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: `color-mix(in srgb, ${c} 18%, transparent)`, color: c, border: `1px solid ${c}` }}>
+      {children}
+    </span>
+  );
+}
+
+/** A session's status as a pill: the state, and the percent when it was not done in full. */
+export function StatePill({ s }: { s: ReviewSession }) {
+  const { t } = useI18n();
+  return (
+    <Chip color={STATE_COLOR[s.state]}>
+      {t(STATE_LABEL[s.state])}
+      {s.state === "partial" && s.percent != null ? ` ${s.percent}%` : ""}
+    </Chip>
+  );
 }
 
 /**
- * Plan against reality for one week: per sport planned vs done, sessions done, missed and unplanned, key sessions,
- * a compliance score, and for each day every session side by side with its colors and, when it has a target,
- * the reps against it (the first rep apart).
+ * One planned session with what was done: plan and activity side by side, the reps against the target (the first
+ * rep apart), and, behind "Adjust", the status override and the manual re-match. The match itself is automatic.
  */
-export function PlanVsDone({ weekStart, days, activities, todayKey, editable }: { weekStart: string; days: PlanDay[]; activities: Activity[]; todayKey: string; editable: boolean }) {
-  const { t, fmt } = useI18n();
-  const [actuals, setActuals] = useState<Actuals | null>(null);
-  const [reload, setReload] = useState(0);
-
-  useEffect(() => {
-    if (!editable) return;
-    let alive = true;
-    fetch(`/api/plan/actuals?week=${weekStart}`, { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<Actuals>) : null))
-      .then((d) => alive && d && setActuals(d))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [weekStart, editable, reload]);
-
-  const matched = useMemo(() => matchWeek(days, weekStart, activities, actuals?.overrides ?? {}), [days, weekStart, activities, actuals?.overrides]);
-  const week = useMemo(() => weekCompliance(matched, todayKey), [matched, todayKey]);
-
-  const rematch = async (activityId: number, value: string) => {
-    const body =
-      value === "auto" ? { activityId, clear: true } : value === "none" ? { activityId, weekStart, slot: null } : { activityId, weekStart, day: Number(value.split(":")[0]), slot: Number(value.split(":")[1]) };
-    await fetch("/api/plan/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    setReload((n) => n + 1);
-  };
-  const options = matched.flatMap((d) => d.entries.map((e) => ({ value: `${e.day}:${e.slot}`, label: `${t(DAY_NAMES[e.day]).slice(0, 3)} · ${t(SPORT_LABEL[e.entry.sport])}${e.entry.description ? ` · ${e.entry.description.slice(0, 24)}` : ""}` })));
-
-  if (week.planned === 0 && week.unplanned === 0) return null;
-  const sports = Object.entries(week.bySport).filter(([, s]) => s.plannedH > 0 || s.doneH > 0);
-
-  return (
-    <section className="rounded-2xl border border-line p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="label">{t("Plan vs done")}</p>
-        {week.score !== null && (
-          <p className="num text-2xl" style={{ color: week.score >= 80 ? COLOR.green : week.score >= 50 ? COLOR.yellow : COLOR.red }}>
-            {week.score}% <span className="label">{t("compliance")}</span>
-          </p>
-        )}
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-        <span>{t("{a} of {b} sessions done", { a: week.done, b: week.planned })}</span>
-        {week.missed > 0 && <span style={{ color: COLOR.red }}>{t("{n} missed", { n: week.missed })}</span>}
-        {week.unplanned > 0 && <span className="text-muted">{t("{n} unplanned", { n: week.unplanned })}{week.unplannedOnRest ? ` (${t("{n} on rest days", { n: week.unplannedOnRest })})` : ""}</span>}
-        {week.keyPlanned > 0 && <span>{t("Key sessions {a} of {b}", { a: week.keyDone, b: week.keyPlanned })}</span>}
-      </div>
-
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-        {sports.map(([sport, s]) => (
-          <li key={sport} className="text-sm">
-            <span className="label" style={{ color: SPORT_COLOR[sport as keyof typeof SPORT_COLOR] }}>{t(SPORT_LABEL[sport as keyof typeof SPORT_LABEL])}</span>{" "}
-            {fmt.num(s.doneH, 1)} / {fmt.num(s.plannedH, 1)} h
-            {s.plannedKm > 0 || s.doneKm > 0 ? ` · ${fmt.num(s.doneKm, 0)} / ${fmt.num(s.plannedKm, 0)} km` : ""}
-          </li>
-        ))}
-      </ul>
-
-      <ul className="mt-4 divide-y divide-line/60">
-        {matched
-          .filter((d) => d.date <= todayKey && (d.entries.length || d.unplanned.length))
-          .map((d) => (
-            <DayRow key={d.day} d={d} actuals={actuals} editable={editable} options={options} onRematch={rematch} />
-          ))}
-      </ul>
-      {actuals && actuals.pending.length > 0 && <p className="label mt-2">{t("Some laps are still being fetched from Strava: open the week again in a moment.")}</p>}
-    </section>
-  );
-}
-
-function DayRow({ d, actuals, editable, options, onRematch }: { d: DayMatch; actuals: Actuals | null; editable: boolean; options: { value: string; label: string }[]; onRematch: (id: number, v: string) => void }) {
-  const { t } = useI18n();
-  const doubles = new Map<string, number>();
-  return (
-    <li className="py-3">
-      <p className="label">
-        {t(DAY_NAMES[d.day])}
-        {d.rest && ` · ${t("Rest day")}`}
-      </p>
-      <div className="mt-2 space-y-3">
-        {d.entries.map((e) => {
-          const n = (doubles.get(e.entry.sport) ?? 0) + 1;
-          doubles.set(e.entry.sport, n);
-          return <EntryRow key={e.slot} e={e} nth={n} actuals={actuals} editable={editable} options={options} onRematch={onRematch} />;
-        })}
-        {d.unplanned.map((a) => (
-          <div key={a.id} className="rounded-xl border border-dashed border-line p-3 text-sm">
-            <span className="label">{d.rest ? t("Unplanned on a rest day") : t("Unplanned")}</span>
-            <p className="mt-1">
-              <span style={{ color: SPORT_COLOR[a.sport as keyof typeof SPORT_COLOR] }}>{t(SPORT_LABEL[a.sport as keyof typeof SPORT_LABEL] ?? a.sport)}</span> · {a.name} · {hm(a.elapsedTime)}
-              {a.distance > 0 ? ` · ${(a.distance / 1000).toFixed(1)} km` : ""}
-            </p>
-            {editable && <Rematch id={a.id} options={options} onRematch={onRematch} />}
-          </div>
-        ))}
-      </div>
-    </li>
-  );
-}
-
-function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: MatchedEntry; nth: number; actuals: Actuals | null; editable: boolean; options: { value: string; label: string }[]; onRematch: (id: number, v: string) => void }) {
+export function EntryRow({
+  e,
+  nth,
+  review,
+  actuals,
+  editable,
+  options,
+  weekStart,
+  onRematch,
+  onStatusSaved,
+}: {
+  e: MatchedEntry;
+  nth: number;
+  review: ReviewSession;
+  actuals: Actuals | null;
+  editable: boolean;
+  options: { value: string; label: string }[];
+  weekStart: string;
+  onRematch: (id: number, v: string) => void;
+  onStatusSaved: () => void;
+}) {
   const { t, fmt } = useI18n();
   const c = sessionCompliance(e);
   const a = e.activity;
@@ -148,22 +80,27 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
   const reps = a && laps && (target?.type === "pace-range" || target?.type === "power-range" || target?.type === "hr-range") ? workReps(laps, e.entry.structure, kind) : null;
   const range = reps && target ? rangeCompliance(reps, target) : null;
   const cap = a && target?.type === "hr-cap" && (target.max ?? target.min) ? hrCapCompliance((target.max ?? target.min)!, { hist: actuals?.hrHist?.[a.id], laps }) : null;
-  const fmtValue = (v: number | null) => (v == null ? "—" : target?.type === "pace-range" ? `${clock(v)} /km` : target?.type === "power-range" ? `${Math.round(v)} W` : `${Math.round(v)} bpm`);
+  const fmtValue = (v: number | null) => (v == null ? "-" : target?.type === "pace-range" ? `${clock(v)} /km` : target?.type === "power-range" ? `${Math.round(v)} W` : `${Math.round(v)} bpm`);
 
   return (
-    <div className="rounded-xl border border-line p-3" style={{ borderLeft: `4px solid ${COLOR[c.duration.color === "grey" && a ? c.distance.color : c.duration.color]}` }}>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="rounded-xl border border-line p-3" style={{ borderLeft: `4px solid ${STATE_COLOR[review.state]}` }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="label" style={{ color: SPORT_COLOR[e.entry.sport] }}>
+          {t(SPORT_LABEL[e.entry.sport])}
+          {nth > 1 ? ` · ${t("PM")}` : ""}
+        </span>
+        {e.entry.key && <span className="rounded-full border border-current px-1.5 text-[10px]">{t("key")}</span>}
+        <StatePill s={review} />
+        {review.reasonTag && <Chip color="var(--muted)">{review.reasonTag}</Chip>}
+        {review.source === "ai" && <span className="label normal-case">{t("from the Log")}</span>}
+      </div>
+
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <div className="text-sm">
-          <p className="label">
-            {t("Plan")} · <span style={{ color: SPORT_COLOR[e.entry.sport] }}>{t(SPORT_LABEL[e.entry.sport])}</span>
-            {nth > 1 ? ` · ${t("PM")}` : ""}
-            {e.entry.key && <span className="ml-2 rounded-full border border-current px-1.5 text-[10px]">{t("key")}</span>}
-          </p>
-          <p className="mt-0.5">{e.entry.name ? <span className="font-medium">{e.entry.name}</span> : null}{e.entry.name && e.entry.description ? " · " : ""}{e.entry.description || (e.entry.name ? "" : "—")}</p>
+          <p className="label">{t("Plan")}</p>
+          <p className="mt-0.5">{e.entry.name ? <span className="font-medium">{e.entry.name}</span> : null}{e.entry.name && e.entry.description ? " · " : ""}{e.entry.description || (e.entry.name ? "" : "-")}</p>
           <p className="label mt-0.5 normal-case">
-            {[e.entry.minutes ? `${Math.floor(e.entry.minutes / 60)}:${String(e.entry.minutes % 60).padStart(2, "0")} h` : null, e.entry.km ? `${e.entry.km} km` : null, e.entry.structure && structureText(e.entry.structure), target && targetText(target)]
-              .filter(Boolean)
-              .join(" · ")}
+            {[e.entry.minutes ? `${Math.floor(e.entry.minutes / 60)}:${String(e.entry.minutes % 60).padStart(2, "0")} h` : null, e.entry.km ? `${e.entry.km} km` : null, e.entry.structure && structureText(e.entry.structure), target && targetText(target)].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="text-sm">
@@ -183,12 +120,11 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
               </p>
             </>
           ) : (
-            <p className="mt-0.5">
-              <Chip color="grey">{t("Missed")}</Chip>
-            </p>
+            <p className="mt-0.5 text-muted">{review.state === "pending" ? t("Not yet") : t("Nothing recorded")}</p>
           )}
         </div>
       </div>
+      {review.note && <p className="mt-2 text-sm text-muted">{review.note}</p>}
 
       {range && range.first && (
         <div className="mt-3 overflow-x-auto">
@@ -212,8 +148,8 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
                   <td className="py-1 pr-3">{r.n}</td>
                   <td className="py-1 pr-3" style={{ color: r.verdict === "in" ? COLOR.green : r.verdict === "near" ? COLOR.yellow : COLOR.red }}>{fmtValue(r.value)}</td>
                   <td className="py-1 pr-3">{clock(r.durationS)}</td>
-                  <td className="py-1 pr-3">{r.distM ? `${Math.round(r.distM)} m` : "—"}</td>
-                  <td className="py-1">{r.hr ? Math.round(r.hr) : "—"}</td>
+                  <td className="py-1 pr-3">{r.distM ? `${Math.round(r.distM)} m` : "-"}</td>
+                  <td className="py-1">{r.hr ? Math.round(r.hr) : "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -221,40 +157,101 @@ function EntryRow({ e, nth, actuals, editable, options, onRematch }: { e: Matche
         </div>
       )}
       {a && laps && !range && target && target.type !== "hr-cap" && <p className="label mt-2">{t("No laps matched the planned reps.")}</p>}
-      {a && target && !laps && actuals && <p className="label mt-2">{t("Laps not loaded yet.")}</p>}
-      {a && editable && <Rematch id={a.id} options={options} onRematch={onRematch} />}
       {a && laps && !target && laps.length > 1 && (
         <p className="label mt-2 normal-case">
-          {t("Laps")}: {laps.slice(0, 12).map((l) => (lapPace(l) ? clock(lapPace(l)!) : "—")).join(" · ")}
+          {t("Laps")}: {laps.slice(0, 12).map((l) => (lapPace(l) ? clock(lapPace(l)!) : "-")).join(" · ")}
         </p>
+      )}
+
+      {editable && (
+        <details className="group mt-3">
+          <summary className="label cursor-pointer list-none underline-offset-2 hover:text-fg hover:underline">{t("Adjust")}</summary>
+          <div className="mt-3 space-y-3">
+            <StatusEditor s={review} weekStart={weekStart} onSaved={onStatusSaved} />
+            {a && (
+              <label className="flex items-center gap-2 text-xs text-muted">
+                {t("Wrong match? Move it to")}
+                <select defaultValue="" onChange={(x) => x.target.value && onRematch(a.id, x.target.value)} className="min-w-0 flex-1 rounded-lg border border-line bg-elev px-2 py-1.5 text-fg">
+                  <option value="">-</option>
+                  <option value="auto">{t("Automatic")}</option>
+                  <option value="none">{t("Unplanned")}</option>
+                  {options.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        </details>
       )}
     </div>
   );
 }
 
-function Rematch({ id, options, onRematch }: { id: number; options: { value: string; label: string }[]; onRematch: (id: number, v: string) => void }) {
+/** Override what Strava shows for a session: done, partial, skipped or changed, with the percent, a reason and a note. */
+function StatusEditor({ s, weekStart, onSaved }: { s: ReviewSession; weekStart: string; onSaved: () => void }) {
   const { t } = useI18n();
-  return (
-    <label className="mt-2 flex items-center gap-2 text-xs text-muted">
-      {t("Match to")}
-      <select defaultValue="" onChange={(e) => e.target.value && onRematch(id, e.target.value)} className="min-w-0 flex-1 rounded-lg border border-line bg-elev px-2 py-1.5 text-fg">
-        <option value="">—</option>
-        <option value="auto">{t("Automatic")}</option>
-        <option value="none">{t("Unplanned")}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+  void weekStart;
+  const [state, setState] = useState<SessionState>(s.state === "pending" ? "done" : (s.state as SessionState));
+  const [pct, setPct] = useState(s.percent ?? (s.state === "skipped" ? 0 : 100));
+  const [reason, setReason] = useState(s.reasonTag ?? "");
+  const [note, setNote] = useState(s.note ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-function Chip({ color, children }: { color: Color; children: React.ReactNode }) {
+  const send = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    setErr(null);
+    const res = await fetch("/api/context/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = (await res.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!res.ok) return setErr(j.error ?? String(res.status));
+    contextChanged();
+    onSaved();
+  };
+
   return (
-    <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: `color-mix(in srgb, ${COLOR[color]} 18%, transparent)`, color: COLOR[color], border: `1px solid ${COLOR[color]}` }}>
-      {children}
-    </span>
+    <div className="rounded-xl border border-line p-3">
+      <p className="label mb-2">{t("Status of this session")}</p>
+      <div className="grid grid-cols-4 gap-1.5" role="group" aria-label={t("Status of this session")}>
+        {(["done", "partial", "skipped", "changed"] as const).map((x) => (
+          <button key={x} onClick={() => { setState(x); if (x === "skipped") setPct(0); if (x === "done") setPct(100); }} aria-pressed={state === x} className={`label rounded-full border px-1 py-2 ${state === x ? "border-fg bg-fg text-bg" : "border-line hover:text-fg"}`}>
+            {t(STATE_LABEL[x])}
+          </button>
+        ))}
+      </div>
+      {(state === "partial" || state === "changed") && (
+        <label className="mt-3 block">
+          <span className="label">{t("Done")}: {pct}%</span>
+          <input type="range" min={0} max={100} step={5} value={pct} onChange={(x) => setPct(Number(x.target.value))} className="mt-1 w-full" />
+        </label>
+      )}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="block">
+          <span className="label mb-1 block">{t("Reason")}</span>
+          <select value={reason} onChange={(x) => setReason(x.target.value)} className="w-full rounded-xl border border-line bg-elev px-3 py-2.5 text-base text-fg">
+            <option value="">-</option>
+            {REASON_TAGS.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="label mb-1 block">{t("Note")}</span>
+          <input value={note} onChange={(x) => setNote(x.target.value)} maxLength={240} className="w-full rounded-xl border border-line bg-elev px-3 py-2.5 text-base text-fg" />
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button disabled={busy} onClick={() => void send({ plannedRef: s.ref, date: s.date, sport: s.entry.sport, status: state, percentDone: pct, reasonTag: reason || undefined, note })} className="label rounded-full border border-brand px-4 py-2 text-brand hover:bg-brand hover:text-bg disabled:opacity-50">
+          {busy ? t("Saving…") : t("Save status")}
+        </button>
+        {s.source !== "strava" && (
+          <button disabled={busy} onClick={() => void send({ plannedRef: s.ref, clear: true })} className="label rounded-full border border-line px-4 py-2 hover:text-fg">
+            {t("Back to what Strava shows")}
+          </button>
+        )}
+      </div>
+      <ErrorNote error={err} className="mt-2" />
+    </div>
   );
 }

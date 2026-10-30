@@ -4,6 +4,7 @@ import { readCheckins } from "@/lib/checkin-data";
 import { checkPlanKey } from "@/lib/lab/plan-auth";
 import { keySession, sanitizeDays, slotFilled } from "@/lib/lab/plan";
 import { mondayOf } from "@/lib/lab/progress";
+import { contextSnapshot } from "@/lib/context-data";
 import { getSupabase } from "@/lib/supabase";
 
 /**
@@ -17,6 +18,8 @@ export async function GET(request: NextRequest) {
   const history = await readCheckins(30);
   const today = history.find((c) => c.day === day) ?? null;
   const fresh = today ? readiness(today, history.filter((c) => c.day !== day)) : null;
+  // the Context Log: events can keep or lower the signal, never raise it
+  const ctx = await contextSnapshot(day, 30).catch(() => null);
 
   const { data: week } = await getSupabase().from("training_weeks").select("planned_sessions").eq("week_start", mondayOf(day)).maybeSingle();
   const days = sanitizeDays(week?.planned_sessions);
@@ -28,8 +31,13 @@ export async function GET(request: NextRequest) {
     {
       day,
       checkin: today,
-      signal: fresh?.signal ?? null,
+      signal: (ctx?.signal.final as string | null | undefined) ?? fresh?.signal ?? null,
+      checkinSignal: fresh?.signal ?? null,
       reasons: fresh?.reasons ?? [],
+      ctxReasons: ctx?.signal.eventReasons ?? [],
+      medical: ctx?.signal.medical ?? false,
+      openEvents: ctx ? ctx.events.filter((e) => e.status === "open").length : 0,
+      due: ctx?.due.length ?? 0,
       baselines: baselines(history, day),
       rest: plan?.rest ?? false,
       sessions,

@@ -60,6 +60,20 @@ export function sessionCookie(): string {
 /** Set-Cookie value that locks the device again. */
 export const clearCookie = () => `${PLAN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 
+/**
+ * Read access to the Context Log: a device unlocked with the password (cookie), the edit key in x-plan-key, OR the
+ * separate read-only token CONTEXT_READ_TOKEN in x-context-token (so the scheduled nightly review can read without the
+ * edit key). The token can never write: every write route checks checkPlanKey only.
+ */
+export function checkContextRead(request: Request): Response | null {
+  const token = process.env.CONTEXT_READ_TOKEN;
+  const given = request.headers.get("x-context-token") ?? "";
+  if (token && token.length >= 16 && given && safeEqual(given, token)) return null;
+  if (!editKey() && !(token && token.length >= 16)) return Response.json({ error: "Reading is not set up: define PLAN_EDIT_KEY or CONTEXT_READ_TOKEN on the server." }, { status: 503 });
+  if (editKey() && (hasSession(request) || keyMatches(request))) return null;
+  return Response.json({ error: "Locked: unlock the planner with the edit key." }, { status: 401 });
+}
+
 /** A ready error response, or null when the request may write (valid cookie or right key). */
 export function checkPlanKey(request: Request): Response | null {
   if (!editKey()) return Response.json({ error: "Editing is not set up: define PLAN_EDIT_KEY on the server." }, { status: 503 });

@@ -10,6 +10,10 @@ import { ErrorNote } from "../ErrorNote";
 import { SIGNAL_COLOR, useReasonText } from "../TodayCard";
 import { Hint, Panel } from "./LabBits";
 import { SessionsRpe } from "./SessionsRpe";
+import { ContextReasons } from "../ContextReasons";
+import { FollowupCard } from "./FollowupCard";
+import { eventSignal, finalSignal } from "@/lib/context-signal";
+import { useContextData } from "@/lib/use-context-data";
 import type { Profile } from "@/lib/lab/profile";
 import type { Activity } from "@/lib/strava/types";
 
@@ -126,6 +130,12 @@ export function CheckinTab({ activities, profile, todayKey }: { activities: Acti
   }, [form, list, day]);
   const base = useMemo(() => (list ? baselines(list, day) : null), [list, day]);
 
+  // the Context Log: open events and their answers can keep or lower the signal, never raise it
+  const ctx = useContextData(session.unlocked, brt(), 30).data;
+  const ctxSignal = useMemo(() => (ctx ? eventSignal(ctx.events, ctx.events.flatMap((e) => e.followups), day) : null), [ctx, day]);
+  const fin = useMemo(() => (ctxSignal ? finalSignal(preview, ctxSignal) : null), [preview, ctxSignal]);
+  const asked = (ctx?.events ?? []).filter((e) => e.status === "open" && e.startDate < day);
+
   const save = async () => {
     const body: Record<string, unknown> = { day };
     for (const k of dirty) {
@@ -184,7 +194,7 @@ export function CheckinTab({ activities, profile, todayKey }: { activities: Acti
     if (!src || dirty.has(field as keyof Form)) return null;
     return <span className="label ml-2 rounded-full border border-line px-2 py-0.5 normal-case">{src === "manual" ? t("typed") : src === "garmin" ? "Garmin" : "intervals.icu"}</span>;
   };
-  const sig = preview?.signal ?? null;
+  const sig = fin ? fin.signal : (preview?.signal ?? null);
 
   return (
     <div className="lab-enter space-y-6">
@@ -218,10 +228,20 @@ export function CheckinTab({ activities, profile, todayKey }: { activities: Acti
             ))}
           </ul>
         )}
+        {fin && sig && <ContextReasons reasons={fin.ctxReasons} medical={fin.medical} className="mt-2" />}
         {base && (!base.restingHR?.ready || !base.lnHrv?.ready) && (
           <p className="label mt-3">{t("Building baseline: {n} of 7 days", { n: Math.min(base.restingHR?.n ?? 0, base.lnHrv?.n ?? 0) })}</p>
         )}
       </section>
+
+      {asked.length > 0 && (
+        <section className="space-y-3" aria-label={t("Questions for today")}>
+          <p className="label text-brand">{t("Questions for today")}</p>
+          {asked.map((e) => (
+            <FollowupCard key={`${e.id}-${day}`} event={e} day={day} />
+          ))}
+        </section>
+      )}
 
       <Panel title={t("How did you wake up?")}>
         <div className="grid gap-4 sm:grid-cols-2">

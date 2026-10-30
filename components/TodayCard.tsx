@@ -6,6 +6,8 @@ import { ACTION, type Checkin, type Reason, type Signal } from "@/lib/checkin";
 import { SPORT_LABEL } from "@/lib/lab/plan";
 import type { PlanSlot } from "@/lib/lab/types";
 import { usePlanSession } from "@/lib/use-plan-session";
+import { ContextReasons } from "./ContextReasons";
+import type { CtxReason } from "@/lib/context-signal";
 
 export const SIGNAL_COLOR: Record<Signal, string> = { green: "#1fe08a", yellow: "#ffb020", red: "#ff4d4d" };
 
@@ -14,6 +16,10 @@ interface Today {
   checkin: Checkin | null;
   signal: Signal | null;
   reasons: Reason[];
+  ctxReasons: CtxReason[];
+  medical: boolean;
+  openEvents: number;
+  due: number;
   rest: boolean;
   sessions: PlanSlot[];
   key: PlanSlot | null;
@@ -67,13 +73,18 @@ export function TodayCard({ className = "" }: { className?: string }) {
             <p className="mt-1 text-muted">{t("No check-in yet today.")}</p>
           )}
         </div>
-        <a href="/lab#checkin" className="label rounded-full border border-line px-4 py-2.5 transition-colors hover:border-fg hover:text-fg">
-          {data.checkin ? t("Edit check-in") : t("Check in")} →
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a href="/lab#log" className="label rounded-full border border-line px-4 py-2.5 transition-colors hover:border-fg hover:text-fg">+ {t("Note")}</a>
+          <a href="/lab#checkin" className="label rounded-full border border-line px-4 py-2.5 transition-colors hover:border-fg hover:text-fg">
+            {data.checkin ? t("Edit check-in") : t("Check in")}
+            {data.due > 0 ? ` · ${t("{n} questions", { n: data.due })}` : ""} →
+          </a>
+        </div>
       </div>
 
       {data.signal && (
         <>
+          {data.openEvents > 0 && <ContextReasons reasons={data.ctxReasons} medical={data.medical} className="mt-2" />}
           <p className="mt-3 font-medium">{t(ACTION[data.signal])}</p>
           {data.reasons.length > 0 && (
             <ul className="mt-2 space-y-1 text-sm text-muted">

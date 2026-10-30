@@ -18,6 +18,7 @@ import { ScrollEffects } from "./ScrollEffects";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { TodayCard } from "./TodayCard";
+import { OpenEventBadge } from "./OpenEventBadge";
 import { Splash } from "./Splash";
 import { sectionRegistry } from "./sections/registry";
 
@@ -28,6 +29,7 @@ import { sectionRegistry } from "./sections/registry";
 export function Dashboard({
   season,
   hrZones,
+  openEvents,
   ...props
 }: {
   overview: StravaOverview;
@@ -36,12 +38,13 @@ export function Dashboard({
   titles: Record<number, string>;
   season: SeasonData;
   hrZones: HrZoneMap;
+  openEvents: number;
 }) {
   return (
     <LanguageProvider>
       <SeasonProvider season={season}>
         <HrZonesProvider value={hrZones}>
-          <DashboardInner {...props} races={season} />
+          <DashboardInner {...props} races={season} openEvents={openEvents} />
         </HrZonesProvider>
       </SeasonProvider>
     </LanguageProvider>
@@ -54,12 +57,14 @@ function DashboardInner({
   labels,
   titles,
   races,
+  openEvents,
 }: {
   overview: StravaOverview;
   activities: Activity[];
   labels: Record<number, string>;
   titles: Record<number, string>;
   races: SeasonData;
+  openEvents: number;
 }) {
   const [period, setPeriod] = useState<Period>(overview.currentYear);
   const ctx = useMemo(() => buildContext(overview, activities, period, labels, titles), [overview, activities, period, labels, titles]);
@@ -80,6 +85,7 @@ function DashboardInner({
       <main className="flex-1">
         <div className="mx-auto w-full max-w-6xl px-5 pt-6 empty:hidden sm:px-8">
           <TodayCard />
+          <OpenEventBadge count={openEvents} />
         </div>
         {enabled.map((id) => (
           <Fragment key={id}>{sectionRegistry[id](ctx)}</Fragment>

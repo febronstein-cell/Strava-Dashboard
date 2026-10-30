@@ -158,6 +158,16 @@ Seus dados reais entram pelo Supabase (Table Editor), sem mexer no código:
 
 **Como fazer:** adicionar prova ou fase: Lab → Season (aparece o botão com o planejador liberado). Check-in: Lab → Check-in (ou o cartão "Hoje"). RPE: no check-in (ontem e hoje) ou em Workout analysis. Sessão sem Strava: "Add a session Strava does not have" no check-in. Teste de natação: My Machine → Swim test (400 m e 200 m). Testes: `npm test`.
 
+### Registro de contexto (Context Log) e planejador por semana
+
+**Migração (uma vez, no SQL Editor do Supabase):** `supabase/schema-context.sql` (notas, eventos, status das sessões, acompanhamentos).
+
+**Variáveis novas:** `CONTEXT_READ_TOKEN` (16+ caracteres aleatórios): token **somente leitura** para a revisão noturna ler `GET /api/context?days=14` com o cabeçalho `x-context-token`. Ele nunca escreve. `CONTEXT_MODEL` (opcional; padrão Sonnet 5.5, esforço baixo).
+
+**Como funciona:** Lab → Hoje → **Registro**: escreva o que aconteceu (doença, estômago, dor, sono, estresse, viagem). A IA lê só o que você escreveu e devolve um evento (tipo, região, gravidade 1 a 5 só pelas suas palavras, causa só se você a disse) e as sessões afetadas (feita, parcial, pulada, alterada, com o percentual); você confere e corrige antes de salvar. Cada evento aberto vira uma pergunta no check-in da manhã seguinte ("Como está o seu estômago hoje?", escala 1 a 10, pior/igual/melhor, lista de sinais de alerta). O evento fecha sozinho com 9 ou 10 em dois dias seguidos, ou à mão; depois de 5 dias abertos sugere procurar um médico. O sinal do check-in só pode ser **mantido ou rebaixado** pelos eventos, nunca melhorado. Todos os limites estão em `lib/context-config.ts`. Escrever exige a mesma senha do planejador (cookie) ou a chave no cabeçalho `x-plan-key` (é assim que o Claude anota por você: `POST /api/context/note` com `autoConfirm: true`, que salva marcado como "não confirmada").
+
+**Planejador:** uma semana por vez. No computador, a barra lateral lista as semanas (horas contra a meta, preenchida ou não); no celular, uma faixa de semanas com setas. Cada semana tem três visões: **Plano** (faixa dos 7 dias e o dia escolhido), **Revisão** (resumo, planejado contra realizado por esporte, sessões perdidas com o motivo, dias dobrados; o emparelhamento com o Strava é automático e o ajuste manual fica em "Ajustar") e **Análise** (texto da IA, onde a semana se encaixa na temporada). Sessões perdidas fáceis nunca aparecem com sugestão de compensação.
+
 **Análise por IA:** coloque `ANTHROPIC_API_KEY` no `.env.local` e nas variáveis da Vercel (nunca no código). Cada treino **novo** é analisado uma única vez pelo webhook e o texto (inglês e português) fica na tabela `workout_analysis`; os visitantes só leem, então não geram custo. Para treinos antigos, com `npm run dev` aberto: `http://localhost:3000/api/lab/analyze?last=10` (essa rota não existe em produção).
 
 **Comentário diário de forma e fadiga:** a aba Form & Load mostra um comentário curto escrito pelo Claude sobre forma física, fadiga e frescor do dia. Ele é regravado automaticamente depois de cada treino novo (mesma chave `ANTHROPIC_API_KEY`); sem a chave, a aba mostra só os números.

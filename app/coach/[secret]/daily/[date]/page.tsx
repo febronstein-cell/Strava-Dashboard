@@ -51,6 +51,9 @@ export default async function CoachDailyPage({ params }: { params: Promise<{ sec
       <h2>Check-in</h2>
       {d.checkin ? <Rows data={d.checkin as unknown as Record<string, unknown>} /> : <p>No check-in for this date.</p>}
 
+      <h2>Context log</h2>
+      {d.context ? <Rows data={d.context as unknown as Record<string, unknown>} /> : <p>No context log data.</p>}
+
       <h2>Load</h2>
       {d.load ? <Rows data={d.load} /> : <p>No load data.</p>}
 

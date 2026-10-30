@@ -18,6 +18,7 @@ import { PlannerGate } from "../PlannerGate";
 import { ThemeToggle } from "../ThemeToggle";
 import { BuildsTab } from "./BuildsTab";
 import { CheckinTab } from "./CheckinTab";
+import { ContextTab } from "./ContextTab";
 import { DurabilityTab } from "./DurabilityTab";
 import { IntensityPanel } from "./IntensityPanel";
 import { LoadTab } from "./LoadTab";
@@ -30,11 +31,12 @@ import { SeasonTab } from "./SeasonTab";
 import { SwimTest } from "./SwimTest";
 
 /** "plan" is the hidden planner: it is not in the tab bar and opens only through its own address. */
-type TabId = "checkin" | "machine" | "load" | "durability" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
+type TabId = "checkin" | "log" | "machine" | "load" | "durability" | "progression" | "season" | "builds" | "races" | "workouts" | "plan";
 const PLAN_HASH = siteConfig.lab.planHash;
 const PLAN_TAB = { id: "plan" as const, label: "Training planner", blurb: "The whole year laid out from your race goals: fill each day by sport and get the week analysed and labelled." };
 const TABS: { id: TabId; label: string; short: string; blurb: string }[] = [
   { id: "checkin", label: "Check-in", short: "Check-in", blurb: "Twenty seconds each morning: how you slept and feel, plus what the watch measured, turned into a green, yellow or red signal." },
+  { id: "log", label: "Context Log", short: "Log", blurb: "Say what happened: illness, stomach, pain, sleep, stress, travel. It is linked to the sessions it affected and asked about the next morning." },
   { id: "machine", label: "My Machine", short: "Machine", blurb: "Your thresholds, FTP, LTHR and training zones, tested or estimated." },
   { id: "load", label: "Form & Load", short: "Form & Load", blurb: "Fitness, fatigue and form: how ready you are to train hard or to race." },
   { id: "durability", label: "Durability", short: "Durability", blurb: "Do pace and power hold when you are tired? Decoupling, second-half fade, fast starts and fatigue resistance." },
@@ -48,7 +50,7 @@ const TABS: { id: TabId; label: string; short: string; blurb: string }[] = [
 /** The tabs live in three groups: today, training and plan. The planner is the last tab of the plan group. */
 type GroupId = "today" | "training" | "plan";
 const GROUPS: { id: GroupId; label: string; tabs: TabId[] }[] = [
-  { id: "today", label: "Today", tabs: ["checkin", "load"] },
+  { id: "today", label: "Today", tabs: ["checkin", "log", "load"] },
   { id: "training", label: "Training", tabs: ["workouts", "durability", "progression", "machine"] },
   { id: "plan", label: "Plan", tabs: ["season", "builds", "races", "plan"] },
 ];
@@ -273,6 +275,7 @@ function LabInner({
         </header>
 
         {tab === "checkin" && <CheckinTab activities={activities} profile={profile} todayKey={todayKey} />}
+        {tab === "log" && <ContextTab todayKey={todayKey} />}
         {tab === "machine" && (
           <>
             <MachineTab profile={profile} lab={lab} />
