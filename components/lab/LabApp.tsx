@@ -268,10 +268,10 @@ function LabInner({
           el.style.setProperty("--my", `${e.clientY - r.top}px`);
         }}
       >
-        <header key={tab} className="lab-enter mb-6 sm:mb-10">
-          <p className="label text-brand">{t("Lab")}</p>
-          <h1 className="num lab-title mt-1 text-4xl uppercase sm:text-7xl">{t(current.label)}</h1>
-          <p className="mt-3 max-w-3xl text-muted">{t(current.blurb)}</p>
+        <header key={tab} className="lab-enter mb-4 sm:mb-10">
+          <p className="label hidden text-brand sm:block">{t("Lab")}</p>
+          <h1 className="num lab-title text-3xl uppercase sm:mt-1 sm:text-7xl">{t(current.label)}</h1>
+          <p className="mt-3 hidden max-w-3xl text-muted sm:block">{t(current.blurb)}</p>
         </header>
 
         {tab === "checkin" && <CheckinTab activities={activities} profile={profile} todayKey={todayKey} />}
@@ -302,7 +302,7 @@ function LabInner({
       </main>
 
       <footer className="mx-auto w-full max-w-6xl px-5 pb-28 sm:px-8 sm:pb-12">
-        <p className="label border-t border-line pt-6">
+        <p className="label border-t border-line pt-4 text-[10px] opacity-70 sm:pt-6 sm:text-xs sm:opacity-100">
           {t("Estimates from your Strava history. Not medical or coaching advice.")}
         </p>
       </footer>

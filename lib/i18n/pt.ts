@@ -1263,4 +1263,7 @@ export const pt: Record<string, string> = {
   "Planned": "Planejada",
   "Partly planned": "Planejada em parte",
   "Nothing planned": "Nada planejado",
+
+  // legend toggle
+  "What the marks mean": "O que significam as marcas",
 };

@@ -17,7 +17,6 @@ import { RacePopup } from "./RacePopup";
 import { ScrollEffects } from "./ScrollEffects";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
-import { TodayCard } from "./TodayCard";
 import { OpenEventBadge } from "./OpenEventBadge";
 import { Splash } from "./Splash";
 import { sectionRegistry } from "./sections/registry";
@@ -84,7 +83,6 @@ function DashboardInner({
       <SiteHeader ctx={ctx} period={period} onPeriod={setPeriod} sections={enabled} />
       <main className="flex-1">
         <div className="mx-auto w-full max-w-6xl px-5 pt-6 empty:hidden sm:px-8">
-          <TodayCard />
           <OpenEventBadge count={openEvents} />
         </div>
         {enabled.map((id) => (

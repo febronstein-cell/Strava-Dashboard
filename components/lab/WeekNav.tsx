@@ -110,12 +110,16 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
             </button>
           ))}
         </div>
-        <Legend />
+        <details className="mt-2">
+          <summary className="label cursor-pointer py-1 text-muted">{t("What the marks mean")}</summary>
+          <Legend />
+        </details>
       </div>
 
       {/* computer: a sidebar */}
       <aside className="hidden lg:block">
-        <div ref={side} className="sticky top-40 max-h-[calc(100vh-11rem)] overflow-y-auto rounded-2xl border border-line p-2" role="tablist" aria-label={t("Weeks")}>
+        <div className="sticky top-40">
+        <div ref={side} className="max-h-[calc(100vh-17rem)] overflow-y-auto rounded-2xl border border-line p-2" role="tablist" aria-label={t("Weeks")}>
           {rows.map((r, i) => (
             <div key={r.start}>
               {r.banner && (
@@ -155,6 +159,7 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
           ))}
         </div>
         <Legend />
+        </div>
       </aside>
     </>
   );

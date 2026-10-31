@@ -88,12 +88,12 @@ export function Panel({
   const folded = fold && !shown;
   const head = (
     <>
-      <h3 className="num break-words text-xl uppercase sm:text-3xl">{title}</h3>
-      {subtitle && <p className={`mt-1.5 max-w-2xl text-sm text-muted ${folded ? "hidden sm:block" : ""}`}>{subtitle}</p>}
+      <h3 className="num break-words text-lg uppercase sm:text-3xl">{title}</h3>
+      {subtitle && <p className="mt-1.5 hidden max-w-2xl text-sm text-muted sm:block">{subtitle}</p>}
     </>
   );
   return (
-    <div className="card lab-glow min-w-0 p-4 sm:p-7">
+    <div className="card lab-glow min-w-0 p-3.5 sm:p-7">
       <div className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 sm:mb-5 ${folded ? "mb-0" : "mb-4"}`}>
         {fold ? (
           <button type="button" onClick={() => setShown((v) => !v)} aria-expanded={shown} className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left sm:pointer-events-none sm:block">
