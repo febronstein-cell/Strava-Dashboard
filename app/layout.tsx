@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { Big_Shoulders, Geist, Geist_Mono } from "next/font/google";
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { siteConfig } from "@/site.config";
 import "./globals.css";
 
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col">
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
