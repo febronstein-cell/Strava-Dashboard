@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-10-30T15:04:23.177Z",
+  "generatedAt": "2026-11-01T15:12:23.216Z",
   "analyzed": {
-    "rides": 259
+    "rides": 260
   },
   "total": {
-    "rides": 259
+    "rides": 260
   },
   "power": {
     "5": {
@@ -22,10 +22,10 @@
       "indoor": true
     },
     "30": {
-      "watts": 729,
-      "id": 17918226399,
-      "name": "Zwift - INDOORw 13a/2026 A.2",
-      "date": "2026-03-30T18:55:52",
+      "watts": 730,
+      "id": 20809882956,
+      "name": "Zwift - New Workout",
+      "date": "2026-10-31T17:51:02",
       "indoor": true
     },
     "60": {
