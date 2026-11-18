@@ -32,3 +32,15 @@ export const CONTEXT_CONFIG = {
   /** Until the first follow-up answer, the signal follows the severity (1 to 5) the event was written with. */
   severityBeforeFirstAnswer: { 1: null, 2: null, 3: null, 4: "yellow", 5: "red" } as Record<number, "yellow" | "red" | null>,
 };
+
+/** What each event type is called on screen. */
+export const EVENT_TYPE_LABEL: Record<EventType, string> = {
+  GI: "Stomach or bowel",
+  illness: "Illness",
+  injury_pain: "Injury or pain",
+  fatigue: "Fatigue",
+  sleep: "Sleep",
+  stress: "Stress",
+  travel: "Travel",
+  other: "Other",
+};

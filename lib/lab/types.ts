@@ -70,6 +70,8 @@ export interface PlanStructure {
 
 /** One sport of one day, as filled in the planner. */
 export interface PlanSlot {
+  /** stable id of the session inside its plan version (kept when the session is moved or copied to Plan B or C) */
+  id?: string;
   sport: PlanSport;
   description: string;
   /** time in minutes */

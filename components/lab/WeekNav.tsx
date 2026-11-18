@@ -18,6 +18,8 @@ export interface WeekRow {
    */
   mark: "done" | "mid" | "low" | "planned" | "partial" | "empty";
   state: "past" | "current" | "future";
+  /** "B" or "C" when the week is no longer on Plan A */
+  version?: "B" | "C";
   /** the race this stretch builds towards: a banner is drawn when it changes */
   banner?: string;
 }
@@ -31,6 +33,16 @@ const MARK: Record<WeekRow["mark"], { glyph: string; cls: string }> = {
   empty: { glyph: "", cls: "border-line text-muted" },
 };
 const MARK_LABEL: Record<WeekRow["mark"], string> = { done: "Done as planned", mid: "Partly done", low: "Mostly missed", planned: "Planned", partial: "Partly planned", empty: "Nothing planned" };
+
+/** The B or C chip of a week that left Plan A. */
+const VersionChip = ({ v }: { v?: WeekRow["version"] }) => {
+  const { t } = useI18n();
+  return v ? (
+    <span title={t("Plan {x} active", { x: v })} className="num inline-flex size-4 shrink-0 items-center justify-center rounded text-[11px] leading-none" style={{ background: "var(--goal)", color: "var(--bg)" }}>
+      {v}
+    </span>
+  ) : null;
+};
 
 const Mark = ({ mark }: { mark: WeekRow["mark"] }) => {
   const { t } = useI18n();
@@ -106,7 +118,10 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
             >
               <span className="label">{date(r.start)}</span>
               <span className="num text-lg leading-none">{r.plannedH > 0 ? `${fmt.num(r.plannedH, 1)} h` : "-"}</span>
-              <Mark mark={r.mark} />
+              <span className="flex items-center gap-1">
+                <Mark mark={r.mark} />
+                <VersionChip v={r.version} />
+              </span>
             </button>
           ))}
         </div>
@@ -153,7 +168,10 @@ export function WeekNav({ rows, sel, onSel }: { rows: WeekRow[]; sel: string; on
                     </span>
                   ) : null}
                 </span>
-                <Mark mark={r.mark} />
+                <span className="flex flex-col items-center gap-1">
+                  <Mark mark={r.mark} />
+                  <VersionChip v={r.version} />
+                </span>
               </button>
             </div>
           ))}

@@ -10,6 +10,7 @@ import { buildSeason, defaultPriority, type SeasonRace } from "@/lib/lab/season"
 import { matchWeek, sessionCompliance, weekCompliance } from "@/lib/compliance";
 import { getOverrides } from "@/lib/laps-cache";
 import { readSeason } from "@/lib/season-data";
+import { weekVersionsSnapshot } from "@/lib/plan-week-snapshot";
 import { seasonBrief, triFormat } from "@/lib/season-plan";
 import { getSupabase } from "@/lib/supabase";
 
@@ -32,13 +33,14 @@ Choose "label" from what the week CONTAINS, not from the season model:
 - Recovery: easy movement after a race or a very hard block.
 Judge "hard" or "easy" against the athlete's own history: a week that looks big can be normal for them, and one that looks small can be a step up. Say so with numbers (hours, km, sessions per sport against the real weeks and against the previous build-up).
 
-The text ("en", plain text, 4 short paragraphs (5 when the week has started) separated by a blank line, 170 to 280 words in total):
+The text ("en", plain text, 4 short paragraphs (5 when the week has started, one more when "planVersions" is given) separated by a blank line, 170 to 340 words in total):
 1. What the week is and why this label: the main workouts and the weekly load against the real recent weeks and the previous build-up.
 2. Frequency and distribution: sessions per sport, doubles, rest days, where the hard days and the long sessions fall, whether hard days are too close together.
 3. Fit with the season: if your label differs from the expected phase, say it plainly and say what to change (or accept) so the week serves its purpose; if it matches, say what the week still lacks for this race (distance, how far away, what the race asks for).
 4. Only when "actualSoFar" is given (the week has started): what really happened so far, with numbers: compliance score, sessions missed or cut short (key sessions first), unplanned work (especially on rest days), planned against done hours per sport.
 5. One or two concrete tips.
-Rules: use ONLY the given data; read intensity only from the descriptions and never invent workouts; if a sport has no sessions say so; direct and encouraging, no hype, no emojis. "pt" is the same text in Brazilian Portuguese. "label" is exactly one of the allowed labels.`;
+Plan versions: when "planVersions" is given, the week was changed mid-way. Plan A is the week as first designed; Plan B a deliberate change by the athlete; Plan C a change forced by something that happened (illness, injury, life), linked to a Log event. "days" and "actualSoFar" are the PLAN OF RECORD: each day as planned in the version in force on that day ("planOfRecord" says which). Judge each day only against its plan of record. A session taken out by Plan B or C was removed on purpose: never call it missed, skipped or lost effort, and never suggest making it up. Then, in its own paragraph right after paragraph 1, explain the change from Plan A with "changeFromA" (hours, km and key sessions removed or changed, the date of each switch) and the athlete's own reasons: quote the version reason and the Log note word for word, in quotation marks. Never diagnose, never guess a medical cause, never add health advice beyond what the athlete wrote. Session moves inside a plan ("moves") are not changes of plan.
+Rules: use ONLY the given data; no em dashes (use commas, colons or full stops); read intensity only from the descriptions and never invent workouts; if a sport has no sessions say so; direct and encouraging, no hype, no emojis. "pt" is the same text in Brazilian Portuguese. "label" is exactly one of the allowed labels.`;
 
 const SCHEMA = {
   type: "object",
@@ -85,8 +87,39 @@ export async function POST(request: NextRequest) {
   const done = matched && weekCompliance(matched, todayKey);
 
   const t = totals(days);
+  const snap = await weekVersionsSnapshot(weekStart).catch(() => null);
+  const versioned = snap && snap.versions.some((v) => v.label !== "A" && v.status !== "draft");
   const facts = {
     weekStart,
+    planVersions: versioned
+      ? {
+          versions: snap.versions
+            .filter((v) => v.status !== "draft")
+            .map((v) => ({
+              name: v.name,
+              kind: v.label === "A" ? "original" : v.label === "B" ? "deliberate change" : "forced change",
+              status: v.status,
+              effectiveFrom: v.effectiveFrom,
+              switchedOnAt: v.activatedAt,
+              reasonInAthletesWords: v.reason,
+              logEventId: v.logEventId,
+              hours: v.hours,
+              days: v.days.map((d) => ({ day: DAY_NAMES[d.day], rest: d.rest ?? false, sessions: d.slots.filter(slotFilled).map((s) => ({ sport: SPORT_LABEL[s.sport], name: s.name ?? null, minutes: s.minutes, km: s.km, key: !!s.key })) })),
+            })),
+          planOfRecord: snap.planOfRecord.map((p) => ({ date: p.date, plan: p.name })),
+          changeFromA: {
+            hoursA: Number(snap.changeFromA.hoursA.toFixed(1)),
+            hoursNow: Number(snap.changeFromA.hoursNow.toFixed(1)),
+            kmA: Math.round(snap.changeFromA.kmA),
+            kmNow: Math.round(snap.changeFromA.kmNow),
+            removed: snap.changeFromA.sessions.filter((s) => s.kind === "removed").map((s) => ({ day: DAY_NAMES[s.dayA], name: s.name, minutes: s.minutesA, km: s.kmA, keyOrIntensity: s.key })),
+            changed: snap.changeFromA.sessions.filter((s) => s.kind === "changed").map((s) => ({ day: DAY_NAMES[s.dayA], name: s.name, minutesBefore: s.minutesA, minutesNow: s.minutesNow })),
+            added: snap.changeFromA.added.map((s) => ({ day: DAY_NAMES[s.day], name: s.name, minutes: s.minutes })),
+          },
+          moves: snap.moves.map((m) => ({ session: m.sessionId, from: m.fromDate, to: m.toDate })),
+          logEvents: snap.linkedEvents.map((e) => ({ id: e.id, type: e.type, status: e.status, causeInAthletesWords: e.causeStated, noteInAthletesWords: e.note, noteDate: e.noteDate })),
+        }
+      : null,
     days: days.map((d) => ({
       day: DAY_NAMES[d.day],
       rest: d.rest ?? false,

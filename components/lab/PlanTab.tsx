@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import { usePlanSession } from "@/lib/use-plan-session";
 import { useSeason } from "@/lib/season-context";
@@ -18,6 +18,8 @@ import { WeekNav, type WeekRow } from "./WeekNav";
 import { WeekReview } from "./WeekReview";
 import { matchWeek } from "@/lib/compliance";
 import { reviewWeek } from "@/lib/session-status";
+import { OPEN_WEEK_KEY, activeVersion, intensityToEasy, recordDays, type LinkedEvent, type PlanVersion } from "@/lib/lab/versions";
+import { ChangeFromABlock, VersionBar, eventLine, type VersionAction } from "./PlanVersions";
 
 const PHASE_COLOR: Record<SeasonPhase, string> = {
   base: "var(--swim)",
@@ -105,9 +107,60 @@ export function PlanTab({
   const [status, setStatus] = useState<Record<string, Status>>({});
   const [sel, setSel] = useState(current);
 
+  // ---- Plan A / B / C: loaded once the planner is unlocked (the reasons can hold health details)
+  const [versions, setVersions] = useState<Record<string, PlanVersion[]>>({});
+  const [events, setEvents] = useState<Record<number, LinkedEvent>>({});
+  const [selVer, setSelVer] = useState<Record<string, number>>({});
+  const [verBusy, setVerBusy] = useState(false);
+  const [verErr, setVerErr] = useState<string | null>(null);
+  const versionsRef = useRef(versions);
+  const planRef = useRef(plan);
+  useEffect(() => {
+    versionsRef.current = versions;
+    planRef.current = plan;
+  });
+
   // ---- write access: the server unlocks this device for 30 days with a signed httpOnly cookie (the key is never kept here)
   const session = usePlanSession();
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const loadVersions = async () => {
+    const r = await fetch("/api/plan/versions", { cache: "no-store" });
+    if (!r.ok) return;
+    const j = (await r.json()) as { versions: Record<string, PlanVersion[]>; events: LinkedEvent[] };
+    setVersions(j.versions ?? {});
+    setEvents(Object.fromEntries((j.events ?? []).map((e) => [e.id, e])));
+    // "Create Plan C from this event" in the Log opens the planner on that week and its draft
+    try {
+      const raw = sessionStorage.getItem(OPEN_WEEK_KEY);
+      if (raw) {
+        sessionStorage.removeItem(OPEN_WEEK_KEY);
+        const o = JSON.parse(raw) as { week?: string; versionId?: number };
+        if (o.week) setSel(o.week);
+        if (o.week && o.versionId) setSelVer((p) => ({ ...p, [o.week as string]: o.versionId as number }));
+      }
+    } catch {}
+  };
+  const unlocked = session.unlocked;
+  useEffect(() => {
+    if (!unlocked) return;
+    const id = setTimeout(() => void loadVersions(), 0);
+    return () => clearTimeout(id);
+  }, [unlocked]);
+
+  /** The plan of record of a week: each day from the version in force that day (the saved days when there are no versions). */
+  const recordOf = (week: string): PlanDay[] | undefined => (versions[week]?.length ? recordDays(versions[week], week).days : plan[week]);
+  const selOf = (week: string): PlanVersion | null => {
+    const vs = versions[week] ?? [];
+    return vs.find((v) => v.id === selVer[week]) ?? activeVersion(vs) ?? vs[0] ?? null;
+  };
+  /** A version changed here: keep the saved days (what the other tabs read) on the plan of record. */
+  const putVersions = (week: string, list: PlanVersion[]) => {
+    setVersions((p) => ({ ...p, [week]: list }));
+    const rec = recordDays(list, week).days;
+    setPlan((p) => ({ ...p, [week]: rec }));
+    onPlan(week, { days: rec });
+  };
   const set = (week: string, s: Status) => setStatus((p) => ({ ...p, [week]: s }));
 
   const call = async (path: string, body: unknown) => {
@@ -118,15 +171,33 @@ export function PlanTab({
   };
 
   /** Saves the week; when it is complete and its description is out of date, asks for a new one. */
-  const persist = async (week: string, days: PlanDay[]) => {
+  const persist = async (week: string, days: PlanDay[], versionId?: number) => {
     set(week, "saving");
     try {
-      await call("/api/plan", { weekStart: week, days });
-      if (isComplete(days) && written[week]?.hash !== planHash(days)) {
+      const r = (await call("/api/plan", { weekStart: week, days, versionId })) as { versions?: PlanVersion[] };
+      if (r.versions) {
+        // new sessions get their ids on the server; days typed while saving are kept and saved next
+        const local = versionsRef.current[week] ?? [];
+        const merged = r.versions.map((sv) => {
+          const lv = local.find((x) => x.id === sv.id);
+          return lv && lv.days !== days && (sv.id === versionId || (!versionId && sv.status === "active")) ? { ...sv, days: lv.days } : sv;
+        });
+        if (!local.length && planRef.current[week] !== days) {
+          const a = merged.find((x) => x.status === "active");
+          if (a) {
+            a.days = planRef.current[week] as PlanDay[];
+            clearTimeout(timers.current[week]);
+            timers.current[week] = setTimeout(() => void persist(week, a.days, a.id), 600);
+          }
+        }
+        putVersions(week, merged);
+      }
+      const rec = r.versions ? recordDays(r.versions, week).days : days;
+      if (isComplete(rec) && written[week]?.hash !== planHash(rec)) {
         set(week, "describing");
         const d = (await call("/api/plan/describe", { weekStart: week })) as unknown as Written;
         setWritten((p) => ({ ...p, [week]: d }));
-        onPlan(week, { days, title: d.title, description: { en: d.en, pt: d.pt, hash: d.hash } });
+        onPlan(week, { days: rec, title: d.title, description: { en: d.en, pt: d.pt, hash: d.hash } });
       }
       set(week, "saved");
     } catch (e) {
@@ -135,19 +206,68 @@ export function PlanTab({
   };
 
   const edit = (week: string, day: number, idx: number | null, patch: SlotPatch) => {
-    const days = (plan[week] ?? emptyDays()).map((d) => {
+    const v = selOf(week);
+    if (v?.status === "superseded") return;
+    const apply = (src: PlanDay[]) => src.map((d) => {
       if (d.day !== day) return d;
       if ("rest" in patch) return { ...d, rest: patch.rest };
       if ("add" in patch) return d.slots.length >= 10 ? d : { ...d, slots: [...d.slots, { sport: patch.add, description: "", minutes: null, km: null }] };
       if ("remove" in patch) return { ...d, slots: d.slots.filter((_, i) => i !== idx) };
       return { ...d, slots: d.slots.map((x, i) => (i === idx ? { ...x, ...patch } : x)) };
     });
-    setPlan((p) => ({ ...p, [week]: days }));
-    onPlan(week, { days });
+    if (v) setVersionDays(week, v, apply(v.days));
+    else {
+      const days = apply(plan[week] ?? emptyDays());
+      setPlan((p) => ({ ...p, [week]: days }));
+      onPlan(week, { days });
+      schedule(week, days);
+    }
+  };
+
+  const schedule = (week: string, days: PlanDay[], versionId?: number) => {
     if (!session.unlocked) return;
     clearTimeout(timers.current[week]);
     set(week, "idle");
-    timers.current[week] = setTimeout(() => void persist(week, days), 1300);
+    timers.current[week] = setTimeout(() => void persist(week, days, versionId), 1300);
+  };
+  const setVersionDays = (week: string, v: PlanVersion, days: PlanDay[]) => {
+    putVersions(week, (versions[week] ?? []).map((x) => (x.id === v.id ? { ...x, days } : x)));
+    schedule(week, days, v.id);
+  };
+
+  /** Create, activate, discard, move, swap: the server answers with the versions of the week. */
+  const versionAction = async (week: string, body: VersionAction): Promise<boolean> => {
+    setVerBusy(true);
+    setVerErr(null);
+    try {
+      // edits still waiting to be saved go first
+      clearTimeout(timers.current[week]);
+      const v = selOf(week);
+      if (v && v.status !== "superseded" && status[week] === "idle") await call("/api/plan", { weekStart: week, days: v.days, versionId: v.id });
+      const before = new Set((versions[week] ?? []).map((x) => x.id));
+      const r = (await call("/api/plan/versions", body)) as { versions: PlanVersion[] };
+      putVersions(week, r.versions);
+      const created = r.versions.find((x) => !before.has(x.id));
+      if (created) setSelVer((p) => ({ ...p, [week]: created.id }));
+      if (body.action === "activate" || body.action === "discard") setSelVer((p) => ({ ...p, [week]: activeVersion(r.versions)?.id ?? 0 }));
+      if (body.action === "create" || body.action === "activate") void loadVersions();
+      set(week, "saved");
+      // a new plan in force is analysed again (judged against the plan of record, with the change from Plan A)
+      const rec = recordDays(r.versions, week).days;
+      if (body.action === "activate" && isComplete(rec)) {
+        set(week, "describing");
+        const d = (await call("/api/plan/describe", { weekStart: week })) as unknown as Written;
+        setWritten((p) => ({ ...p, [week]: d }));
+        onPlan(week, { days: rec, title: d.title, description: { en: d.en, pt: d.pt, hash: d.hash } });
+        set(week, "saved");
+      }
+      return true;
+    } catch (e) {
+      setVerErr(e instanceof Error ? e.message : "failed");
+      return false;
+    } finally {
+      setVerBusy(false);
+    }
   };
 
   // ---- the weeks: the last few already gone that have a plan, then the whole year ahead
@@ -176,7 +296,8 @@ export function PlanTab({
   const rows = useMemo<WeekRow[]>(() => {
     let lastBanner = "";
     return weeks.map((w) => {
-      const d = plan[w.start];
+      const d = recordOf(w.start);
+      const act = activeVersion(versions[w.start] ?? []);
       const tot = d ? totals(d).hours : 0;
       const lp = labelPhase(written[w.start]?.title);
       const color = lp && lp !== "lighter" ? PHASE_COLOR[lp] : lp === "lighter" ? "var(--muted)" : PHASE_COLOR[w.phase];
@@ -185,16 +306,17 @@ export function PlanTab({
       return {
         start: w.start,
         color,
-        label: written[w.start]?.title ? t(written[w.start].title as string) : w.seasonPhase ? w.seasonPhase.name : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`,
+        label: act?.weekLabel || (written[w.start]?.title ? t(written[w.start].title as string) : w.seasonPhase ? w.seasonPhase.name : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`),
+        version: act && act.label !== "A" ? act.label : undefined,
         plannedH: tot,
-        targetH: w.target > 0 ? w.target : null,
+        targetH: act?.targetHours ?? (w.target > 0 ? w.target : null),
         mark: markOf(w.start, d),
         state: w.start < current ? "past" : w.start === current ? "current" : "future",
         banner,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeks, plan, written, current, t, activities, todayKey]);
+  }, [weeks, plan, written, current, t, activities, todayKey, versions]);
 
   const canEdit = session.unlocked;
   const w = weeks.find((x) => x.start === sel) ?? weeks[0];
@@ -229,14 +351,49 @@ export function PlanTab({
         <WeekPanel
           key={w.start}
           w={w}
-          days={plan[w.start] ?? emptyDays()}
+          days={recordOf(w.start) ?? emptyDays()}
+          editDays={selOf(w.start)?.days ?? plan[w.start] ?? emptyDays()}
+          version={selOf(w.start)}
+          versionBar={
+            versions[w.start]?.length ? (
+              <VersionBar
+                weekStart={w.start}
+                todayKey={todayKey}
+                versions={versions[w.start]}
+                selId={selOf(w.start)?.id ?? null}
+                onSel={(id) => setSelVer((p) => ({ ...p, [w.start]: id }))}
+                events={events}
+                editable={canEdit}
+                busy={verBusy}
+                error={verErr}
+                onAction={(body) => versionAction(w.start, body)}
+                onSuggest={(fromDay, minutes) => {
+                  const v = selOf(w.start);
+                  if (!v || v.status !== "draft") return 0;
+                  const r = intensityToEasy(v.days, fromDay, minutes);
+                  if (r.changed) setVersionDays(w.start, v, r.days);
+                  return r.changed;
+                }}
+              />
+            ) : null
+          }
+          changeBlock={versions[w.start]?.length ? <ChangeFromABlock versions={versions[w.start]} weekStart={w.start} events={events} /> : null}
+          eventClosed={(() => {
+            const prev = activeVersion(versions[addDays(w.start, -7)] ?? []);
+            const e = prev?.label === "C" && prev.logEventId != null ? events[prev.logEventId] : undefined;
+            return e && e.status === "closed" && !(versions[w.start] ?? []).some((v) => v.label !== "A" && v.status !== "draft") ? eventLine(e, t) : null;
+          })()}
+          onMove={(sessionId, toDay) => void versionAction(w.start, { action: "move", weekStart: w.start, sessionId, toDay })}
+          onSwap={(a, b) => void versionAction(w.start, { action: "swap", weekStart: w.start, a, b })}
+          weekTitle={activeVersion(versions[w.start] ?? [])?.weekLabel ?? null}
+          weekTarget={activeVersion(versions[w.start] ?? [])?.targetHours ?? null}
           written={written[w.start]}
           status={status[w.start] ?? "idle"}
           onEdit={(day, idx, patch) => edit(w.start, day, idx, patch)}
           activities={activities}
           todayKey={todayKey}
           editable={canEdit}
-          prevPlanned={totals(plan[addDays(w.start, -7)] ?? []).hours || null}
+          prevPlanned={totals(recordOf(addDays(w.start, -7)) ?? []).hours || null}
           lang={lang}
         />
       </div>
@@ -249,6 +406,15 @@ type View = "plan" | "review" | "analysis";
 function WeekPanel({
   w,
   days,
+  editDays,
+  version,
+  versionBar,
+  changeBlock,
+  eventClosed,
+  onMove,
+  onSwap,
+  weekTitle,
+  weekTarget,
   written,
   status,
   onEdit,
@@ -259,7 +425,19 @@ function WeekPanel({
   lang,
 }: {
   w: SeasonWeek;
+  /** the plan of record (each day from the version in force that day): what Review and the totals use */
   days: PlanDay[];
+  /** the days of the selected version: what the Plan view shows and edits */
+  editDays: PlanDay[];
+  version: PlanVersion | null;
+  versionBar: ReactNode;
+  changeBlock: ReactNode;
+  /** the Log event of last week's Plan C closed: this week starts again from Plan A */
+  eventClosed: string | null;
+  onMove: (sessionId: string, toDay: number) => void;
+  onSwap: (a: number, b: number) => void;
+  weekTitle: string | null;
+  weekTarget: number | null;
   written?: Written;
   status: Status;
   onEdit: (day: number, idx: number | null, patch: SlotPatch) => void;
@@ -280,10 +458,11 @@ function WeekPanel({
   });
   const tot = totals(days);
   const done = isComplete(days);
+  const canEditVersion = editable && version?.status !== "superseded";
   const lp = labelPhase(written?.title);
   const color = lp && lp !== "lighter" ? PHASE_COLOR[lp] : lp === "lighter" ? "var(--muted)" : PHASE_COLOR[w.phase];
   const dateOf = (iso: string) => fmt.dateLabel(`${iso}T00:00:00`, { day: "2-digit", month: "short" });
-  const target = w.targetRange && w.targetRange[0] !== w.targetRange[1] ? `${fmt.num(w.targetRange[0], 0)}–${fmt.num(w.targetRange[1], 0)}` : w.target > 0 ? fmt.num(w.target, 1) : null;
+  const target = weekTarget ? fmt.num(weekTarget, 1) : w.targetRange && w.targetRange[0] !== w.targetRange[1] ? `${fmt.num(w.targetRange[0], 0)}–${fmt.num(w.targetRange[1], 0)}` : w.target > 0 ? fmt.num(w.target, 1) : null;
   const views: { id: View; label: string }[] = [
     { id: "plan", label: t("Plan") },
     ...(started ? [{ id: "review" as const, label: t("Review") }] : []),
@@ -300,7 +479,7 @@ function WeekPanel({
             {w.start === mondayOf(todayKey) && <span className="ml-2 text-brand">{t("this week")}</span>}
           </p>
           <h3 className="num mt-1 text-3xl uppercase sm:text-4xl" style={{ color }}>
-            {written?.title ? t(written.title) : w.seasonPhase ? w.seasonPhase.name : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`}
+            {weekTitle ? weekTitle : written?.title ? t(written.title) : w.seasonPhase ? w.seasonPhase.name : `${t(w.phase)}${w.kind === "deload" ? ` · ${t("lighter week")}` : ""}`}
           </h3>
         </div>
         <div className="text-right">
@@ -324,11 +503,25 @@ function WeekPanel({
         ))}
       </div>
 
+      {eventClosed && (
+        <p className="rounded-2xl border border-line p-3 text-sm">
+          {t("Plan C event closed. Next week starts from Plan A.")} <span className="text-muted">({eventClosed})</span>
+        </p>
+      )}
+
       {view === "plan" && (
         <div className="fade-up space-y-4">
-          <DayStrip days={days} sel={sel} onSel={setSel} today={todayKey} weekStart={w.start} />
+          {versionBar}
+          <DayStrip days={editDays} sel={sel} onSel={setSel} today={todayKey} weekStart={w.start} />
           <div className="rounded-2xl border border-line p-3 sm:p-5">
-            <DayEditor day={days[sel]} weekStart={w.start} editable={editable} onEdit={onEdit} />
+            <DayEditor
+              day={editDays[sel]}
+              weekStart={w.start}
+              editable={canEditVersion}
+              onEdit={onEdit}
+              onMove={canEditVersion && version?.status === "active" ? onMove : undefined}
+              onSwap={canEditVersion && version?.status === "active" ? (other) => onSwap(sel, other) : undefined}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -348,7 +541,12 @@ function WeekPanel({
         </div>
       )}
 
-      {view === "review" && <WeekReview weekStart={w.start} days={days} activities={activities} todayKey={todayKey} editable={editable} />}
+      {view === "review" && (
+        <div className="space-y-4">
+          <WeekReview weekStart={w.start} days={days} activities={activities} todayKey={todayKey} editable={editable} />
+          {changeBlock}
+        </div>
+      )}
 
       {view === "analysis" && <AnalysisView w={w} written={written} days={days} done={done} tot={tot.hours} prevPlanned={prevPlanned} lang={lang} color={color} />}
     </div>

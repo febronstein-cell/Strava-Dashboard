@@ -162,6 +162,7 @@ export function sanitizeDays(input: unknown): PlanDay[] | null {
         slot.minutes = minutes;
         slot.km = km;
         if (typeof s.name === "string" && s.name.trim()) slot.name = s.name.trim().slice(0, 80);
+        if (typeof s.id === "string" && /^[\w-]{1,40}$/.test(s.id)) slot.id = s.id;
         if (s.key) slot.key = true;
         const target = cleanTarget(s.target);
         if (target) slot.target = target;

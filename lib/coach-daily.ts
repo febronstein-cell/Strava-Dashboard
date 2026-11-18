@@ -11,6 +11,7 @@ import { loadContext } from "@/lib/load-context";
 import { readSeason } from "@/lib/season-data";
 import { nextARace, phaseOn } from "@/lib/season-plan";
 import { contextSnapshot } from "@/lib/context-data";
+import { weekVersionsSnapshot } from "@/lib/plan-week-snapshot";
 import { readStreams } from "@/lib/streams-cache";
 import { getSupabase } from "@/lib/supabase";
 import { labZones } from "@/lib/zones-data";
@@ -120,12 +121,27 @@ export async function coachDaily(date: string) {
     patterns: ctx.patterns,
   };
 
+  // Plan A / B / C of the week: "plan" above is already the plan of record (each day from the version in force that day)
+  const vs = await weekVersionsSnapshot(weekStart).catch(() => null);
+  const planVersions = vs && vs.versions.length > 1
+    ? {
+        note: "Each day is judged against the version in force that day. Sessions taken out by Plan B or C were removed on purpose: they are not missed.",
+        active: vs.versions.find((v) => v.id === vs.activeVersionId)?.name ?? null,
+        versions: vs.versions.map((v) => ({ name: v.name, status: v.status, effectiveFrom: v.effectiveFrom, reason: v.reason, logEventId: v.logEventId, hours: v.hours })),
+        planOfRecord: vs.planOfRecord.map((p) => ({ date: p.date, plan: p.name })),
+        changeFromA: { hoursA: Number(vs.changeFromA.hoursA.toFixed(1)), hoursNow: Number(vs.changeFromA.hoursNow.toFixed(1)), removed: vs.changeFromA.sessions.filter((s) => s.kind === "removed").map((s) => s.name), changed: vs.changeFromA.sessions.filter((s) => s.kind === "changed").map((s) => s.name) },
+        moves: vs.moves.map((m) => ({ session: m.sessionId, from: m.fromDate, to: m.toDate })),
+        logEvents: vs.linkedEvents,
+      }
+    : null;
+
   const phase = phaseOn(season.phases, date);
   const next = nextARace(season.races, date);
   return {
     date,
     activities,
     plan: planned,
+    planVersions,
     checkin: c && {
       wakeTime: c.wakeTime ?? null,
       sleepHours: c.sleepHours ?? null,
