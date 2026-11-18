@@ -61,11 +61,16 @@ export function DayEditor({
   weekStart,
   editable,
   onEdit,
+  onMove,
+  onSwap,
 }: {
   day: PlanDay;
   weekStart: string;
   editable: boolean;
   onEdit: (day: number, idx: number | null, patch: SlotPatch) => void;
+  /** moving a session to another day of the active plan (a move, not a new version) */
+  onMove?: (sessionId: string, toDay: number) => void;
+  onSwap?: (otherDay: number) => void;
 }) {
   const { t } = useI18n();
   // slots opened by hand stay on screen while they are being typed into, even if they are still empty
@@ -78,7 +83,10 @@ export function DayEditor({
   return (
     <div className="fade-up space-y-4" key={`${weekStart}-${day.day}`}>
       <div className="flex items-center justify-between gap-3">
-        <h4 className="num text-2xl uppercase">{t(DAY_NAMES[day.day])}</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="num text-2xl uppercase">{t(DAY_NAMES[day.day])}</h4>
+          {onSwap && <MoveTo label={t("Swap with")} from={day.day} onPick={onSwap} />}
+        </div>
         <label className="label flex items-center gap-2">
           <input type="checkbox" checked={Boolean(day.rest)} disabled={!editable} onChange={(e) => onEdit(day.day, null, { rest: e.target.checked })} className="h-5 w-5 accent-[var(--brand)]" />
           {t("Rest day")}
@@ -108,6 +116,9 @@ export function DayEditor({
                     }}
                     onRemove={idx >= PLAN_SPORTS.length ? () => onEdit(day.day, idx, { remove: true }) : undefined}
                   />
+                  {onMove && s.id && slotFilled(s) && (
+                    <MoveTo label={t("Move to day")} from={day.day} onPick={(to) => onMove(s.id as string, to)} />
+                  )}
                 </div>
               );
             })}
@@ -133,5 +144,27 @@ export function DayEditor({
         </>
       )}
     </div>
+  );
+}
+
+/** A small day picker that acts as soon as a day is chosen. */
+function MoveTo({ label, from, onPick }: { label: string; from: number; onPick: (day: number) => void }) {
+  const { t } = useI18n();
+  return (
+    <select
+      aria-label={label}
+      value=""
+      onChange={(e) => e.target.value !== "" && onPick(Number(e.target.value))}
+      className="label mt-2 rounded-full border border-line bg-elev px-3 py-2 normal-case text-fg"
+    >
+      <option value="">{label}…</option>
+      {DAY_NAMES.map((n, i) =>
+        i === from ? null : (
+          <option key={n} value={i}>
+            {t(n)}
+          </option>
+        ),
+      )}
+    </select>
   );
 }

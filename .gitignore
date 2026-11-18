@@ -44,3 +44,4 @@ next-env.d.ts
 
 # copiado de node_modules por scripts/copy-maplibre-worker.mjs
 /public/maplibre/
+/backups

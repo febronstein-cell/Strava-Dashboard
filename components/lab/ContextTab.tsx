@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { BODY_AREAS, EVENT_TYPES, REASON_TAGS, type EventType } from "@/lib/context-config";
+import { BODY_AREAS, EVENT_TYPES, EVENT_TYPE_LABEL, REASON_TAGS, type EventType } from "@/lib/context-config";
 import type { Draft, DraftEvent, DraftImpact } from "@/lib/context-interpret";
 import { eventLabel } from "@/lib/context-signal";
 import { contextChanged, useContextData, type EventView } from "@/lib/use-context-data";
@@ -11,17 +11,11 @@ import { LockedHint } from "../EditLock";
 import { ErrorNote } from "../ErrorNote";
 import { FollowupCard } from "./FollowupCard";
 import { Hint, Panel } from "./LabBits";
+import { mondayOf } from "@/lib/lab/progress";
+import { OPEN_WEEK_KEY, type PlanVersion } from "@/lib/lab/versions";
+import { siteConfig } from "@/site.config";
 
-const TYPE_LABEL: Record<EventType, string> = {
-  GI: "Stomach or bowel",
-  illness: "Illness",
-  injury_pain: "Injury or pain",
-  fatigue: "Fatigue",
-  sleep: "Sleep",
-  stress: "Stress",
-  travel: "Travel",
-  other: "Other",
-};
+const TYPE_LABEL = EVENT_TYPE_LABEL;
 const STATE_LABEL = { done: "Done", partial: "Partial", skipped: "Skipped", changed: "Changed" } as const;
 const INPUT = "w-full rounded-xl border border-line bg-elev px-3 py-2.5 text-base text-fg";
 
@@ -217,6 +211,19 @@ function EventCard({ e, day, unconfirmed }: { e: EventView; day: string; unconfi
     if (!res.ok) return setErr(((await res.json().catch(() => ({}))) as { error?: string }).error ?? String(res.status));
     contextChanged();
   };
+  /** A Plan C draft of the event's week, linked to it and in force from the event's day; then the planner opens on it. */
+  const planC = async () => {
+    setErr(null);
+    const week = mondayOf(e.startDate);
+    const res = await fetch("/api/plan/versions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", weekStart: week, label: "C", logEventId: e.id, effectiveFrom: e.startDate }) });
+    const j = (await res.json().catch(() => ({}))) as { error?: string; versions?: PlanVersion[] };
+    if (!res.ok) return setErr(j.error ?? String(res.status));
+    const draft = (j.versions ?? []).filter((v) => v.status === "draft" && v.logEventId === e.id).sort((a, b) => b.id - a.id)[0];
+    try {
+      sessionStorage.setItem(OPEN_WEEK_KEY, JSON.stringify({ week, versionId: draft?.id }));
+    } catch {}
+    window.location.hash = siteConfig.lab.planHash;
+  };
   const patch = async (p: Record<string, unknown>) => {
     setErr(null);
     const res = await fetch("/api/context/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id, patch: p }) });
@@ -234,9 +241,12 @@ function EventCard({ e, day, unconfirmed }: { e: EventView; day: string; unconfi
             {unconfirmed && <span className="ml-2" style={{ color: "var(--goal)" }}>{t("not confirmed")}</span>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={() => setEdit((x) => !x)} className="label rounded-full border border-line px-3 py-2 hover:text-fg">{edit ? t("Done") : t("Edit")}</button>
           <button onClick={() => void close()} className="label rounded-full border border-line px-3 py-2 hover:text-fg">{t("Close event")}</button>
+          <button onClick={() => void planC()} className="label rounded-full border border-line px-3 py-2 hover:text-fg" title={t("Create Plan C from this event")}>
+            {t("Create Plan C from this event")}
+          </button>
         </div>
       </div>
       {e.causeStated && <p className="mt-2 text-sm">{t("Cause, in your words")}: “{e.causeStated}”</p>}
